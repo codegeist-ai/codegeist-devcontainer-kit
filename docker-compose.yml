@@ -1,0 +1,58 @@
+# docker-compose.yml - devcontainer runtime for codegeist.ai
+#
+# Why this exists:
+# - Uses the repo-local Dockerfile and entrypoint instead of a stock image.
+# - Opens the selected checkout path directly instead of relying on a synthetic
+#   /workspace bind mount.
+# - Keeps the development workspace reproducible across the repository root and
+#   repo-managed git worktrees.
+#
+# Inputs:
+# - USER and HOME from the local VS Code launch environment drive the container
+#   login name and opencode bind mounts.
+# - `start.sh` provides the real repository-root and current checkout-path mounts,
+#   the selected checkout as the working directory, the branch-based Compose
+#   project name and hostname, plus explicit host UID/GID values for the image
+#   build args.
+# - The workspace container runs as `${UID}:${GID}` so bind-mounted files keep
+#   the host numeric ownership.
+# - `.devcontainer/.env` keeps only the tracked static defaults that are shared
+#   across checkouts.
+#
+# Related files:
+# - .devcontainer/Dockerfile
+# - .devcontainer/entrypoint.sh
+# - .devcontainer/devcontainer.json
+# - .devcontainer/.env
+# - .devcontainer/.local.env
+# - .devcontainer/.local.env.example
+# - ../start.sh
+# - ../README.md
+services:
+  workspace:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+      args:
+        CONTAINER_USER: ${USER:-vscode}
+        CONTAINER_GROUP: ${USER:-vscode}
+        CONTAINER_UID: ${UID:-1000}
+        CONTAINER_GID: ${GID:-${UID:-1000}}
+    command: sleep infinity
+    user: "${UID}:${GID}"
+    hostname: ${CODEGEIST_HOSTNAME:-codegeist}
+    privileged: true
+    init: true
+    working_dir: ${CODEGEIST_REPO_WORKTREE:-/tmp}
+    env_file:
+      - .local.env
+    volumes:
+      - ${CODEGEIST_REPO_ROOT:-/tmp}:${CODEGEIST_REPO_ROOT:-/tmp}:cached
+      - ${CODEGEIST_REPO_WORKTREE:-/tmp}:${CODEGEIST_REPO_WORKTREE:-/tmp}:cached
+      - docker-data:/var/lib/docker
+      - ${OPENCODE_DIR_CONFIG}:/home/${USER:-vscode}/.config/opencode
+      - ${OPENCODE_DIR_SHARE}:/home/${USER:-vscode}/.local/share/opencode
+      - ${OPENCODE_DIR_STATE}:/home/${USER:-vscode}/.local/state/opencode
+    
+volumes:
+  docker-data:

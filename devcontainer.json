@@ -1,0 +1,41 @@
+// devcontainer.json - Compose-based devcontainer for codegeist.ai
+//
+// Why this exists:
+// - Uses the repo-local Dockerfile and entrypoint instead of a stock base image.
+// - Opens the selected checkout path directly so the active VS Code workspace
+//   matches CODEGEIST_REPO_WORKTREE inside the container.
+// - Uses the current host login name while the runtime can still sync UID/GID.
+//
+// Related files:
+// - .devcontainer/docker-compose.yml
+// - .devcontainer/Dockerfile
+// - .devcontainer/entrypoint.sh
+{
+	"name": "${localEnv:PROJECT_NAME}",
+	"dockerComposeFile": "docker-compose.yml",
+	"service": "workspace",
+	"workspaceFolder": "${localEnv:CODEGEIST_REPO_WORKTREE}",
+	"remoteUser": "${localEnv:USER}",
+	"containerUser": "${localEnv:USER}",
+	"updateRemoteUserUID": true,
+	"customizations": {
+		"vscode": {
+			// Extensions to install automatically when container is created
+			// These are installed inside the container, not on host machine
+			// Extensions are grouped by purpose for clarity
+			"extensions": [
+				"ms-azuretools.vscode-docker",
+				"docker.docker",
+				"redhat.vscode-yaml",
+				"TheNuProjectContributors.vscode-nushell-lang",
+				"pomdtr.excalidraw-editor",
+				"jebbs.plantuml",
+				"vmware.vscode-boot-dev-pack",
+				"vscjava.vscode-java-dependency",
+				"vscjava.vscode-java-test",
+				"vscjava.vscode-java-pack",
+				"Tim-Koehler.helm-intellisense"
+			]
+		}
+	}	
+}

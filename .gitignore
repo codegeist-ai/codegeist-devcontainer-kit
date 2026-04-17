@@ -1,0 +1,10 @@
+**
+!.gitignore
+!README.md
+!.env
+!.local.env.example
+!devcontainer.json
+!docker-compose.yml
+!Dockerfile
+!entrypoint.sh
+!tests.sh

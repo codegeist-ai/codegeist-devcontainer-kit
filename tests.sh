@@ -27,6 +27,8 @@ workspace_folder="${1:-$(dirname "$script_dir")}"
 local_env_path="$workspace_folder/.devcontainer/.local.env"
 temp_local_env=0
 start_time="$(date +%s)"
+compose_project_name=""
+container_id=""
 
 if command -v devcontainer >/dev/null 2>&1; then
   devcontainer_cmd=(devcontainer)
@@ -36,6 +38,54 @@ fi
 
 run_devcontainer() {
   env UID="$(id -u)" GID="$(id -g)" "${devcontainer_cmd[@]}" "$@"
+}
+
+run_compose() {
+  env \
+    UID="$(id -u)" \
+    GID="$(id -g)" \
+    CODEGEIST_REPO_ROOT="$CODEGEIST_REPO_ROOT" \
+    CODEGEIST_REPO_WORKTREE="$CODEGEIST_REPO_WORKTREE" \
+    COMPOSE_PROJECT_NAME="$compose_project_name" \
+    PROJECT_NAME="$PROJECT_NAME" \
+    CODEGEIST_HOSTNAME="$CODEGEIST_HOSTNAME" \
+    docker compose \
+      --project-name "$compose_project_name" \
+      -f "$workspace_folder/.devcontainer/docker-compose.yml" \
+      "$@"
+}
+
+start_devcontainer() {
+  local up_output=""
+  local parsed_ids=""
+
+  up_output="$(run_devcontainer up --workspace-folder "$workspace_folder" --log-level info 2>&1)"
+  printf '%s\n' "$up_output"
+
+  parsed_ids="$(printf '%s\n' "$up_output" | python3 -c 'import json, sys
+container_id = ""
+compose_name = ""
+for line in sys.stdin:
+    line = line.strip()
+    if not line.startswith("{"):
+        continue
+    try:
+        payload = json.loads(line)
+    except json.JSONDecodeError:
+        continue
+    container_id = payload.get("containerId", container_id)
+    compose_name = payload.get("composeProjectName", compose_name)
+print(container_id)
+print(compose_name)
+')"
+
+  container_id="$(printf '%s\n' "$parsed_ids" | python3 -c 'import sys; print(sys.stdin.read().splitlines()[0] if sys.stdin.readable() else "")')"
+  compose_project_name="$(printf '%s\n' "$parsed_ids" | python3 -c 'import sys; lines = sys.stdin.read().splitlines(); print(lines[1] if len(lines) > 1 else "")')"
+
+  if [ -z "$container_id" ]; then
+    printf 'Could not determine containerId from devcontainer up output\n' >&2
+    return 1
+  fi
 }
 
 run_timed_step() {
@@ -68,8 +118,10 @@ if [ -x "$workspace_folder/start.sh" ]; then
   done < <(W_NO_OPEN=1 "$workspace_folder/start.sh")
 fi
 
+compose_project_name="${COMPOSE_PROJECT_NAME:-$(basename "$workspace_folder") }"
+
 cleanup() {
-  run_devcontainer down --workspace-folder "$workspace_folder" >/dev/null 2>&1 || true
+  run_compose down >/dev/null 2>&1 || true
 
   if [ "$temp_local_env" = "1" ]; then
     rm -f "$local_env_path"
@@ -83,10 +135,10 @@ printf 'Testing devcontainer in %s\n' "$workspace_folder"
 run_timed_step 'read configuration' \
   run_devcontainer read-configuration --workspace-folder "$workspace_folder" >/dev/null
 run_timed_step 'start devcontainer' \
-  run_devcontainer up --workspace-folder "$workspace_folder" --log-level info
+  start_devcontainer
 run_timed_step 'exec smoke command' \
-  run_devcontainer exec --workspace-folder "$workspace_folder" bash -lc 'printf "devcontainer ok\n"'
+  docker exec "$container_id" bash -lc 'printf "devcontainer ok\n"'
 run_timed_step 'check nix' \
-  run_devcontainer exec --workspace-folder "$workspace_folder" bash -lc 'nix --version'
+  docker exec "$container_id" bash -lc 'nix --version'
 
 printf 'Total: %ss\n' "$(( $(date +%s) - start_time ))"

@@ -1,2 +1,4 @@
 services:
-  workspace: {}
+  workspace:
+    environment:
+      OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER: ${OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER:-true}

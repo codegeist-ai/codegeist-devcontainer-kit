@@ -53,5 +53,8 @@ repo path `.devcontainer/`, not as an arbitrary nested directory.
 
 - the repository uses a restrictive whitelist `.gitignore` so only the intended
   checked-in devcontainer files remain versioned
+- `compose.local.yml.example` shows how a checkout can disable the OpenCode
+  file watcher locally inside the container when bind-mounted workspace trees
+  would otherwise keep `opencode` busy even while idle
 - changes should stay focused on devcontainer behavior and not absorb unrelated
   consumer-repo workflow code such as project-specific `start.sh` launchers

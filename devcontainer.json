@@ -12,12 +12,19 @@
 // - .devcontainer/entrypoint.sh
 {
 	"name": "${localEnv:PROJECT_NAME}",
-	"dockerComposeFile": "docker-compose.yml",
+	"dockerComposeFile": [
+		"docker-compose.yml",
+		"compose.local.yml"
+	],
 	"service": "workspace",
 	"workspaceFolder": "${localEnv:CODEGEIST_REPO_WORKTREE}",
 	"remoteUser": "${localEnv:USER}",
 	"containerUser": "${localEnv:USER}",
 	"updateRemoteUserUID": true,
+	"remoteEnv": {
+		"OPENCODE_CONFIG_DIR": "${containerWorkspaceFolder}/.oc_local",
+		"WORKSPACE_FOLDER_BASENAME": "${localWorkspaceFolderBasename}"
+	},
 	"customizations": {
 		"vscode": {
 			// Extensions to install automatically when container is created

@@ -3,8 +3,10 @@
 !README.md
 !.env
 !.local.env.example
+!compose.local.yml.example
 !devcontainer.json
 !docker-compose.yml
 !Dockerfile
 !entrypoint.sh
-!tests.sh
+!tests/
+!tests/**

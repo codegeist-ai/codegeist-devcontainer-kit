@@ -16,11 +16,13 @@ Shared devcontainer kit intended to be checked out as `.devcontainer/` inside
 - `Dockerfile` - development image with Java 25, GraalVM, Maven, Docker tools,
   Nix, and supporting CLI tooling
 - `docker-compose.yml` - compose-based devcontainer runtime definition
+- `compose.local.yml.example` - tracked starter file for the ignored local
+  compose overlay
 - `devcontainer.json` - VS Code devcontainer entrypoint
 - `entrypoint.sh` - Docker daemon bootstrap inside the workspace container
 - `.env` - tracked compose defaults
 - `.local.env.example` - local-only environment template
-- `tests.sh` - smoke test for `devcontainer up`, `exec`, and `nix --version`
+- `tests/` - launcher regression and devcontainer smoke tests
 
 ## Integration Model
 
@@ -30,7 +32,8 @@ submodule or checked-out directory mounted at `.devcontainer/`.
 The current files keep their existing relative-path assumptions, for example:
 
 - `docker-compose.yml` uses `context: ..`
-- `tests.sh` defaults to the parent repository root above `.devcontainer/`
+- `tests/devcontainer-smoke.sh` defaults to the parent repository root above
+  `.devcontainer/`
 
 That means the repository is intentionally designed to live at the consuming
 repo path `.devcontainer/`, not as an arbitrary nested directory.
@@ -41,6 +44,10 @@ repo path `.devcontainer/`, not as an arbitrary nested directory.
 - consumers should create `.local.env` from `.local.env.example`
 - managed worktree launchers may symlink `.devcontainer/.local.env` back to a
   root-local file in the consuming repository
+- `compose.local.yml` is intentionally ignored so each checkout can add local
+  compose overlays without touching the shared base file
+- `start.sh` recreates `compose.local.yml` from
+  `compose.local.yml.example` when it is missing
 
 ## Development Notes
 

@@ -7,6 +7,8 @@
 # - Provides a system Maven installation so the app does not need a wrapper.
 # - Adds the Nix package manager for later package migration work without
 #   switching the devcontainer setup to flakes yet.
+# - Includes Hugo plus FTP clients so the shared workspace can also handle site
+#   preview and simple deployment tasks.
 #
 # Inputs:
 # - CONTAINER_USER and CONTAINER_GROUP select the login user created in the image.
@@ -24,6 +26,7 @@ ARG CONTAINER_GROUP=vscode
 ARG CONTAINER_UID=1000
 ARG CONTAINER_GID=1000
 ARG GRAALVM_VERSION=25.0.2
+ARG HUGO_VERSION=0.147.9
 
 ENV LANG=C.UTF-8 \
     LC_CTYPE=C.UTF-8 \
@@ -86,8 +89,10 @@ RUN apt-get update \
       docker-ce \
       docker-ce-cli \
       docker-compose-plugin \
+      ftp \
       gh \
       git \
+      lftp \
       gnupg \
       netcat-openbsd \
       maven \
@@ -112,6 +117,7 @@ RUN npm install -g --prefix /usr/local opencode-ai repomix @ast-grep/cli @devcon
 
 RUN python3 -m pip install --break-system-packages --no-cache-dir \
       ddgr \
+      graphifyy \
       lxml_html_clean \
       trafilatura
 
@@ -133,6 +139,13 @@ RUN curl -fsSL "https://github.com/go-task/task/releases/latest/download/task_li
  && tar -xzf /tmp/task.tar.gz -C /usr/local/bin task \
  && chmod +x /usr/local/bin/task \
  && rm -f /tmp/task.tar.gz
+
+RUN curl -fsSL "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-amd64.tar.gz" \
+      -o /tmp/hugo.tar.gz \
+ && tar -xzf /tmp/hugo.tar.gz -C /tmp hugo \
+ && install -m 0755 /tmp/hugo /usr/local/bin/hugo \
+ && hugo version \
+ && rm -f /tmp/hugo.tar.gz /tmp/hugo
 
 RUN curl -fsSL "https://github.com/graalvm/graalvm-ce-builds/releases/download/jdk-${GRAALVM_VERSION}/graalvm-community-jdk-${GRAALVM_VERSION}_linux-x64_bin.tar.gz" \
       -o /tmp/graalvm.tar.gz \

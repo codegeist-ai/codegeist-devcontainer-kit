@@ -46,7 +46,6 @@ runtime_gid="$(id -g)"
 runtime_opencode_dir_config="${OPENCODE_DIR_CONFIG:-$HOME/.config/opencode}"
 runtime_opencode_dir_share="${OPENCODE_DIR_SHARE:-$HOME/.local/share/opencode}"
 runtime_opencode_dir_state="${OPENCODE_DIR_STATE:-$HOME/.local/state/opencode}"
-runtime_session_volumes_file=""
 
 slugify_branch() {
   local branch_name="${1:-detached}"
@@ -208,28 +207,6 @@ has_open_workspace_window() {
   return 1
 }
 
-list_project_volumes() {
-  docker volume ls \
-    --filter "label=com.docker.compose.project=$runtime_project_name" \
-    --format '{{.Name}}'
-}
-
-record_session_volumes() {
-  local volumes_before_file=""
-  local volumes_after_file=""
-
-  volumes_before_file="$(mktemp)"
-  volumes_after_file="$(mktemp)"
-  runtime_session_volumes_file="$(mktemp)"
-
-  list_project_volumes | sort -u > "$volumes_before_file"
-  ensure_devcontainer_running "$1"
-  list_project_volumes | sort -u > "$volumes_after_file"
-  comm -13 "$volumes_before_file" "$volumes_after_file" > "$runtime_session_volumes_file"
-
-  rm -f "$volumes_before_file" "$volumes_after_file"
-}
-
 remove_stopped_project_containers() {
   local container_id=""
   local container_status=""
@@ -250,14 +227,11 @@ open_checkout() {
   local folder_uri="$(devcontainer_folder_uri "$checkout")"
 
   if [ "${REMOTE_CONTAINERS:-false}" = "true" ] && [ -n "${VSCODE_IPC_HOOK_CLI:-}" ] && [ -S "${VSCODE_IPC_HOOK_CLI}" ]; then
-    ensure_devcontainer_running "$checkout"
     code --new-window --folder-uri "$folder_uri"
     return 0
   fi
 
   if [ "${REMOTE_CONTAINERS:-false}" = "true" ]; then
-    ensure_devcontainer_running "$checkout"
-
     if [ -x /usr/bin/code ]; then
       env \
         -u VSCODE_IPC_HOOK_CLI \
@@ -274,8 +248,6 @@ open_checkout() {
 
     return 0
   fi
-
-  record_session_volumes "$checkout"
 
   env \
     PWD="$runtime_repo_worktree" \
@@ -311,42 +283,7 @@ cleanup_devcontainer_project() {
       --project-name "$runtime_project_name" \
       -f "$checkout/.devcontainer/docker-compose.yml" \
       -f "$checkout/compose.local.yml" \
-      down --remove-orphans >&2
-
-  if [ -n "$runtime_session_volumes_file" ] && [ -f "$runtime_session_volumes_file" ]; then
-    while IFS= read -r volume_name; do
-      if [ -n "$volume_name" ]; then
-        docker volume rm "$volume_name" >&2 || true
-      fi
-    done < "$runtime_session_volumes_file"
-  fi
-}
-
-ensure_devcontainer_running() {
-  local checkout="$1"
-
-  remove_stopped_project_containers
-
-  env \
-    PWD="$runtime_repo_worktree" \
-    CODEGEIST_REPO_ROOT="$runtime_repo_root" \
-    CODEGEIST_REPO_WORKTREE="$runtime_repo_worktree" \
-    COMPOSE_PROJECT_NAME="$runtime_project_name" \
-    PROJECT_NAME="$runtime_project_name" \
-    CODEGEIST_HOSTNAME="$runtime_hostname" \
-    UID="$runtime_uid" \
-    GID="$runtime_gid" \
-    OPENCODE_DIR_CONFIG="$runtime_opencode_dir_config" \
-    OPENCODE_DIR_SHARE="$runtime_opencode_dir_share" \
-    OPENCODE_DIR_STATE="$runtime_opencode_dir_state" \
-    bash -lc '
-      set -euo pipefail
-      if command -v devcontainer >/dev/null 2>&1; then
-        devcontainer up --workspace-folder "$1" --log-level info
-      else
-        npx --yes @devcontainers/cli up --workspace-folder "$1" --log-level info
-      fi
-    ' bash "$checkout" >&2
+      down --volumes --remove-orphans >&2
 }
 
 set_runtime_env() {
@@ -438,8 +375,4 @@ if [ "${REMOTE_CONTAINERS:-false}" != "true" ]; then
   else
     cleanup_devcontainer_project "$target"
   fi
-fi
-
-if [ -n "$runtime_session_volumes_file" ]; then
-  rm -f "$runtime_session_volumes_file"
 fi

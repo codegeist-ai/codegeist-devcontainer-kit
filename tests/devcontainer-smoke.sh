@@ -53,8 +53,11 @@ start_heartbeat() {
 
 if command -v devcontainer >/dev/null 2>&1; then
   devcontainer_cmd=(devcontainer)
-else
+elif command -v npx >/dev/null 2>&1; then
   devcontainer_cmd=(npx --yes @devcontainers/cli)
+else
+  printf 'Missing devcontainer CLI. Install `devcontainer` or Node.js with `npx` before running this smoke test.\n' >&2
+  exit 127
 fi
 
 run_devcontainer() {

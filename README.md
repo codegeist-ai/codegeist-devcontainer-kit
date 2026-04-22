@@ -16,11 +16,9 @@ Shared devcontainer kit intended to be checked out as `.devcontainer/` inside
 - `Dockerfile` - development image with Java 25, GraalVM, Maven, Docker tools,
   Nix, and supporting CLI tooling
 - `docker-compose.yml` - compose-based devcontainer runtime definition
-- `compose.local.yml.example` - tracked starter file for the ignored local
-  compose overlay
 - `devcontainer.json` - VS Code devcontainer entrypoint
 - `entrypoint.sh` - Docker daemon bootstrap inside the workspace container
-- `.env` - tracked compose defaults
+- `launch.sh` - checked-in launcher implementation used by `../start.sh`
 - `.local.env.example` - local-only environment template
 - `tests/` - launcher regression and devcontainer smoke tests
 
@@ -44,17 +42,13 @@ repo path `.devcontainer/`, not as an arbitrary nested directory.
 - consumers should create `.local.env` from `.local.env.example`
 - managed worktree launchers may symlink `.devcontainer/.local.env` back to a
   root-local file in the consuming repository
-- `compose.local.yml` is intentionally ignored so each checkout can add local
-  compose overlays without touching the shared base file
-- `start.sh` recreates `compose.local.yml` from
-  `compose.local.yml.example` when it is missing
+- tracked `.env` and `compose.local.yml` live in the consuming repository root
+  so every managed worktree shares one checked-in overlay and one checked-in
+  default env file
 
 ## Development Notes
 
 - the repository uses a restrictive whitelist `.gitignore` so only the intended
   checked-in devcontainer files remain versioned
-- `compose.local.yml.example` shows how a checkout can disable the OpenCode
-  file watcher locally inside the container when bind-mounted workspace trees
-  would otherwise keep `opencode` busy even while idle
 - changes should stay focused on devcontainer behavior and not absorb unrelated
   consumer-repo workflow code such as project-specific `start.sh` launchers

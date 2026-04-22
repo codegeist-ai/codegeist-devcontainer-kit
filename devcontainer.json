@@ -14,7 +14,7 @@
 	"name": "${localEnv:PROJECT_NAME}",
 	"dockerComposeFile": [
 		"docker-compose.yml",
-		"compose.local.yml"
+		"../compose.local.yml"
 	],
 	"service": "workspace",
 	"workspaceFolder": "${localEnv:CODEGEIST_REPO_WORKTREE}",

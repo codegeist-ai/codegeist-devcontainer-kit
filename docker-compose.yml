@@ -16,14 +16,16 @@
 #   build args.
 # - The workspace container runs as `${UID}:${GID}` so bind-mounted files keep
 #   the host numeric ownership.
-# - `.devcontainer/.env` keeps only the tracked static defaults that are shared
-#   across checkouts.
+# - `../.env` keeps the tracked static defaults that are shared across all
+#   managed worktrees, while `../compose.local.yml` carries the tracked
+#   workspace-specific mounts that sit outside the shared devcontainer kit.
 #
 # Related files:
 # - .devcontainer/Dockerfile
 # - .devcontainer/entrypoint.sh
 # - .devcontainer/devcontainer.json
-# - .devcontainer/.env
+# - ../.env
+# - ../compose.local.yml
 # - .devcontainer/.local.env
 # - .devcontainer/.local.env.example
 # - ../start.sh
@@ -49,7 +51,9 @@ services:
     env_file:
       - path: .local.env
         required: false
-      - .env
+      - ../.env
+    environment:
+      OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER: ${OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER:-true}
     volumes:
       - ${CODEGEIST_REPO_ROOT:-/tmp}:${CODEGEIST_REPO_ROOT:-/tmp}:cached
       - ${CODEGEIST_REPO_WORKTREE:-/tmp}:${CODEGEIST_REPO_WORKTREE:-/tmp}:cached

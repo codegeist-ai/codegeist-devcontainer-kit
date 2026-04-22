@@ -37,7 +37,7 @@ clear_stale_docker_pid() {
     fi
   fi
 
-  rm -f "$dockerd_pid_file"
+  sudo -n rm -f "$dockerd_pid_file"
 }
 
 ensure_docker_daemon() {

@@ -58,7 +58,13 @@ else
 fi
 
 run_devcontainer() {
-  env UID="$(id -u)" GID="$(id -g)" "${devcontainer_cmd[@]}" "$@"
+  env \
+    UID="$(id -u)" \
+    GID="$(id -g)" \
+    OPENCODE_DIR_CONFIG="${OPENCODE_DIR_CONFIG:-$HOME/.config/opencode}" \
+    OPENCODE_DIR_SHARE="${OPENCODE_DIR_SHARE:-$HOME/.local/share/opencode}" \
+    OPENCODE_DIR_STATE="${OPENCODE_DIR_STATE:-$HOME/.local/state/opencode}" \
+    "${devcontainer_cmd[@]}" "$@"
 }
 
 run_compose() {
@@ -70,11 +76,14 @@ run_compose() {
     COMPOSE_PROJECT_NAME="$compose_project_name" \
     PROJECT_NAME="$PROJECT_NAME" \
     CODEGEIST_HOSTNAME="$CODEGEIST_HOSTNAME" \
+    OPENCODE_DIR_CONFIG="${OPENCODE_DIR_CONFIG:-$HOME/.config/opencode}" \
+    OPENCODE_DIR_SHARE="${OPENCODE_DIR_SHARE:-$HOME/.local/share/opencode}" \
+    OPENCODE_DIR_STATE="${OPENCODE_DIR_STATE:-$HOME/.local/state/opencode}" \
     docker compose \
-      --project-name "$compose_project_name" \
-      -f "$workspace_folder/.devcontainer/docker-compose.yml" \
-      -f "$workspace_folder/.devcontainer/compose.local.yml" \
-      "$@"
+        --project-name "$compose_project_name" \
+        -f "$workspace_folder/.devcontainer/docker-compose.yml" \
+        -f "$workspace_folder/compose.local.yml" \
+        "$@"
 }
 
 start_devcontainer() {

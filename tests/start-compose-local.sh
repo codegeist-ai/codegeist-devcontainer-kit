@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
-# start-compose-local.sh - verify compose.local.yml bootstrap in a temporary git repo
+# start-compose-local.sh - verify the launcher relies on the tracked root overlay
 #
 # Why this exists:
-# - Proves that `start.sh` creates the ignored `compose.local.yml` from the
-#   tracked example before the devcontainer flow needs it.
+# - Proves that `start.sh` no longer needs a per-worktree
+#   `.devcontainer/compose.local.yml` bootstrap file.
+# - Confirms the tracked root `compose.local.yml` remains untouched when the
+#   launcher prepares a temporary repository checkout.
 # - Uses a real temporary Git repository so the launcher still exercises its
 #   normal repo-root and branch detection behavior.
 #
 # Related files:
 # - ../../start.sh
-# - ../compose.local.yml.example
+# - ../../compose.local.yml
 
 set -euo pipefail
 
@@ -31,8 +33,10 @@ copy_fixture_repo() {
 
   mkdir -p "$target_repo/.devcontainer"
   cp "$source_repo_root/start.sh" "$target_repo/start.sh"
+  cp "$devcontainer_dir/launch.sh" "$target_repo/.devcontainer/launch.sh"
   chmod +x "$target_repo/start.sh"
-  cp "$devcontainer_dir/compose.local.yml.example" "$target_repo/.devcontainer/compose.local.yml.example"
+  chmod +x "$target_repo/.devcontainer/launch.sh"
+  cp "$source_repo_root/compose.local.yml" "$target_repo/compose.local.yml"
   cp "$devcontainer_dir/.local.env.example" "$target_repo/.devcontainer/.local.env"
 }
 
@@ -42,51 +46,28 @@ run_launcher() {
   W_NO_OPEN=1 "$target_repo/start.sh" >/dev/null
 }
 
-test_creates_missing_compose_local() {
-  local repo_path="$temp_root/repo-create"
+test_preserves_tracked_root_compose_overlay() {
+  local repo_path="$temp_root/repo-root-overlay"
+  local expected_overlay=""
 
   mkdir -p "$repo_path"
   git init "$repo_path" >/dev/null
   copy_fixture_repo "$repo_path"
+  expected_overlay="$(<"$repo_path/compose.local.yml")"
+
+  run_launcher "$repo_path"
 
   if [ -e "$repo_path/.devcontainer/compose.local.yml" ]; then
-    printf 'compose.local.yml unexpectedly exists before launcher run\n' >&2
+    printf '.devcontainer/compose.local.yml should not be created anymore\n' >&2
     return 1
   fi
 
-  run_launcher "$repo_path"
-
-  test -f "$repo_path/.devcontainer/compose.local.yml"
-  assert_file_equals \
-    "$repo_path/.devcontainer/compose.local.yml.example" \
-    "$repo_path/.devcontainer/compose.local.yml"
-}
-
-test_preserves_existing_compose_local() {
-  local repo_path="$temp_root/repo-preserve"
-  local sentinel=""
-
-  mkdir -p "$repo_path"
-  git init "$repo_path" >/dev/null
-  copy_fixture_repo "$repo_path"
-  sentinel="$(cat <<'EOF'
-services:
-  workspace:
-    environment:
-      KEEP_ME: "1"
-EOF
-)"
-  printf '%s\n' "$sentinel" > "$repo_path/.devcontainer/compose.local.yml"
-
-  run_launcher "$repo_path"
-
-  if [ "$(<"$repo_path/.devcontainer/compose.local.yml")" != "$(printf '%s\n' "$sentinel")" ]; then
-    printf 'compose.local.yml was overwritten\n' >&2
+  if [ "$(<"$repo_path/compose.local.yml")" != "$expected_overlay" ]; then
+    printf 'root compose.local.yml was modified\n' >&2
     return 1
   fi
 }
 
-printf '[start] launcher compose.local bootstrap\n'
-test_creates_missing_compose_local
-test_preserves_existing_compose_local
-printf '[done] launcher compose.local bootstrap\n'
+printf '[start] launcher root compose overlay contract\n'
+test_preserves_tracked_root_compose_overlay
+printf '[done] launcher root compose overlay contract\n'

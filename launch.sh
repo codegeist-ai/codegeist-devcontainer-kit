@@ -222,30 +222,56 @@ remove_stopped_project_containers() {
   )
 }
 
+open_remote_checkout() {
+  local checkout="$1"
+  local folder_uri="$(devcontainer_folder_uri "$checkout")"
+
+  if [ -n "${VSCODE_IPC_HOOK_CLI:-}" ] && [ -S "${VSCODE_IPC_HOOK_CLI}" ]; then
+    env \
+      PWD="$runtime_repo_worktree" \
+      CODEGEIST_REPO_ROOT="$runtime_repo_root" \
+      CODEGEIST_REPO_WORKTREE="$runtime_repo_worktree" \
+      COMPOSE_PROJECT_NAME="$runtime_project_name" \
+      PROJECT_NAME="$runtime_project_name" \
+      CODEGEIST_HOSTNAME="$runtime_hostname" \
+      UID="$runtime_uid" \
+      GID="$runtime_gid" \
+      OPENCODE_DIR_CONFIG="$runtime_opencode_dir_config" \
+      OPENCODE_DIR_SHARE="$runtime_opencode_dir_share" \
+      OPENCODE_DIR_STATE="$runtime_opencode_dir_state" \
+      code --new-window --folder-uri "$folder_uri"
+    return 0
+  fi
+
+  if [ -x /usr/bin/code ]; then
+    env \
+      -u VSCODE_IPC_HOOK_CLI \
+      -u REMOTE_CONTAINERS \
+      -u REMOTE_CONTAINERS_IPC \
+      -u TERM_PROGRAM \
+      PWD="$runtime_repo_worktree" \
+      CODEGEIST_REPO_ROOT="$runtime_repo_root" \
+      CODEGEIST_REPO_WORKTREE="$runtime_repo_worktree" \
+      COMPOSE_PROJECT_NAME="$runtime_project_name" \
+      PROJECT_NAME="$runtime_project_name" \
+      CODEGEIST_HOSTNAME="$runtime_hostname" \
+      UID="$runtime_uid" \
+      GID="$runtime_gid" \
+      OPENCODE_DIR_CONFIG="$runtime_opencode_dir_config" \
+      OPENCODE_DIR_SHARE="$runtime_opencode_dir_share" \
+      OPENCODE_DIR_STATE="$runtime_opencode_dir_state" \
+      /usr/bin/code --new-window --folder-uri "$folder_uri"
+  else
+    printf 'Open this folder URI in VS Code: %s\n' "$folder_uri" >&2
+  fi
+}
+
 open_checkout() {
   local checkout="$1"
   local folder_uri="$(devcontainer_folder_uri "$checkout")"
 
-  if [ "${REMOTE_CONTAINERS:-false}" = "true" ] && [ -n "${VSCODE_IPC_HOOK_CLI:-}" ] && [ -S "${VSCODE_IPC_HOOK_CLI}" ]; then
-    code --new-window --folder-uri "$folder_uri"
-    return 0
-  fi
-
   if [ "${REMOTE_CONTAINERS:-false}" = "true" ]; then
-    if [ -x /usr/bin/code ]; then
-      env \
-        -u VSCODE_IPC_HOOK_CLI \
-        -u REMOTE_CONTAINERS \
-        -u REMOTE_CONTAINERS_IPC \
-        -u TERM_PROGRAM \
-        OPENCODE_DIR_CONFIG="$runtime_opencode_dir_config" \
-        OPENCODE_DIR_SHARE="$runtime_opencode_dir_share" \
-        OPENCODE_DIR_STATE="$runtime_opencode_dir_state" \
-        /usr/bin/code --new-window --folder-uri "$folder_uri"
-    else
-      printf 'Open this folder URI in VS Code: %s\n' "$folder_uri" >&2
-    fi
-
+    open_remote_checkout "$checkout"
     return 0
   fi
 

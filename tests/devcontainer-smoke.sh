@@ -208,5 +208,16 @@ run_timed_step 'check lftp' \
   docker exec "$container_id" bash -lc 'lftp --version >/dev/null'
 run_timed_step 'check graphify' \
   docker exec "$container_id" bash -lc 'python3 -c "import graphify"'
+run_timed_step 'check nested docker hello-world' \
+  docker exec "$container_id" bash -lc '
+    output="$(docker run --rm hello-world 2>&1)"
+    case "$output" in
+      *"Hello from Docker!"*) ;;
+      *)
+        printf "hello-world smoke output was unexpected\n%s\n" "$output" >&2
+        exit 1
+        ;;
+    esac
+  '
 
 printf 'Total: %ss\n' "$(( $(date +%s) - start_time ))"

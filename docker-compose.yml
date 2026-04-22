@@ -57,10 +57,8 @@ services:
     volumes:
       - ${CODEGEIST_REPO_ROOT:-/tmp}:${CODEGEIST_REPO_ROOT:-/tmp}:cached
       - ${CODEGEIST_REPO_WORKTREE:-/tmp}:${CODEGEIST_REPO_WORKTREE:-/tmp}:cached
-      - docker-data:/var/lib/docker
       - ${OPENCODE_DIR_CONFIG}:/home/${USER:-vscode}/.config/opencode
       - ${OPENCODE_DIR_SHARE}:/home/${USER:-vscode}/.local/share/opencode
       - ${OPENCODE_DIR_STATE}:/home/${USER:-vscode}/.local/state/opencode
-
-volumes:
-  docker-data:
+    tmpfs:
+      - /var/lib/docker:exec,size=16g

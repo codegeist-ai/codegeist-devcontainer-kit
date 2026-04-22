@@ -382,6 +382,23 @@ ensure_worktree_local_env_link() {
   ln -s "$link_target" "$link_path"
 }
 
+ensure_root_local_env() {
+  local root_local_env="$repo_root/.devcontainer/.local.env"
+  local root_local_env_example="$repo_root/.devcontainer/.local.env.example"
+
+  if [ -f "$root_local_env" ]; then
+    return 0
+  fi
+
+  if [ -f "$root_local_env_example" ]; then
+    cp "$root_local_env_example" "$root_local_env"
+    printf 'Created %s from %s\n' "$root_local_env" "$root_local_env_example" >&2
+    return 0
+  fi
+
+  return 1
+}
+
 if [ -n "$branch" ]; then
   target="$(ensure_worktree "$branch")"
 fi
@@ -390,10 +407,11 @@ ensure_submodule "$target" .opencode
 ensure_submodule "$target" .devcontainer
 
 ensure_worktree_local_env_link "$target"
+ensure_root_local_env || true
 
 if [ ! -f "$target/.devcontainer/.local.env" ]; then
   printf 'Missing %s\n' "$target/.devcontainer/.local.env" >&2
-  printf 'Create it manually from .devcontainer/.local.env.example in the repository root before rebuilding the devcontainer.\n' >&2
+  printf 'The launcher could not create it from .devcontainer/.local.env.example in the repository root.\n' >&2
 fi
 
 set_runtime_env "$target"

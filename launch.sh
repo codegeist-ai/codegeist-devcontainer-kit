@@ -266,9 +266,33 @@ open_remote_checkout() {
   fi
 }
 
+open_ipc_checkout() {
+  local checkout="$1"
+  local folder_uri="$(devcontainer_folder_uri "$checkout")"
+
+  env \
+    PWD="$runtime_repo_worktree" \
+    CODEGEIST_REPO_ROOT="$runtime_repo_root" \
+    CODEGEIST_REPO_WORKTREE="$runtime_repo_worktree" \
+    COMPOSE_PROJECT_NAME="$runtime_project_name" \
+    PROJECT_NAME="$runtime_project_name" \
+    CODEGEIST_HOSTNAME="$runtime_hostname" \
+    UID="$runtime_uid" \
+    GID="$runtime_gid" \
+    OPENCODE_DIR_CONFIG="$runtime_opencode_dir_config" \
+    OPENCODE_DIR_SHARE="$runtime_opencode_dir_share" \
+    OPENCODE_DIR_STATE="$runtime_opencode_dir_state" \
+    code --new-window --folder-uri "$folder_uri"
+}
+
 open_checkout() {
   local checkout="$1"
   local folder_uri="$(devcontainer_folder_uri "$checkout")"
+
+  if [ -n "${VSCODE_IPC_HOOK_CLI:-}" ] && [ -S "${VSCODE_IPC_HOOK_CLI}" ]; then
+    open_ipc_checkout "$checkout"
+    return 0
+  fi
 
   if [ "${REMOTE_CONTAINERS:-false}" = "true" ]; then
     open_remote_checkout "$checkout"

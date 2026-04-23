@@ -41,6 +41,7 @@ runtime_repo_root="$repo_root"
 runtime_repo_worktree="$repo_root"
 runtime_project_name="codegeist-ai-planer-root"
 runtime_hostname="codegeist-ai-planer"
+launch_hostname="$(hostname -s 2>/dev/null || hostname)"
 runtime_uid="$(id -u)"
 runtime_gid="$(id -g)"
 runtime_opencode_dir_config="${OPENCODE_DIR_CONFIG:-$HOME/.config/opencode}"
@@ -233,6 +234,7 @@ open_remote_checkout() {
       CODEGEIST_REPO_WORKTREE="$runtime_repo_worktree" \
       COMPOSE_PROJECT_NAME="$runtime_project_name" \
       PROJECT_NAME="$runtime_project_name" \
+      CODEGEIST_LAUNCH_HOSTNAME="$launch_hostname" \
       CODEGEIST_HOSTNAME="$runtime_hostname" \
       UID="$runtime_uid" \
       GID="$runtime_gid" \
@@ -254,6 +256,7 @@ open_remote_checkout() {
       CODEGEIST_REPO_WORKTREE="$runtime_repo_worktree" \
       COMPOSE_PROJECT_NAME="$runtime_project_name" \
       PROJECT_NAME="$runtime_project_name" \
+      CODEGEIST_LAUNCH_HOSTNAME="$launch_hostname" \
       CODEGEIST_HOSTNAME="$runtime_hostname" \
       UID="$runtime_uid" \
       GID="$runtime_gid" \
@@ -276,6 +279,7 @@ open_ipc_checkout() {
     CODEGEIST_REPO_WORKTREE="$runtime_repo_worktree" \
     COMPOSE_PROJECT_NAME="$runtime_project_name" \
     PROJECT_NAME="$runtime_project_name" \
+    CODEGEIST_LAUNCH_HOSTNAME="$launch_hostname" \
     CODEGEIST_HOSTNAME="$runtime_hostname" \
     UID="$runtime_uid" \
     GID="$runtime_gid" \
@@ -305,6 +309,7 @@ open_checkout() {
     CODEGEIST_REPO_WORKTREE="$runtime_repo_worktree" \
     COMPOSE_PROJECT_NAME="$runtime_project_name" \
     PROJECT_NAME="$runtime_project_name" \
+    CODEGEIST_LAUNCH_HOSTNAME="$launch_hostname" \
     CODEGEIST_HOSTNAME="$runtime_hostname" \
     UID="$runtime_uid" \
     GID="$runtime_gid" \
@@ -323,6 +328,7 @@ cleanup_devcontainer_project() {
     CODEGEIST_REPO_WORKTREE="$runtime_repo_worktree" \
     COMPOSE_PROJECT_NAME="$runtime_project_name" \
     PROJECT_NAME="$runtime_project_name" \
+    CODEGEIST_LAUNCH_HOSTNAME="$launch_hostname" \
     CODEGEIST_HOSTNAME="$runtime_hostname" \
     UID="$runtime_uid" \
     GID="$runtime_gid" \
@@ -408,6 +414,7 @@ if [ "${W_NO_OPEN:-0}" = "1" ]; then
   printf 'CODEGEIST_REPO_WORKTREE=%s\n' "$runtime_repo_worktree"
   printf 'COMPOSE_PROJECT_NAME=%s\n' "$runtime_project_name"
   printf 'PROJECT_NAME=%s\n' "$runtime_project_name"
+  printf 'CODEGEIST_LAUNCH_HOSTNAME=%s\n' "$launch_hostname"
   printf 'CODEGEIST_HOSTNAME=%s\n' "$runtime_hostname"
   printf 'UID=%s\n' "$runtime_uid"
   printf 'GID=%s\n' "$runtime_gid"

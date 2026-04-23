@@ -5,13 +5,16 @@
 // - Opens the selected checkout path directly so the active VS Code workspace
 //   matches CODEGEIST_REPO_WORKTREE inside the container.
 // - Uses the current host login name while the runtime can still sync UID/GID.
+// - Includes the short hostname of the machine that invoked the launcher in
+//   the VS Code title via CODEGEIST_LAUNCH_HOSTNAME (without overriding the
+//   container's own HOSTNAME).
 //
 // Related files:
 // - .devcontainer/docker-compose.yml
 // - .devcontainer/Dockerfile
 // - .devcontainer/entrypoint.sh
 {
-	"name": "${localEnv:PROJECT_NAME}",
+	"name": "${localEnv:CODEGEIST_LAUNCH_HOSTNAME}/${localEnv:PROJECT_NAME}",
 	"dockerComposeFile": [
 		"docker-compose.yml",
 		"../compose.local.yml"

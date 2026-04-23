@@ -10,7 +10,7 @@
 #   normal repo-root and branch detection behavior.
 #
 # Related files:
-# - ../../start.sh
+# - ../launch.sh
 # - ../../compose.local.yml
 
 set -euo pipefail
@@ -32,9 +32,7 @@ copy_fixture_repo() {
   local target_repo="$1"
 
   mkdir -p "$target_repo/.devcontainer"
-  cp "$source_repo_root/start.sh" "$target_repo/start.sh"
   cp "$devcontainer_dir/launch.sh" "$target_repo/.devcontainer/launch.sh"
-  chmod +x "$target_repo/start.sh"
   chmod +x "$target_repo/.devcontainer/launch.sh"
   cp "$source_repo_root/compose.local.yml" "$target_repo/compose.local.yml"
   cp "$devcontainer_dir/.local.env.example" "$target_repo/.devcontainer/.local.env"
@@ -43,7 +41,7 @@ copy_fixture_repo() {
 run_launcher() {
   local target_repo="$1"
 
-  W_NO_OPEN=1 "$target_repo/start.sh" >/dev/null
+  W_NO_OPEN=1 "$target_repo/.devcontainer/launch.sh" >/dev/null
 }
 
 test_preserves_tracked_root_compose_overlay() {

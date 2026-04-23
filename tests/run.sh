@@ -14,5 +14,6 @@ set -euo pipefail
 
 script_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 
+"$script_dir/launch-hostname-title.sh"
 "$script_dir/start-compose-local.sh"
 "$script_dir/devcontainer-smoke.sh"

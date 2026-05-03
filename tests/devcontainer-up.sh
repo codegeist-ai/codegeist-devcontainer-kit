@@ -48,6 +48,7 @@ expected_hostname="$(expected_generated_hostname "$fixture_dir" "")"
 
 container_id="$(extract_container_id_from_log "$log_file" || true)"
 [[ -n "$container_id" ]] || fail "could not extract workspace container id from devcontainer output"
+[[ "$(extract_remote_workspace_folder_from_log "$log_file" || true)" = "/workspace" ]] || fail "devcontainer up did not report /workspace as remote workspace folder"
 
 for _ in 1 2 3 4 5 6 7 8 9 10; do
   if docker exec -u "$expected_user_name" "$container_id" bash -lc 'test "$(id -un)" = "'"$expected_user_name"'" && test "$(hostname)" = "'"$expected_hostname"'" && test "$DEVCONTAINER_HOSTNAME" = "'"$expected_hostname"'" && test "$DEVCONTAINER_USER" = "'"$expected_user_name"'" && test "$DEVCONTAINER_UID:$DEVCONTAINER_GID" = "'"$expected_user"'" && docker ps >/dev/null'; then

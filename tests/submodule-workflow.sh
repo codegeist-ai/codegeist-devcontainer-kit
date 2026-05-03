@@ -54,6 +54,7 @@ git -C "$p1_dir" commit -m "add devcontainer submodule" >/dev/null
 BRANCH="$branch_name" devcontainer_cli up --workspace-folder "$p1_dir" | tee "$log_file"
 container_id="$(extract_container_id_from_log "$log_file" || true)"
 [[ -n "$container_id" ]] || fail "could not extract workspace container id from devcontainer output"
+[[ "$(extract_remote_workspace_folder_from_log "$log_file" || true)" = "/workspace" ]] || fail "submodule workflow did not report /workspace as remote workspace folder"
 
 worktree_path="$p1_dir/.worktrees/$branch_name"
 

@@ -44,6 +44,7 @@ create_git_fixture_repo "$repo_dir"
 BRANCH="$branch_name" devcontainer_cli up --workspace-folder "$repo_dir" | tee "$prepare_log_file"
 root_container_id="$(extract_container_id_from_log "$prepare_log_file" || true)"
 [[ -n "$root_container_id" ]] || fail "could not extract preparation container id from devcontainer output"
+[[ "$(extract_remote_workspace_folder_from_log "$prepare_log_file" || true)" = "/workspace" ]] || fail "worktree devcontainer did not report /workspace as remote workspace folder"
 
 worktree_path="$repo_dir/.worktrees/$branch_name"
 

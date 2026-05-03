@@ -1,2 +1,4 @@
 /.gen.env
 /compose.local.gen.yml
+/.env
+/.local.env

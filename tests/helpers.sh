@@ -124,6 +124,16 @@ extract_container_id_from_log() {
     | tail -n 1
 }
 
+extract_remote_workspace_folder_from_log() {
+  local log_file="$1"
+
+  tr -d '\r' <"$log_file" \
+    | grep -Eo '"remoteWorkspaceFolder":"[^"]+"' \
+    | tail -n 1 \
+    | cut -d: -f2- \
+    | tr -d '"'
+}
+
 extract_key_value() {
   local input="$1"
   local key="$2"
@@ -179,11 +189,26 @@ expected_container_user() {
   printf '%s\n' "${USER:-$(id -un)}"
 }
 
+copy_project_files() {
+  local target_dir="$1"
+
+  mkdir -p "$target_dir"
+
+  # Fixtures need the devcontainer kit files, not this repository's own Git
+  # database or AI workflow submodule.
+  tar \
+    --exclude='.git' \
+    --exclude='.opencode' \
+    -C "$project_root" \
+    -cf - . \
+    | tar -C "$target_dir" -xf -
+}
+
 create_fixture_repo() {
   local fixture_dir="$1"
 
   mkdir -p "$fixture_dir/.devcontainer"
-  cp -R "$project_root/." "$fixture_dir/.devcontainer/"
+  copy_project_files "$fixture_dir/.devcontainer"
   rm -rf "$fixture_dir/.devcontainer/tests"
   printf '# fixture\n' >"$fixture_dir/README.md"
 }
@@ -212,7 +237,7 @@ create_kit_submodule_repo() {
   local repo_dir="$1"
 
   create_git_repo "$repo_dir"
-  cp -R "$project_root/." "$repo_dir/"
+  copy_project_files "$repo_dir"
   rm -rf "$repo_dir/tests"
   git -C "$repo_dir" add .
   git -C "$repo_dir" commit -m "initial devcontainer kit" >/dev/null

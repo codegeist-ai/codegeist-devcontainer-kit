@@ -34,11 +34,11 @@ the Dev Containers CLI against the repository root:
 npx --yes @devcontainers/cli up --workspace-folder <repo-root>
 ```
 
-Without `BRANCH`, the Compose runtime mounts the repository root at
-`/workspace` and also at its host path. With `BRANCH`, `initializeCommand`
-creates or reuses the matching Git worktree and `docker-compose.yml` mounts that
-worktree at `/workspace` while still mounting the repository root at its host
-path for linked-worktree Git metadata.
+VS Code opens the container workspace at `/workspace`. Without `BRANCH`, the
+Compose runtime mounts the repository root there. With `BRANCH`,
+`initializeCommand` creates or reuses the matching Git worktree and
+`docker-compose.yml` mounts that worktree at `/workspace` while still mounting
+the repository root at its host path for linked-worktree Git metadata.
 
 ## Quick Start For Consuming Repos
 
@@ -59,7 +59,7 @@ Open the consuming repository root in VS Code and run
 code .
 ```
 
-To open a managed Git worktree as `/workspace`, still start VS Code from the
+To select a managed Git worktree at `/workspace`, still start VS Code from the
 consuming repository root and set `BRANCH`:
 
 ```bash
@@ -101,12 +101,24 @@ Run the local test suite from this repository root:
 task tests-run
 ```
 
-Run the manual VS Code reality test when you need to exercise the real editor
-entrypoint:
+Open the current Git root with the real VS Code entrypoint:
+
+```bash
+task code-open
+task code-open -- develop0
+```
+
+`BRANCH=develop0 task code-open` is still accepted for shell-driven runs. When a
+branch is passed as a task argument, the command writes `.devcontainer/.env` so
+VS Code and Docker Compose keep the branch even if an existing VS Code process
+handles the `code` request.
+
+Run the fixture-backed reality test when you need to exercise the same command
+against a temporary consuming repository:
 
 ```bash
 task code-open-test
-BRANCH=develop0 task code-open-test
+task code-open-test -- develop0
 ```
 
 The reality test intentionally leaves its temporary fixture and VS Code-started
@@ -444,8 +456,8 @@ optional and must not be required by `devcontainer.json`.
 ## Git Worktrees
 
 The kit provides `BRANCH` for worktree selection through the Dev Containers
-lifecycle. VS Code is still launched from the repository root; `BRANCH` only
-changes which checkout is mounted at `/workspace` inside the container.
+lifecycle. VS Code is still launched from the repository root, but the container
+workspace is `/workspace`; `BRANCH` changes which checkout is mounted there.
 
 Use it from a consuming repository where this kit is vendored at
 `.devcontainer/`:
@@ -459,7 +471,7 @@ During `initializeCommand`, `initialize.sh` creates or reuses
 repository defines them, creates root `.local.env` from
 `.devcontainer/.local.env.example` when missing, and links the worktree root
 `.local.env` back to the main root file. Without `BRANCH`, `/workspace` is the
-repository root.
+repository root. With `BRANCH`, `/workspace` is the selected worktree.
 
 When `BRANCH` is set, `docker-compose.yml` uses the same `BRANCH` value to mount
 `../.worktrees/<branch>` at `/workspace`. The second bind mount always mounts
@@ -474,9 +486,19 @@ start VS Code again with the new `BRANCH` value.
 
 ## VS Code Reality Test
 
-Use the manual reality test when you want to verify the real editor entrypoint.
-It creates a temporary Git repository, copies this kit into `.devcontainer/`, and
-opens VS Code at that repository root.
+Use `code-open` as the real editor entrypoint from a consuming repository root.
+It refuses to run outside Git, from a Git subdirectory, or without
+`.devcontainer/devcontainer.json`.
+
+```bash
+task code-open
+task code-open -- develop0
+```
+
+Use the manual reality test when you want to verify that same entrypoint through
+a temporary consuming repository. It creates a temporary Git repository, copies
+this kit into `.devcontainer/`, and then invokes the real `code-open` task
+against that fixture.
 
 ```bash
 task code-open-test
@@ -485,8 +507,13 @@ task code-open-test
 To verify branch selection through the normal root-start flow:
 
 ```bash
-BRANCH=develop0 task code-open-test
+task code-open-test -- develop0
 ```
+
+`BRANCH=develop0 task code-open-test` is still accepted when an environment
+variable is more convenient. The task-argument form records `BRANCH` in the
+workspace `.devcontainer/.env`, which makes branch selection stable when
+`code .` is forwarded to an already running VS Code process.
 
 The temporary fixture is intentionally left on disk because VS Code is opened
 against it.
@@ -498,6 +525,7 @@ Generated or machine-local files should not be committed.
 Typical examples:
 
 - `.local.env`
+- `.devcontainer/.env`
 - `compose.local.yml`
 - generated runtime metadata
 - editor state

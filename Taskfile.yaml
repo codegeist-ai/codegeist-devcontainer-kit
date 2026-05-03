@@ -12,8 +12,9 @@
 # Related files:
 # - Dockerfile
 # - entrypoint.sh
+# - scripts/code-open.sh
 # - tests/run.sh
-# - tests/code-open.sh
+# - tests/code-open-test.sh
 
 version: '3'
 
@@ -71,7 +72,12 @@ tasks:
     cmds:
       - '{{.TASKFILE_DIR}}/tests/run.sh'
 
+  code-open:
+    desc: Open the current Git root in VS Code
+    cmds:
+      - '{{.TASKFILE_DIR}}/scripts/code-open.sh {{.CLI_ARGS}}'
+
   code-open-test:
     desc: Create a temp consuming repo and open it with VS Code
     cmds:
-      - '{{.TASKFILE_DIR}}/tests/code-open.sh'
+      - '{{.TASKFILE_DIR}}/tests/code-open-test.sh {{.CLI_ARGS}}'

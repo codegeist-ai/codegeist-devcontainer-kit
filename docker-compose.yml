@@ -1,0 +1,60 @@
+# docker-compose.yml - generic devcontainer runtime
+#
+# Why this exists:
+# - Uses the repo-local Dockerfile and entrypoint instead of a stock image.
+# - Keeps the runtime reusable for repository roots and Git worktrees without
+#   product-specific environment variable names.
+# - Mounts either the consuming repository root or the BRANCH-selected managed
+#   worktree at `/workspace`.
+# - Mounts the consuming repository root at its host path as a second bind so
+#   linked Git worktree metadata resolves inside the container.
+# - Provides the image build, privileged Docker-in-Docker runtime, and local env
+#   injection.
+#
+# Inputs:
+# - CONTAINER_USER, CONTAINER_GROUP, CONTAINER_UID, and CONTAINER_GID customize
+#   the workspace user created by the Dockerfile.
+# - UID selects the numeric runtime user and group for bind-mounted workspaces.
+# - compose.local.gen.yml sets the generated container hostname.
+# - BRANCH selects `../.worktrees/<branch>` as `/workspace` when set.
+# - PWD is used as the parent mount target and must be the consuming repo root.
+# - DEVCONTAINER_DOCKER_TMPFS_SIZE controls the nested Docker tmpfs size.
+#
+# Related files:
+# - devcontainer.json
+# - Dockerfile
+# - entrypoint.sh
+# - initialize.sh
+# - ../compose.local.yml
+# - .gen.env
+# - compose.local.gen.yml
+# - ../.local.env
+services:
+  workspace:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+      args:
+        CONTAINER_USER: ${CONTAINER_USER:-${USER:-vscode}}
+        CONTAINER_GROUP: ${CONTAINER_GROUP:-${USER:-vscode}}
+        CONTAINER_UID: ${CONTAINER_UID:-1000}
+        CONTAINER_GID: ${CONTAINER_GID:-${UID:-1000}}
+    command: sleep infinity
+    hostname: ${DEVCONTAINER_HOSTNAME:-devcontainer}
+    user: "${UID:-1000}:${UID:-1000}"
+    privileged: true
+    init: true
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    env_file:
+      - path: .gen.env
+        required: false
+      - path: ../.local.env
+        required: false
+    environment:
+      OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER: ${OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER:-true}
+    volumes:
+      - ${BRANCH:+../.worktrees/}${BRANCH:-..}:/workspace:cached
+      - ..:${PWD:?PWD must point to the consuming repository root}:cached
+    tmpfs:
+      - /var/lib/docker:exec,size=${DEVCONTAINER_DOCKER_TMPFS_SIZE:-16g}

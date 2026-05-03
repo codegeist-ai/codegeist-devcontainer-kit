@@ -1,0 +1,83 @@
+# Taskfile.yaml - development and test tasks for the generic devcontainer kit
+#
+# Why this exists:
+# - keeps the kit's Docker and smoke-test commands close to the files they verify
+# - provides a stable entrypoint for tests without adding root-level wrappers
+#
+# Inputs:
+# - WORKSPACE selects the host path mounted into docker-run, defaulting to $PWD.
+# - COMMAND selects the docker-run command, defaulting to devcontainer up.
+# - CONTAINER_* values can align the image user with the caller.
+#
+# Related files:
+# - Dockerfile
+# - entrypoint.sh
+# - scripts/code-open.sh
+# - tests/run.sh
+# - tests/code-open-test.sh
+
+version: '3'
+
+vars:
+  IMAGE: codegeist-devcontainer-kit:local
+  WORKSPACE:
+    sh: printf '%s' "${WORKSPACE:-$PWD}"
+  COMMAND:
+    sh: printf '%s' "${COMMAND:-devcontainer up --workspace-folder .}"
+  CONTAINER_USER:
+    sh: printf '%s' "${CONTAINER_USER:-${USER:-$(id -un)}}"
+  CONTAINER_GROUP:
+    sh: printf '%s' "${CONTAINER_GROUP:-${USER:-$(id -un)}}"
+  CONTAINER_UID:
+    sh: printf '%s' "${CONTAINER_UID:-${UID:-$(id -u)}}"
+  CONTAINER_GID:
+    sh: printf '%s' "${CONTAINER_GID:-${UID:-$(id -u)}}"
+
+tasks:
+  docker-build:
+    desc: Build the generic devcontainer kit image
+    cmds:
+      - >-
+        bash -lc 'tmp_dir="$(mktemp -d)";
+        cleanup() { rm -rf "$tmp_dir"; };
+        trap cleanup EXIT;
+        mkdir -p "$tmp_dir/.devcontainer";
+        cp -R "{{.TASKFILE_DIR}}/." "$tmp_dir/.devcontainer/";
+        rm -rf "$tmp_dir/.devcontainer/tests";
+        docker build
+        --build-arg CONTAINER_USER={{.CONTAINER_USER}}
+        --build-arg CONTAINER_GROUP={{.CONTAINER_GROUP}}
+        --build-arg CONTAINER_UID={{.CONTAINER_UID}}
+        --build-arg CONTAINER_GID={{.CONTAINER_GID}}
+        -f "$tmp_dir/.devcontainer/Dockerfile"
+        -t {{.IMAGE}}
+        "$tmp_dir"'
+
+  docker-run:
+    desc: Run the generic devcontainer kit image with nested Docker
+    deps:
+      - docker-build
+    cmds:
+      - >-
+        docker run --rm -it
+        --privileged
+        --network host
+        -v {{.WORKSPACE}}:{{.WORKSPACE}}
+        -w {{.WORKSPACE}}
+        {{.IMAGE}}
+        {{.COMMAND}}
+
+  tests-run:
+    desc: Run the generic devcontainer kit test suite
+    cmds:
+      - '{{.TASKFILE_DIR}}/tests/run.sh'
+
+  code-open:
+    desc: Open the current Git root in VS Code
+    cmds:
+      - '{{.TASKFILE_DIR}}/scripts/code-open.sh {{.CLI_ARGS}}'
+
+  code-open-test:
+    desc: Create a temp consuming repo and open it with VS Code
+    cmds:
+      - '{{.TASKFILE_DIR}}/tests/code-open-test.sh {{.CLI_ARGS}}'

@@ -1,0 +1,36 @@
+{
+	"name": "${localEnv:HOSTNAME}/${localWorkspaceFolderBasename}",
+	"initializeCommand": ".devcontainer/initialize.sh",
+	"dockerComposeFile": [
+		"docker-compose.yml",
+		"compose.local.gen.yml",
+		"../compose.local.yml"
+	],
+	"service": "workspace",
+	"workspaceFolder": "/workspace",
+	"postStartCommand": "sudo -E /usr/local/bin/devcontainer-entrypoint true",
+	"remoteUser": "${localEnv:USER}",
+	"containerUser": "${localEnv:USER}",
+	"updateRemoteUserUID": true,
+	"remoteEnv": {
+		"OPENCODE_CONFIG_DIR": "${containerWorkspaceFolder}/.oc_local",
+		"WORKSPACE_FOLDER_BASENAME": "${localWorkspaceFolderBasename}"
+	},
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-azuretools.vscode-docker",
+				"docker.docker",
+				"redhat.vscode-yaml",
+				"TheNuProjectContributors.vscode-nushell-lang",
+				"pomdtr.excalidraw-editor",
+				"jebbs.plantuml",
+				"vmware.vscode-boot-dev-pack",
+				"vscjava.vscode-java-dependency",
+				"vscjava.vscode-java-test",
+				"vscjava.vscode-java-pack",
+				"Tim-Koehler.helm-intellisense"
+			]
+		}
+	}
+}

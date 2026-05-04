@@ -114,6 +114,7 @@ trap cleanup EXIT
 
 git -C "$repo_root" switch --quiet -c "$tmp_branch"
 git -C "$repo_root" rm -r --quiet --ignore-unmatch -- .
+rm -f "$repo_root/.gitmodules"
 git -C "$repo_root" checkout HEAD -- "${runtime_files[@]}"
 git -C "$repo_root" add -A -- "${runtime_files[@]}"
 

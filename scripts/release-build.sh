@@ -23,6 +23,7 @@ push_tag=0
 tmp_branch=""
 repo_root=""
 tag_created=0
+tmp_index=""
 
 runtime_files=(
   ".gitignore"
@@ -45,9 +46,11 @@ usage() {
 }
 
 cleanup() {
-  if [ -n "$repo_root" ]; then
-    git -C "$repo_root" switch main >/dev/null 2>&1 || true
+  if [ -n "$tmp_index" ]; then
+    rm -f "$tmp_index"
+  fi
 
+  if [ -n "$repo_root" ]; then
     if [ -n "$tmp_branch" ]; then
       git -C "$repo_root" branch -D "$tmp_branch" >/dev/null 2>&1 || true
     fi
@@ -112,22 +115,18 @@ done
 
 trap cleanup EXIT
 
-git -C "$repo_root" switch --quiet -c "$tmp_branch"
-git -C "$repo_root" rm -r --quiet --ignore-unmatch -- .
-rm -f "$repo_root/.gitmodules"
-git -C "$repo_root" checkout HEAD -- "${runtime_files[@]}"
-git -C "$repo_root" add -A -- "${runtime_files[@]}"
+tmp_index="$(mktemp)"
+GIT_INDEX_FILE="$tmp_index" git -C "$repo_root" read-tree --empty
+GIT_INDEX_FILE="$tmp_index" git -C "$repo_root" add -- "${runtime_files[@]}"
+runtime_tree="$(GIT_INDEX_FILE="$tmp_index" git -C "$repo_root" write-tree)"
 
-git -C "$repo_root" commit \
+release_commit="$(git -C "$repo_root" commit-tree "$runtime_tree" \
+  -p HEAD \
   -m "chore(release): prepare $tag_name devcontainer kit" \
-  -m "Create a runtime-only devcontainer tree for consumption as a Git submodule tag."
+  -m "Create a runtime-only devcontainer tree for consumption as a Git submodule tag.")"
 
-git -C "$repo_root" tag -a "$tag_name" -m "$tag_name"
+git -C "$repo_root" tag -a "$tag_name" "$release_commit" -m "$tag_name"
 tag_created=1
-
-git -C "$repo_root" switch --quiet main
-git -C "$repo_root" branch -D "$tmp_branch" >/dev/null
-tmp_branch=""
 
 if [ "$push_tag" -eq 1 ]; then
   git -C "$repo_root" push origin "$tag_name"

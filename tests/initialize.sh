@@ -46,6 +46,10 @@ expected_hostname="$(expected_generated_hostname "$fixture_dir" "feature/initial
 
 [[ -f "$fixture_dir/compose.local.yml" ]] || fail "compose.local.yml was not created in repository root"
 [[ -f "$fixture_dir/.local.env" ]] || fail ".local.env was not created in repository root"
+[[ ! -e "$fixture_dir/.devcontainer/compose.local.yml" ]] || fail "compose.local.yml was created in the kit directory"
+[[ ! -e "$fixture_dir/.devcontainer/.local.env" ]] || fail ".local.env was created in the kit directory"
+[[ -f "$fixture_dir/.devcontainer/compose.local.yml.example" ]] || fail "compose.local.yml.example is missing from the kit directory"
+[[ -f "$fixture_dir/.devcontainer/.local.env.example" ]] || fail ".local.env.example is missing from the kit directory"
 [[ -f "$fixture_dir/.devcontainer/.gen.env" ]] || fail ".devcontainer/.gen.env was not created"
 [[ -f "$fixture_dir/.devcontainer/compose.local.gen.yml" ]] || fail ".devcontainer/compose.local.gen.yml was not created"
 [[ "$(<"$fixture_dir/.devcontainer/.gen.env")" == *"DEVCONTAINER_HOSTNAME=$expected_hostname"* ]] || fail ".gen.env does not contain generated hostname"

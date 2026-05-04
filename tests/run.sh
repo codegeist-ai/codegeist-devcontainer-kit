@@ -30,6 +30,7 @@ run_timed "code-open argument forwarding" "$WARN_FAST_SECONDS" "$script_dir/code
 run_timed "release build tag" "$WARN_FAST_SECONDS" "$script_dir/release-build.sh"
 run_timed "compose config" "$WARN_FAST_SECONDS" "$script_dir/compose-config.sh"
 run_timed "worktree setup" "$WARN_FAST_SECONDS" "$script_dir/worktree.sh"
+run_timed "opencode mounts" "$WARN_DOCKER_SECONDS" "$script_dir/opencode-mounts.sh"
 run_timed "docker image build" "$WARN_BUILD_SECONDS" "$script_dir/docker-build.sh"
 run_timed "docker-run task" "$WARN_DOCKER_SECONDS" "$script_dir/docker-run.sh"
 run_timed "devcontainer up" "$WARN_DEVCONTAINER_SECONDS" "$script_dir/devcontainer-up.sh"

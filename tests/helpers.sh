@@ -195,10 +195,13 @@ copy_project_files() {
   mkdir -p "$target_dir"
 
   # Fixtures need the devcontainer kit files, not this repository's own Git
-  # database or AI workflow submodule.
+  # database or development-only submodules.
   tar \
     --exclude='.git' \
+    --exclude='.devcontainer' \
     --exclude='.opencode' \
+    --exclude='.local.env' \
+    --exclude='compose.local.yml' \
     -C "$project_root" \
     -cf - . \
     | tar -C "$target_dir" -xf -

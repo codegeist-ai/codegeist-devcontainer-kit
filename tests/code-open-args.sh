@@ -51,6 +51,11 @@ CODE_BIN="$fake_code" \
 [[ "$(extract_key_value "$(<"$capture_file")" BRANCH)" = "$branch_name" ]] || fail "code-open-test did not forward CLI branch as BRANCH"
 [[ "$(extract_key_value "$(<"$capture_file")" ARGS)" = "." ]] || fail "code-open-test did not open the fixture root with code ."
 [[ "$(<"$fixture_dir/.devcontainer/.env")" = "BRANCH=$branch_name" ]] || fail "code-open-test did not persist branch for Compose startup"
+[[ ! -e "$fixture_dir/.devcontainer/.devcontainer" ]] || fail "code-open-test copied a nested .devcontainer into the fixture"
+[[ ! -e "$fixture_dir/.devcontainer/.local.env" ]] || fail "code-open-test copied root .local.env into the kit directory"
+[[ ! -e "$fixture_dir/.devcontainer/compose.local.yml" ]] || fail "code-open-test copied root compose.local.yml into the kit directory"
+[[ -f "$fixture_dir/.devcontainer/.local.env.example" ]] || fail "code-open-test did not keep .local.env.example in the kit directory"
+[[ -f "$fixture_dir/.devcontainer/compose.local.yml.example" ]] || fail "code-open-test did not keep compose.local.yml.example in the kit directory"
 
 env -u BRANCH "$fixture_dir/.devcontainer/initialize.sh"
 [[ -d "$fixture_dir/.worktrees/$branch_name" ]] || fail "initializeCommand did not read branch from fixture .env"

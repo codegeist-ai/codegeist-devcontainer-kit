@@ -13,12 +13,13 @@
 
 - The repository was initialized locally at `/home/test/Projects/m7/_devcontainer_new`.
 - The local default branch is `main`.
-- Initial commit `84d68b4` (`feat: add initial devcontainer kit`) exists.
+- Latest local commit before the current save workflow is `a546050`
+  (`feat(release): add runtime-only tag task`).
 - `.opencode/` is a Git submodule pointing to
   `https://github.com/codegeist-ai/codegeist-agent-kit`.
-- Current pending work adds `task release-build -- vX.Y.Z` for runtime-only
-  release tags that consuming repositories can pin as `.devcontainer`
-  submodule refs.
+- This chat's focused work adds OpenCode host state bind mounts to the runtime
+  Compose file and hardens fixture tests so development-only repo artifacts do
+  not leak into consuming `.devcontainer/` directories.
 - The parent repository still sees this directory as an untracked nested Git repo;
   treat this repository as the source of truth for the kit work.
 
@@ -81,8 +82,19 @@ task code-open -- develop0
 
 - `task code-open-test -- <branch>` creates a temporary fixture and then invokes
   the real `task code-open` path against it.
+- Test fixtures copy only runtime kit files into the consuming repo's
+  `.devcontainer/`; repo-development submodules such as this repository's own
+  `.devcontainer/` and `.opencode/` are intentionally excluded to avoid nested
+  devcontainer discovery in VS Code. Root-local runtime files such as
+  `.local.env` and `compose.local.yml` are also excluded so they are generated
+  only in the consuming repo root, not inside `.devcontainer/`.
 - The consuming repository root is also bind-mounted at its host path inside the
   container so linked-worktree Git metadata resolves correctly.
+- OpenCode config, share, and state directories are bind-mounted from
+  `OPENCODE_DIR_CONFIG`, `OPENCODE_DIR_SHARE`, and `OPENCODE_DIR_STATE`, with
+  host defaults under `/home/$USER/.config/opencode`,
+  `/home/$USER/.local/share/opencode`, and
+  `/home/$USER/.local/state/opencode`.
 - Changing `BRANCH` does not remount an already existing devcontainer. Rebuild or
   remove the existing container before starting with another branch.
 
@@ -177,6 +189,19 @@ task --dry release-build -- v1.2.3 --push
 git diff --check
 ```
 
+- Latest targeted verification for the OpenCode mount and fixture cleanup work
+  passed:
+
+```bash
+bash -n tests/helpers.sh tests/code-open-args.sh tests/initialize.sh tests/run.sh
+bash -n tests/opencode-mounts.sh tests/run.sh
+tests/code-open-args.sh
+tests/initialize.sh
+tests/opencode-mounts.sh
+tests/release-build.sh
+git diff --check
+```
+
 - A later full `task tests-run` attempt was blocked by Docker Hub unauthenticated
   pull rate limits while pulling `debian:bookworm-slim`, not by a test assertion.
 
@@ -190,7 +215,6 @@ git diff --check
 
 ## Next Steps
 
-- Commit the focused `release-build` workflow changes from this repo root.
 - If opening the real editor flow again, use:
 
 ```bash

@@ -16,8 +16,9 @@
 - Initial commit `84d68b4` (`feat: add initial devcontainer kit`) exists.
 - `.opencode/` is a Git submodule pointing to
   `https://github.com/codegeist-ai/codegeist-agent-kit`.
-- Current pending work refines the VS Code open workflow with a real
-  `task code-open` command and fixture-backed `task code-open-test` wrapper.
+- Current pending work adds `task release-build -- vX.Y.Z` for runtime-only
+  release tags that consuming repositories can pin as `.devcontainer`
+  submodule refs.
 - The parent repository still sees this directory as an untracked nested Git repo;
   treat this repository as the source of truth for the kit work.
 
@@ -39,6 +40,7 @@
   - `task tests-run`
   - `task code-open`
   - `task code-open-test`
+  - `task release-build -- v1.0.9`
 - `task code-open -- <branch>` opens the current Git root and writes
   `.devcontainer/.env` so VS Code/Compose keep the branch even when an existing
   VS Code process handles `code .`; `BRANCH=<branch> task code-open` remains
@@ -127,6 +129,10 @@ task code-open -- develop0
   path.
 - `.opencode/` is for this kit repository's AI workflow support and is not part
   of the consuming `.devcontainer/` runtime contract.
+- Release tags are created from clean `main` with `task release-build -- vX.Y.Z`.
+  The task uses a temporary `tmp-vX.Y.Z` branch, commits only runtime files,
+  creates an annotated tag, switches back to `main`, and deletes the temporary
+  branch. Use `--push` only when the tag should be pushed immediately.
 
 ## Verification Already Done
 
@@ -162,6 +168,15 @@ task --dry code-open -- develop0
 task --dry code-open-test -- develop0
 ```
 
+- Latest targeted verification for the `release-build` workflow passed:
+
+```bash
+bash -n scripts/release-build.sh tests/release-build.sh tests/run.sh
+tests/release-build.sh
+task --dry release-build -- v1.2.3 --push
+git diff --check
+```
+
 - A later full `task tests-run` attempt was blocked by Docker Hub unauthenticated
   pull rate limits while pulling `debian:bookworm-slim`, not by a test assertion.
 
@@ -175,7 +190,7 @@ task --dry code-open-test -- develop0
 
 ## Next Steps
 
-- Commit the focused `code-open` workflow changes from this repo root.
+- Commit the focused `release-build` workflow changes from this repo root.
 - If opening the real editor flow again, use:
 
 ```bash

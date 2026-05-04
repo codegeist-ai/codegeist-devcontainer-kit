@@ -27,6 +27,7 @@ trap cleanup_suite EXIT
 
 run_timed "initialize bootstrap" "$WARN_FAST_SECONDS" "$script_dir/initialize.sh"
 run_timed "code-open argument forwarding" "$WARN_FAST_SECONDS" "$script_dir/code-open-args.sh"
+run_timed "release build tag" "$WARN_FAST_SECONDS" "$script_dir/release-build.sh"
 run_timed "compose config" "$WARN_FAST_SECONDS" "$script_dir/compose-config.sh"
 run_timed "worktree setup" "$WARN_FAST_SECONDS" "$script_dir/worktree.sh"
 run_timed "docker image build" "$WARN_BUILD_SECONDS" "$script_dir/docker-build.sh"

@@ -13,6 +13,7 @@
 # - Dockerfile
 # - entrypoint.sh
 # - scripts/code-open.sh
+# - scripts/release-build.sh
 # - tests/run.sh
 # - tests/code-open-test.sh
 
@@ -81,3 +82,8 @@ tasks:
     desc: Create a temp consuming repo and open it with VS Code
     cmds:
       - '{{.TASKFILE_DIR}}/tests/code-open-test.sh {{.CLI_ARGS}}'
+
+  release-build:
+    desc: Create a runtime-only devcontainer release tag
+    cmds:
+      - '{{.TASKFILE_DIR}}/scripts/release-build.sh {{.CLI_ARGS}}'

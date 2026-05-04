@@ -1,0 +1,15 @@
+# compose.local.yml - local compose overrides for the devcontainer
+#
+# Why this exists:
+# - Provides the default local compose override included by devcontainer.json.
+# - Keeps OpenCode's file watcher default in the consuming checkout while still
+#   allowing local edits or repository-specific overrides.
+#
+# Related files:
+# - devcontainer.json
+# - docker-compose.yml
+# - initialize.sh
+services:
+  workspace:
+    environment:
+      OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER: ${OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER:-true}

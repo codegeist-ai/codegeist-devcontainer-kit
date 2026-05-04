@@ -105,14 +105,13 @@ task code-open -- develop0
 ```gitignore
 /.local.env
 /.devcontainer/.env
-/compose.local.yml
 /.worktrees/
 ```
 
 - `initialize.sh` creates root `.local.env` from
   `.devcontainer/.local.env.example` when missing.
-- `initialize.sh` creates root `compose.local.yml` from
-  `.devcontainer/compose.local.yml.example` when missing.
+- `compose.local.yml` is tracked in this repository as the default local
+  override file that consuming checkouts can edit or replace.
 - `initialize.sh` rewrites kit-owned `.devcontainer/.gen.env` and
   `.devcontainer/compose.local.gen.yml` on each start.
 - Users should not edit `.devcontainer/.gen.env` or

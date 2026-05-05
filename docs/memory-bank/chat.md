@@ -166,9 +166,10 @@ task code-open -- develop0
 - Repo-local release automation lives in `.oc_local/`: `/release-build` verifies
   the branch-only release contract, runs `tests/release-build.sh`, calls
   `task release-build -- release --push`, and then updates the `.devcontainer`
-  submodule checkout to `origin/release` so the parent gitlink is ready for a
-  follow-up commit. This repository's release workflow does not use SemVer or
-  Git release tags.
+  submodule checkout to the just-pushed `origin/release` commit so the parent
+  gitlink is ready for a follow-up commit. Do not update `.opencode/` in this
+  workflow; the release commit belongs to `.devcontainer/`. This repository's
+  release workflow does not use SemVer or Git release tags.
 - Managed worktree `.local.env` files are ignored via
   `/.worktrees/**/.local.env`. Fresh worktrees get a symlink to the root
   `.local.env`; existing normal `.local.env` files in worktrees are preserved.

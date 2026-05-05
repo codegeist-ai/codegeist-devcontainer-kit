@@ -13,13 +13,13 @@
 
 - The repository was initialized locally at `/home/test/Projects/m7/_devcontainer_new`.
 - The local default branch is `main`.
-- Latest local commit before the current save workflow is `a546050`
-  (`feat(release): add runtime-only tag task`).
+- Local `main` has release workflow fixes through `7020196`; release tag
+  `v1.0.1` points at runtime-only commit `057cac6`.
 - `.opencode/` is a Git submodule pointing to
   `https://github.com/codegeist-ai/codegeist-agent-kit`.
-- This chat's focused work adds OpenCode host state bind mounts to the runtime
-  Compose file and hardens fixture tests so development-only repo artifacts do
-  not leak into consuming `.devcontainer/` directories.
+- Current pending work records a local `.oc_local` OpenCode overlay for release
+  builds, updates `.devcontainer` to the `v1.0.1` tag, and adds `.local.env`
+  ignore/test coverage for managed worktrees.
 - The parent repository still sees this directory as an untracked nested Git repo;
   treat this repository as the source of truth for the kit work.
 
@@ -141,9 +141,17 @@ task code-open -- develop0
 - `.opencode/` is for this kit repository's AI workflow support and is not part
   of the consuming `.devcontainer/` runtime contract.
 - Release tags are created from clean `main` with `task release-build -- vX.Y.Z`.
-  The task uses a temporary `tmp-vX.Y.Z` branch, commits only runtime files,
-  creates an annotated tag, switches back to `main`, and deletes the temporary
-  branch. Use `--push` only when the tag should be pushed immediately.
+  The task builds runtime-only release commits with a temporary index and
+  `commit-tree`, then creates an annotated tag. Use `--push` only when the tag
+  should be pushed immediately.
+- Repo-local release automation lives in `.oc_local/`: `/release-build` decides
+  whether `HEAD` is already tagged, chooses the next SemVer tag when needed,
+  runs `tests/release-build.sh`, calls `task release-build -- <tag> --push`, and
+  then updates the `.devcontainer` submodule checkout to that release tag so the
+  parent gitlink is ready for a follow-up commit.
+- Managed worktree `.local.env` files are ignored via
+  `/.worktrees/**/.local.env`. Fresh worktrees get a symlink to the root
+  `.local.env`; existing normal `.local.env` files in worktrees are preserved.
 
 ## Verification Already Done
 

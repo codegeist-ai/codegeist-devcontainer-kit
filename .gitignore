@@ -2,3 +2,4 @@
 /compose.local.gen.yml
 /.env
 /.local.env
+/.worktrees/**/.local.env

@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
-# release-build.sh - create a runtime-only devcontainer release tag
+# release-build.sh - update the runtime-only devcontainer release branch
 #
 # Why this exists:
-# - Consuming repositories can pin this kit as a `.devcontainer` submodule tag.
-# - The tag commit contains only files needed by the Dev Containers runtime, not
-#   this repository's tests, documentation, Taskfile, or OpenCode workspace.
+# - Consuming repositories can pin this kit as a `.devcontainer` submodule branch.
+# - The release branch contains only files needed by the Dev Containers runtime,
+#   not this repository's tests, documentation, Taskfile, or OpenCode workspace.
+# - The branch is created as an orphan branch the first time so runtime history
+#   stays separate from the development branch.
 #
 # Inputs:
-# - First positional argument: SemVer release tag, for example `v1.0.9`.
-# - Optional `--push`: push the created tag to `origin` after local creation.
+# - Optional positional argument: release branch name, default `release`.
+# - Optional `--push`: push the release branch to `origin` after updating it.
 #
 # Related files:
 # - ../Taskfile.yaml
@@ -18,11 +20,9 @@
 
 set -euo pipefail
 
-tag_name=""
-push_tag=0
-tmp_branch=""
+release_branch="release"
+push_branch=0
 repo_root=""
-tag_created=0
 tmp_index=""
 
 runtime_files=(
@@ -42,29 +42,19 @@ fail() {
 }
 
 usage() {
-  printf 'Usage: task release-build -- v1.0.9 [--push]\n' >&2
+  printf 'Usage: task release-build -- [release-branch] [--push]\n' >&2
 }
 
 cleanup() {
   if [ -n "$tmp_index" ]; then
     rm -f "$tmp_index"
   fi
-
-  if [ -n "$repo_root" ]; then
-    if [ -n "$tmp_branch" ]; then
-      git -C "$repo_root" branch -D "$tmp_branch" >/dev/null 2>&1 || true
-    fi
-
-    if [ "$tag_created" -eq 1 ]; then
-      git -C "$repo_root" tag -d "$tag_name" >/dev/null 2>&1 || true
-    fi
-  fi
 }
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --push)
-      push_tag=1
+      push_branch=1
       ;;
     -h|--help)
       usage
@@ -74,40 +64,28 @@ while [ "$#" -gt 0 ]; do
       fail "unknown option: $1"
       ;;
     *)
-      if [ -n "$tag_name" ]; then
+      if [ "$release_branch" != "release" ]; then
         fail "unexpected extra argument: $1"
       fi
 
-      tag_name="$1"
+      release_branch="$1"
       ;;
   esac
 
   shift
 done
 
-[ -n "$tag_name" ] || {
-  usage
-  fail "missing release tag"
-}
-
-[[ "$tag_name" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] \
-  || fail "tag must be a normal SemVer tag like v1.0.9: $tag_name"
-
 repo_root="$(git rev-parse --show-toplevel)"
 current_branch="$(git -C "$repo_root" rev-parse --abbrev-ref HEAD)"
-tmp_branch="tmp-$tag_name"
+
+git -C "$repo_root" check-ref-format --branch "$release_branch" >/dev/null \
+  || fail "invalid release branch name: $release_branch"
 
 [ "$current_branch" = "main" ] \
   || fail "release-build must run from main, current branch is $current_branch"
 
 [ -z "$(git -C "$repo_root" status --porcelain)" ] \
   || fail "working tree must be clean"
-
-git -C "$repo_root" rev-parse --verify --quiet "refs/tags/$tag_name" >/dev/null \
-  && fail "tag already exists: $tag_name"
-
-git -C "$repo_root" rev-parse --verify --quiet "refs/heads/$tmp_branch" >/dev/null \
-  && fail "temporary branch already exists: $tmp_branch"
 
 for runtime_file in "${runtime_files[@]}"; do
   [ -e "$repo_root/$runtime_file" ] || fail "runtime file is missing: $runtime_file"
@@ -120,19 +98,22 @@ GIT_INDEX_FILE="$tmp_index" git -C "$repo_root" read-tree --empty
 GIT_INDEX_FILE="$tmp_index" git -C "$repo_root" add -- "${runtime_files[@]}"
 runtime_tree="$(GIT_INDEX_FILE="$tmp_index" git -C "$repo_root" write-tree)"
 
-release_commit="$(git -C "$repo_root" commit-tree "$runtime_tree" \
-  -p HEAD \
-  -m "chore(release): prepare $tag_name devcontainer kit" \
-  -m "Create a runtime-only devcontainer tree for consumption as a Git submodule tag.")"
-
-git -C "$repo_root" tag -a "$tag_name" "$release_commit" -m "$tag_name"
-tag_created=1
-
-if [ "$push_tag" -eq 1 ]; then
-  git -C "$repo_root" push origin "$tag_name"
+parent_args=()
+if git -C "$repo_root" rev-parse --verify --quiet "refs/heads/$release_branch" >/dev/null; then
+  parent_args=(-p "refs/heads/$release_branch")
 fi
 
-tag_created=0
+release_commit="$(git -C "$repo_root" commit-tree "$runtime_tree" \
+  "${parent_args[@]}" \
+  -m "chore(release): update devcontainer runtime branch" \
+  -m "Create a runtime-only devcontainer tree for consumption as a Git submodule branch.")"
+
+git -C "$repo_root" update-ref "refs/heads/$release_branch" "$release_commit"
+
+if [ "$push_branch" -eq 1 ]; then
+  git -C "$repo_root" push origin "refs/heads/$release_branch"
+fi
+
 trap - EXIT
 
-printf 'Created release tag %s\n' "$tag_name"
+printf 'Updated release branch %s at %s\n' "$release_branch" "$release_commit"

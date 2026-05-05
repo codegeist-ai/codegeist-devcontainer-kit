@@ -84,6 +84,6 @@ tasks:
       - '{{.TASKFILE_DIR}}/tests/code-open-test.sh {{.CLI_ARGS}}'
 
   release-build:
-    desc: Create a runtime-only devcontainer release tag
+    desc: Update the runtime-only devcontainer release branch
     cmds:
       - '{{.TASKFILE_DIR}}/scripts/release-build.sh {{.CLI_ARGS}}'

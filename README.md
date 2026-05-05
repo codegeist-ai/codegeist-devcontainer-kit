@@ -124,24 +124,23 @@ task code-open-test -- develop0
 The reality test intentionally leaves its temporary fixture and VS Code-started
 container in place because VS Code is opened against that fixture.
 
-Create a runtime-only release tag when consuming repositories should pin the kit
-as a `.devcontainer` submodule tag:
+Update the runtime-only `release` branch when consuming repositories should pin
+the kit as a stable `.devcontainer` submodule branch:
 
 ```bash
-task release-build -- v1.0.9
+task release-build
 ```
 
-The release task must run from a clean `main` checkout. It creates a temporary
-`tmp-v1.0.9` branch, commits only the files required by the Dev Containers
-runtime, creates an annotated `v1.0.9` tag on that commit, switches back to
-`main`, and deletes the temporary branch. Add `--push` to push the tag after it
-is created locally:
+The release task must run from a clean `main` checkout. The first run creates an
+orphan `release` branch and commits only the files required by the Dev
+Containers runtime. Later runs update the same runtime-only branch. Add `--push`
+to push the branch after it is updated locally:
 
 ```bash
-task release-build -- v1.0.9 --push
+task release-build -- --push
 ```
 
-The tagged runtime tree contains only:
+The release branch tree contains only:
 
 ```text
 .gitignore
@@ -229,14 +228,14 @@ git submodule add <kit-repo-url> .devcontainer
 git commit -m "chore(devcontainer): add shared kit submodule"
 ```
 
-Pin a release tag when the consuming project should use a stable runtime-only
-tree:
+Pin the release branch when the consuming project should use a stable
+runtime-only tree:
 
 ```bash
-git -C .devcontainer fetch --tags
-git -C .devcontainer checkout v1.0.9
+git -C .devcontainer fetch origin release
+git -C .devcontainer checkout origin/release
 git add .devcontainer
-git commit -m "chore(devcontainer): pin shared kit v1.0.9"
+git commit -m "chore(devcontainer): pin shared release kit"
 ```
 
 Clone or update consuming repositories with submodules initialized:

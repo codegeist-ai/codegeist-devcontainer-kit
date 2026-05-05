@@ -13,13 +13,13 @@
 
 - The repository was initialized locally at `/home/test/Projects/m7/_devcontainer_new`.
 - The local default branch is `main`.
-- Local `main` has release workflow fixes through `7020196`; release tag
-  `v1.0.1` points at runtime-only commit `057cac6`.
+- Local `main` has release workflow fixes through `5e67b62`. Version tags were
+  removed in favor of a runtime-only `release` branch.
 - `.opencode/` is a Git submodule pointing to
   `https://github.com/codegeist-ai/codegeist-agent-kit`.
-- Current pending work records a local `.oc_local` OpenCode overlay for release
-  builds, updates `.devcontainer` to the `v1.0.1` tag, and adds `.local.env`
-  ignore/test coverage for managed worktrees.
+- Current pending work converts release publishing from SemVer tags to the
+  orphan `release` branch, updates local `.oc_local` release guidance, and keeps
+  `.local.env` ignore/test coverage for managed worktrees.
 - The parent repository still sees this directory as an untracked nested Git repo;
   treat this repository as the source of truth for the kit work.
 
@@ -140,15 +140,15 @@ task code-open -- develop0
   path.
 - `.opencode/` is for this kit repository's AI workflow support and is not part
   of the consuming `.devcontainer/` runtime contract.
-- Release tags are created from clean `main` with `task release-build -- vX.Y.Z`.
-  The task builds runtime-only release commits with a temporary index and
-  `commit-tree`, then creates an annotated tag. Use `--push` only when the tag
+- Runtime releases are published from clean `main` with `task release-build`.
+  The task builds a runtime-only tree with a temporary index and `commit-tree`,
+  then updates the orphan `release` branch. Use `--push` only when the branch
   should be pushed immediately.
-- Repo-local release automation lives in `.oc_local/`: `/release-build` decides
-  whether `HEAD` is already tagged, chooses the next SemVer tag when needed,
-  runs `tests/release-build.sh`, calls `task release-build -- <tag> --push`, and
-  then updates the `.devcontainer` submodule checkout to that release tag so the
-  parent gitlink is ready for a follow-up commit.
+- Repo-local release automation lives in `.oc_local/`: `/release-build` verifies
+  version tags are absent, runs `tests/release-build.sh`, calls
+  `task release-build -- release --push`, and then updates the `.devcontainer`
+  submodule checkout to `origin/release` so the parent gitlink is ready for a
+  follow-up commit.
 - Managed worktree `.local.env` files are ignored via
   `/.worktrees/**/.local.env`. Fresh worktrees get a symlink to the root
   `.local.env`; existing normal `.local.env` files in worktrees are preserved.
@@ -192,7 +192,7 @@ task --dry code-open-test -- develop0
 ```bash
 bash -n scripts/release-build.sh tests/release-build.sh tests/run.sh
 tests/release-build.sh
-task --dry release-build -- v1.2.3 --push
+task --dry release-build -- --push
 git diff --check
 ```
 

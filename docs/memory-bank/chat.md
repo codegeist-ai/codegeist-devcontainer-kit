@@ -164,10 +164,11 @@ task code-open -- develop0
   then updates the orphan `release` branch. Use `--push` only when the branch
   should be pushed immediately.
 - Repo-local release automation lives in `.oc_local/`: `/release-build` verifies
-  version tags are absent, runs `tests/release-build.sh`, calls
+  the branch-only release contract, runs `tests/release-build.sh`, calls
   `task release-build -- release --push`, and then updates the `.devcontainer`
   submodule checkout to `origin/release` so the parent gitlink is ready for a
-  follow-up commit.
+  follow-up commit. This repository's release workflow does not use SemVer or
+  Git release tags.
 - Managed worktree `.local.env` files are ignored via
   `/.worktrees/**/.local.env`. Fresh worktrees get a symlink to the root
   `.local.env`; existing normal `.local.env` files in worktrees are preserved.

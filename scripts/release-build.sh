@@ -28,6 +28,7 @@ tmp_index=""
 runtime_files=(
   ".gitignore"
   ".local.env.example"
+  ".oc_local.gitignore.example"
   "Dockerfile"
   "compose.local.yml.example"
   "devcontainer.json"

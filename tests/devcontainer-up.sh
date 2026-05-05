@@ -23,6 +23,8 @@ container_id=""
 expected_hostname=""
 expected_user="$(id -u):$(id -u)"
 expected_user_name="$(expected_container_user)"
+workspace_ready=""
+opencode_output_file="$suite_tmp_dir/devcontainer-up-opencode.log"
 
 cleanup_devcontainer() {
   if [ -n "$container_id" ]; then
@@ -52,11 +54,30 @@ container_id="$(extract_container_id_from_log "$log_file" || true)"
 
 for _ in 1 2 3 4 5 6 7 8 9 10; do
   if docker exec -u "$expected_user_name" "$container_id" bash -lc 'test "$(id -un)" = "'"$expected_user_name"'" && test "$(hostname)" = "'"$expected_hostname"'" && test "$DEVCONTAINER_HOSTNAME" = "'"$expected_hostname"'" && test "$DEVCONTAINER_USER" = "'"$expected_user_name"'" && test "$DEVCONTAINER_UID:$DEVCONTAINER_GID" = "'"$expected_user"'" && docker ps >/dev/null'; then
-    pass "devcontainer up starts a workspace with nested Docker available"
-    exit 0
+    workspace_ready=1
+    break
   fi
 
   sleep 1
 done
 
-fail "devcontainer workspace did not expose nested Docker to the remote user"
+[[ -n "$workspace_ready" ]] || fail "devcontainer workspace did not expose nested Docker to the remote user"
+
+docker exec -u "$expected_user_name" "$container_id" bash -lc '
+  set -euo pipefail
+
+  test -d /workspace/.oc_local
+  test -w /workspace/.oc_local
+  test -f /workspace/.oc_local/.gitignore
+
+  OPENCODE_CONFIG_DIR=/workspace/.oc_local opencode --print-logs --log-level DEBUG debug startup
+' >"$opencode_output_file" 2>&1
+
+case "$(<"$opencode_output_file")" in
+  *UnknownError*|*"tui bootstrap failed"*|*"FileSystem.writeFile (/workspace/.oc_local/.gitignore)"*)
+    printf '%s\n' "$(<"$opencode_output_file")" >&2
+    fail "OpenCode failed during devcontainer bootstrap"
+    ;;
+esac
+
+pass "devcontainer up starts a workspace with nested Docker and OpenCode available"

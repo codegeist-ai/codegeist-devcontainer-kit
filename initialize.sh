@@ -14,6 +14,9 @@
 # - `.gen.env` and `compose.local.gen.yml` are generated kit-owned files under
 #   `.devcontainer/`; users should edit root `.local.env` and `compose.local.yml`
 #   instead.
+# - OpenCode reads `OPENCODE_CONFIG_DIR=/workspace/.oc_local` from
+#   `devcontainer.json`, so fresh checkouts need that directory before the TUI
+#   starts inside the container.
 # - The script runs as a Dev Containers `initializeCommand` on the host and must
 #   stay idempotent, non-interactive, and safe for repeated starts.
 #
@@ -180,6 +183,43 @@ ensure_root_local_env() {
   copy_if_missing "$root_dir/.devcontainer/.local.env.example" "$root_dir/.local.env"
 }
 
+ensure_opencode_local_config_dir() {
+  local root_dir="$1"
+  local config_dir="$root_dir/.oc_local"
+
+  mkdir -p "$config_dir"
+  copy_if_missing "$root_dir/.devcontainer/.oc_local.gitignore.example" "$config_dir/.gitignore"
+}
+
+has_tracked_opencode_local_overlay() {
+  local root_dir="$1"
+
+  [ -n "$(git -C "$root_dir" ls-files .oc_local 2>/dev/null || true)" ]
+}
+
+ensure_git_exclude_pattern() {
+  local root_dir="$1"
+  local pattern="$2"
+  local exclude_file=""
+  local line=""
+
+  exclude_file="$(git -C "$root_dir" rev-parse --git-path info/exclude 2>/dev/null || true)"
+  if [ -z "$exclude_file" ]; then
+    return 0
+  fi
+
+  if [ -f "$exclude_file" ]; then
+    while IFS= read -r line; do
+      if [ "$line" = "$pattern" ]; then
+        return 0
+      fi
+    done <"$exclude_file"
+  fi
+
+  mkdir -p "$(dirname "$exclude_file")"
+  printf '%s\n' "$pattern" >>"$exclude_file"
+}
+
 ensure_worktree() {
   local root_dir="$1"
   local branch="$2"
@@ -240,6 +280,10 @@ main() {
 
       ensure_root_compose_local "$root_dir"
       ensure_root_local_env "$root_dir"
+      ensure_opencode_local_config_dir "$root_dir"
+      if ! has_tracked_opencode_local_overlay "$root_dir"; then
+        ensure_git_exclude_pattern "$root_dir" "/.oc_local/"
+      fi
       write_generated_env "$script_dir/.gen.env" "$root_dir" "$branch_name"
       write_generated_compose "$script_dir/compose.local.gen.yml" "$(generated_hostname "$root_dir" "$branch_name")"
 

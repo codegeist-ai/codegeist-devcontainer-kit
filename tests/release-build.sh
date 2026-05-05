@@ -57,6 +57,7 @@ git -C "$release_repo" rev-parse --verify "refs/heads/$release_branch" >/dev/nul
 cat >"$expected_files" <<'EOF'
 .gitignore
 .local.env.example
+.oc_local.gitignore.example
 Dockerfile
 compose.local.yml.example
 devcontainer.json

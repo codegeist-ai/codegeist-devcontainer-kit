@@ -112,7 +112,7 @@ RUN apt-get update \
 RUN curl -LsSf https://astral.sh/uv/install.sh \
   | env UV_UNMANAGED_INSTALL=/usr/local/bin sh
 
-RUN npm install -g --prefix /usr/local opencode-ai repomix @ast-grep/cli @devcontainers/cli \
+RUN npm install -g --prefix /usr/local opencode-ai repomix @ast-grep/cli @devcontainers/cli @mermaid-js/mermaid-cli \
  && rm -f /usr/local/bin/sg \
  && npm cache clean --force
 

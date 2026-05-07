@@ -6,12 +6,11 @@
 #   missing so `devcontainer.json` can always include the override file.
 # - The generated `compose.local.yml` is intentionally ignored and may be edited
 #   by each consuming checkout or worktree.
+# - Shared defaults live in docker-compose.yml; keep this template empty until a
+#   real local override is needed.
 #
 # Related files:
 # - devcontainer.json
 # - docker-compose.yml
 # - initialize.sh
-services:
-  workspace:
-    environment:
-      OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER: ${OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER:-true}
+services: {}

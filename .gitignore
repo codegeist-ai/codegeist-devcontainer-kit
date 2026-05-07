@@ -1,4 +1,5 @@
 /compose.local.gen.yml
+/.env
 /.devcontainer/.env
 /.local.env
 /.worktrees/**/.local.env

@@ -163,6 +163,19 @@ slug_hostname_part() {
   printf '%s\n' "$value"
 }
 
+fit_hostname() {
+  local value="$1"
+
+  value="${value:0:63}"
+  value="${value%-}"
+
+  if [ -z "$value" ]; then
+    value="detached"
+  fi
+
+  printf '%s\n' "$value"
+}
+
 expected_generated_hostname() {
   local repo_dir="$1"
   local branch_name="$2"
@@ -182,7 +195,7 @@ expected_generated_hostname() {
   fi
 
   branch_part="$(slug_hostname_part "$branch_name")"
-  printf '%s-%s-%s\n' "$host_part" "$repo_part" "$branch_part"
+  fit_hostname "$host_part-$repo_part-$branch_part"
 }
 
 expected_container_user() {

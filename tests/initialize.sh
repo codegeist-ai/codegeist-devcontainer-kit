@@ -88,7 +88,7 @@ BRANCH=feature/initialize-test devcontainer_cli up --workspace-folder "$fixture_
 [[ "$(<"$fixture_dir/.local.env")" = "CUSTOM_ENV=1" ]] || fail ".local.env was overwritten"
 
 devcontainer_cli up --workspace-folder "$fixture_dir" >/dev/null
-expected_hostname="$(expected_generated_hostname "$fixture_dir" "")"
+expected_hostname="$(expected_generated_hostname "$fixture_dir" "feature/initialize-test")"
 
 [[ "$(<"$fixture_dir/compose.local.yml")" == *"# local compose marker"* ]] || fail "compose.local.yml was overwritten when BRANCH was unset"
 [[ "$(<"$fixture_dir/.local.env")" = "CUSTOM_ENV=1" ]] || fail ".local.env was overwritten when BRANCH was unset"

@@ -30,6 +30,9 @@
   gitlink commit.
 - Latest pushed runtime release is `7b18c2adcba4cf7002aafc3a0490d489902a7c2d`;
   the parent `.devcontainer` gitlink should point at that commit.
+- Latest source work adds `jq` to the image APT toolchain, removes the Compose
+  `/var/lib/docker` tmpfs cap, and caps generated container hostnames at 63
+  characters so Docker can start containers for long host/repo/branch names.
 - The parent repository still sees this directory as an untracked nested Git repo;
   treat this repository as the source of truth for the kit work.
 
@@ -162,6 +165,12 @@ task code-open -- develop0
   `remoteUser` and `containerUser`.
 - Runtime `user` intentionally uses the host UID for both numeric user and group.
   `docker-compose.yml` has a static fallback: `${UID:-1000}:${UID:-1000}`.
+- Nested Docker no longer mounts `/var/lib/docker` as a size-limited tmpfs; the
+  image still declares `VOLUME ["/var/lib/docker"]`, but Compose does not impose
+  the previous 16G tmpfs cap.
+- Generated Compose hostnames are capped at the Linux hostname limit of 63
+  characters after slugging. This prevents `sethostname: invalid argument` when
+  host, repository, and branch names are long.
 - `BRANCH` path selection uses the literal branch name under `.worktrees/`; only
   generated hostnames use slugged branch names.
 - Docker-in-Docker is enabled by default because it is part of the tested smoke
@@ -185,11 +194,21 @@ task code-open -- develop0
   gitlink is ready for a follow-up commit. Do not update `.opencode/` in this
   workflow; the release commit belongs to `.devcontainer/`. This repository's
   release workflow does not use SemVer or Git release tags.
+- The release command must not start the branch build until the save workflow has
+  synchronized the local and remote base branches, and it must not skip updating
+  `.devcontainer/` to the just-pushed release commit after a successful push.
 - Managed worktree `.local.env` files are ignored via
   `/.worktrees/**/.local.env`. Fresh worktrees get a symlink to the root
   `.local.env`; existing normal `.local.env` files in worktrees are preserved.
 
 ## Verification Already Done
+
+- Latest full `task tests-run` passed after the `jq`, Docker tmpfs removal, and
+  hostname-length fixes:
+
+```text
+PASS: all generic devcontainer kit tests passed
+```
 
 - Latest targeted verification for release README publication passed:
 
@@ -229,10 +248,10 @@ git diff --check
   extraction while building the same image. Treat this as an environment/storage
   blocker, not a completed full-suite pass.
 
-- Latest full-suite attempt for the `.env` rename ran `task tests-run` twice.
-  Both runs failed during the Docker image build because `/var/lib/docker` is a
-  16G tmpfs and hit `no space left on device`, even after `docker builder prune
-  -f`. Targeted checks for the rename passed before the full-suite blocker.
+- Earlier full-suite attempts for the `.env` rename ran `task tests-run` twice
+  and hit Docker storage exhaustion while Compose still mounted
+  `/var/lib/docker` as a 16G tmpfs. Targeted checks for the rename passed before
+  that full-suite blocker.
 
 - Latest targeted verification for the `.env` rename passed:
 

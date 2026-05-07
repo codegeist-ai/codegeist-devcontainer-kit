@@ -17,7 +17,8 @@
   development repository. Do not edit them directly during normal project work.
 - Project-specific OpenCode behavior belongs in `.oc_local/`; the local overlay
   now includes `.oc_local/rules/submodule-editing.md` to make that convention
-  explicit.
+  explicit, and `.oc_local/opencode.json` loads both `.oc_local/rules` and
+  `README.md` as instruction sources.
 - Current pending work fixes OpenCode startup in fresh devcontainers by creating
   root `.oc_local/`, seeding `.oc_local/.gitignore`, and covering the behavior in
   initialization and devcontainer smoke tests. The runtime-only release file list
@@ -166,9 +167,10 @@ task code-open -- develop0
   The task builds a runtime-only tree with a temporary index and `commit-tree`,
   then updates the orphan `release` branch. Use `--push` only when the branch
   should be pushed immediately.
-- Repo-local release automation lives in `.oc_local/`: `/release-build` verifies
-  the branch-only release contract, runs `tests/release-build.sh`, calls
-  `task release-build -- release --push`, and then updates the `.devcontainer`
+- Repo-local release automation lives in `.oc_local/`: `/release-build` first
+  executes `@.opencode/commands/save.md`, then verifies the branch-only release
+  contract, runs `tests/release-build.sh`, calls
+  `task release-build -- release --push`, and updates the `.devcontainer`
   submodule checkout to the just-pushed `origin/release` commit so the parent
   gitlink is ready for a follow-up commit. Do not update `.opencode/` in this
   workflow; the release commit belongs to `.devcontainer/`. This repository's
@@ -178,6 +180,18 @@ task code-open -- develop0
   `.local.env`; existing normal `.local.env` files in worktrees are preserved.
 
 ## Verification Already Done
+
+- Latest targeted verification for the release command save preflight passed:
+
+```bash
+git diff --check
+```
+
+- Latest full-suite attempts for the release command save preflight ran
+  `task tests-run` twice. Both failed inside the Dev Containers image build:
+  first with BuildKit `no space left on device`, then with a truncated `scc`
+  extraction while building the same image. Treat this as an environment/storage
+  blocker, not a completed full-suite pass.
 
 - Latest full-suite attempt for the `.env` rename ran `task tests-run` twice.
   Both runs failed during the Docker image build because `/var/lib/docker` is a

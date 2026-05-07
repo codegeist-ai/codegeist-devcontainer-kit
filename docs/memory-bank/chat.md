@@ -19,11 +19,10 @@
   now includes `.oc_local/rules/submodule-editing.md` to make that convention
   explicit, and `.oc_local/opencode.json` loads both `.oc_local/rules` and
   `README.md` as instruction sources.
-- Current pending work fixes OpenCode startup in fresh devcontainers by creating
-  root `.oc_local/`, seeding `.oc_local/.gitignore`, and covering the behavior in
-  initialization and devcontainer smoke tests. The runtime-only release file list
-  includes `.oc_local.gitignore.example` because `initialize.sh` needs it in
-  consuming `.devcontainer/` submodule checkouts.
+- Latest work fixes `postStartCommand` failures when a stale
+  root-owned `/tmp/dockerd.log` exists in the container. `entrypoint.sh` now
+  removes the stale log with `sudo` and starts `dockerd` from a root shell so log
+  redirection is not performed by the unprivileged workspace user.
 - The parent repository still sees this directory as an untracked nested Git repo;
   treat this repository as the source of truth for the kit work.
 
@@ -277,6 +276,17 @@ tests/release-build.sh
 
 - A later full `task tests-run` attempt was blocked by Docker Hub unauthenticated
   pull rate limits while pulling `debian:bookworm-slim`, not by a test assertion.
+
+- Latest targeted verification for the stale `dockerd` log fix:
+
+```bash
+bash -n entrypoint.sh tests/docker-run.sh
+git diff --check
+```
+
+- A `task docker-run` attempt for the same fix was blocked before reaching the
+  edited entrypoint layer when the local Docker builder failed extracting the
+  external `scc` tarball with `tar: scc: Wrote only ... bytes`.
 
 ## Known Local Artifacts
 

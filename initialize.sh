@@ -62,6 +62,19 @@ slugify_hostname_part() {
   printf '%s\n' "$value"
 }
 
+fit_hostname() {
+  local value="$1"
+
+  value="${value:0:63}"
+  value="${value%-}"
+
+  if [ -z "$value" ]; then
+    value="detached"
+  fi
+
+  printf '%s\n' "$value"
+}
+
 current_branch_name() {
   local root_dir="$1"
   local branch_name=""
@@ -105,7 +118,7 @@ generated_hostname() {
   repo_part="$(slugify_hostname_part "$(basename "$root_dir")")"
   branch_part="$(slugify_hostname_part "${branch_name:-$(current_branch_name "$root_dir")}")"
 
-  printf '%s-%s-%s\n' "$host_part" "$repo_part" "$branch_part"
+  fit_hostname "$host_part-$repo_part-$branch_part"
 }
 
 write_generated_env() {

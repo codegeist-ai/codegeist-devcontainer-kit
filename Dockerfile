@@ -92,6 +92,7 @@ RUN apt-get update \
       ftp \
       gh \
       git \
+      jq \
       lftp \
       gnupg \
       netcat-openbsd \

@@ -18,7 +18,6 @@
 # - compose.local.gen.yml sets the generated container hostname.
 # - BRANCH selects `../.worktrees/<branch>` as `/workspace` when set.
 # - PWD is used as the parent mount target and must be the consuming repo root.
-# - DEVCONTAINER_DOCKER_TMPFS_SIZE controls the nested Docker tmpfs size.
 # - OPENCODE_DIR_CONFIG, OPENCODE_DIR_SHARE, and OPENCODE_DIR_STATE select the
 #   host-side OpenCode state directories mounted into the container.
 #
@@ -61,5 +60,3 @@ services:
       - ${OPENCODE_DIR_CONFIG:-/home/${USER:-vscode}/.config/opencode}:/home/${USER:-vscode}/.config/opencode
       - ${OPENCODE_DIR_SHARE:-/home/${USER:-vscode}/.local/share/opencode}:/home/${USER:-vscode}/.local/share/opencode
       - ${OPENCODE_DIR_STATE:-/home/${USER:-vscode}/.local/state/opencode}:/home/${USER:-vscode}/.local/state/opencode
-    tmpfs:
-      - /var/lib/docker:exec,size=${DEVCONTAINER_DOCKER_TMPFS_SIZE:-16g}

@@ -49,10 +49,16 @@ ensure_docker_daemon() {
 
   clear_stale_docker_pid
 
-  nohup sudo -n dockerd \
-    --group "${CONTAINER_GROUP:-docker}" \
-    --storage-driver=vfs \
-    >"$dockerd_log_file" 2>&1 &
+  sudo -n rm -f "$dockerd_log_file"
+
+  sudo -n env CONTAINER_GROUP="${CONTAINER_GROUP:-docker}" \
+    DOCKERD_LOG_FILE="$dockerd_log_file" \
+    bash -c '
+      nohup dockerd \
+        --group "$CONTAINER_GROUP" \
+        --storage-driver=vfs \
+        >"$DOCKERD_LOG_FILE" 2>&1 &
+    '
 
   for attempt in $(seq 1 30); do
     if docker ps >/dev/null 2>&1; then

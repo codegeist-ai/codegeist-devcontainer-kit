@@ -51,6 +51,43 @@ The generated `.devcontainer/.env` and
 `.devcontainer/compose.local.gen.yml` files are written inside the submodule
 checkout and are ignored by the release kit itself.
 
+## OpenCode Agent Setup
+
+The release kit creates root `.oc_local/` when no tracked project overlay exists
+so `OPENCODE_CONFIG_DIR=/workspace/.oc_local` is always writable inside the
+container. It does not include this repository's development-only `.opencode/`
+checkout.
+
+When a consuming project should use the shared OpenCode commands, rules, and
+skills, add the OpenCode agent kit as a separate submodule from the consuming
+project root:
+
+```bash
+git submodule add https://github.com/codegeist-ai/codegeist-agent-kit .opencode
+git add .gitmodules .opencode
+git commit -m "chore(opencode): add shared agent kit"
+```
+
+Then track a project-local `.oc_local/` overlay only when the project needs its
+own OpenCode configuration, commands, rules, or skills. In that case, do not
+ignore `/.oc_local/`; keep generated local files out with narrower ignore rules
+instead.
+
+Recommended layout for a consuming project that uses both shared and local
+OpenCode guidance:
+
+```text
+.opencode/              # shared agent kit submodule
+.oc_local/opencode.json # project-local OpenCode config
+.oc_local/rules/        # project-specific agent rules, optional
+.oc_local/commands/     # project-specific slash commands, optional
+.oc_local/skills/       # project-specific skills, optional
+```
+
+Project-specific OpenCode behavior belongs in `.oc_local/`. Only change the
+`.opencode/` submodule itself when updating the shared agent kit for every
+consumer, and commit that as a normal submodule gitlink update.
+
 ## Daily Use
 
 Open the consuming project root in VS Code and let the Dev Containers extension
@@ -118,6 +155,12 @@ not as ordinary project source.
   intentionally migrating to a Git subtree workflow.
 - Do not use destructive submodule commands such as `git reset --hard` or forced
   checkouts unless a human explicitly requests them.
+- If `.opencode/` is present, treat it as a shared agent-kit submodule. Do not
+  edit files inside `.opencode/` for one consuming project.
+- Put project-specific OpenCode instructions, commands, rules, and skills under
+  `.oc_local/` instead of changing `.opencode/`.
+- If `.oc_local/` is tracked, do not also ignore the whole directory. Ignore only
+  generated local artifacts such as package caches or machine-local state.
 
 If the kit behavior itself needs to change:
 

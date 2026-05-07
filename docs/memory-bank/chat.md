@@ -29,6 +29,8 @@
 
 - Consuming repositories install this kit at `.devcontainer/` as either a Git
   subtree or a Git submodule.
+- `README_release.md` documents the runtime-release consumer path: pin
+  `.devcontainer` to the kit's runtime-only `release` branch, not `main`.
 - `devcontainer.json` is the VS Code / Dev Containers entrypoint.
 - `initialize.sh` is the host-side `initializeCommand`; it creates local config,
   generated runtime files, root `.oc_local/`, and optional branch worktrees.
@@ -40,6 +42,14 @@
   `.devcontainer/compose.local.gen.yml`, `.oc_local/`, `compose.local.yml`, and
   `.worktrees/` should stay untracked unless a consuming repository explicitly
   owns an overlay.
+- The runtime kit creates writable `.oc_local/` when no tracked overlay exists,
+  but does not ship this repository's development-only `.opencode/` checkout.
+- Consuming repositories that want shared OpenCode commands, rules, and skills
+  should add `https://github.com/codegeist-ai/codegeist-agent-kit` as a separate
+  `.opencode` submodule.
+- Project-specific OpenCode behavior belongs in `.oc_local/`; only update the
+  `.opencode/` submodule itself when changing the shared agent kit for every
+  consumer.
 
 ## Workflow Decisions
 
@@ -53,6 +63,8 @@
   the full suite, report the blocker and list targeted checks that passed.
 - Runtime releases are published from clean `main` with `task release-build`;
   use `--push` only when the branch should be pushed immediately.
+- In consuming repos, treat both `.devcontainer/` and `.opencode/` as submodules:
+  do not customize one project by editing their checked-out contents directly.
 
 ## Verification
 

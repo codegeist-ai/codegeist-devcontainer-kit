@@ -20,22 +20,24 @@ Then:
 6. Verify the remote release branch exists with
    `git ls-remote --heads origin refs/heads/release`.
 7. Verify the release branch commit contains only runtime files with
-   `git ls-tree -r --name-only release`.
-8. Record the pushed release commit with
+    `git ls-tree -r --name-only release`.
+8. Verify the release branch publishes the consumer guide as its primary README
+   with `git show release:README.md` and compare it to `README_release.md`.
+9. Record the pushed release commit with
    `git rev-parse release` and
    `git ls-remote --heads origin refs/heads/release`.
-9. Fetch the release branch inside the `.devcontainer` submodule with
+10. Fetch the release branch inside the `.devcontainer` submodule with
    `git -C .devcontainer fetch origin release`.
-10. Check out the just-pushed release commit in the `.devcontainer` submodule with
+11. Check out the just-pushed release commit in the `.devcontainer` submodule with
    `git -C .devcontainer checkout origin/release`.
-11. Verify `.devcontainer` points at the same release commit with
-    `git -C .devcontainer rev-parse HEAD`,
-    `git submodule status .devcontainer`, and
-    `git -C .devcontainer log -1 --format=%s`.
-12. Verify the parent repository shows the expected `.devcontainer` gitlink
-    change with `git --no-pager status --short --branch`.
-13. Report the release branch name, local release commit, remote release commit,
-    and the new `.devcontainer` submodule commit.
+12. Verify `.devcontainer` points at the same release commit with
+   `git -C .devcontainer rev-parse HEAD`,
+   `git submodule status .devcontainer`, and
+   `git -C .devcontainer log -1 --format=%s`.
+13. Verify the parent repository shows the expected `.devcontainer` gitlink
+   change with `git --no-pager status --short --branch`.
+14. Report the release branch name, local release commit, remote release commit,
+   and the new `.devcontainer` submodule commit.
 
 Do not create or push release tags.
 Do not use SemVer selection for this repository's release workflow.

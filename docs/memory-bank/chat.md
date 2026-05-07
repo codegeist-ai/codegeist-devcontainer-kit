@@ -11,7 +11,7 @@
 
 ## Repository State
 
-- Current workspace root is `/home/test/Projects/codegeist-ai/codegeist-devcontainer-kit`.
+- Current workspace root is `/workspace`.
 - The local default branch is `main`.
 - `.devcontainer/` and `.opencode/` are checked-out shared submodules in this
   development repository. Do not edit them directly during normal project work.
@@ -22,6 +22,12 @@
 - Latest work keeps generated `.env` files ignored without direct edits inside
   `.devcontainer/`: root `.gitignore` now covers the release-branch root `.env`,
   and release builds copy that `.gitignore` into the runtime-only branch.
+- Release builds publish `README_release.md` as `README.md` in the runtime-only
+  branch so consuming `.devcontainer` submodule checkouts expose the focused
+  consumer guide as their primary README.
+- The local `.devcontainer` submodule checkout is intentionally updated to the
+  latest runtime `origin/release` commit when release work is ready for a parent
+  gitlink commit.
 - The parent repository still sees this directory as an untracked nested Git repo;
   treat this repository as the source of truth for the kit work.
 
@@ -43,7 +49,7 @@
   - `task tests-run`
   - `task code-open`
   - `task code-open-test`
-  - `task release-build -- v1.0.9`
+  - `task release-build -- release --push`
 - `task code-open -- <branch>` opens the current Git root and writes
   `.devcontainer/.env` so VS Code/Compose keep the branch even when an existing
   VS Code process handles `code .`; `BRANCH=<branch> task code-open` remains
@@ -165,9 +171,10 @@ task code-open -- develop0
   as explicit submodule work with its own review, tests, commit, and parent
   gitlink update.
 - Runtime releases are published from clean `main` with `task release-build`.
-  The task builds a runtime-only tree with a temporary index and `commit-tree`,
-  then updates the orphan `release` branch. Use `--push` only when the branch
-  should be pushed immediately.
+  The task copies runtime files into a temporary tree, copies
+  `README_release.md` there as `README.md`, then writes that tree with a
+  temporary index and `commit-tree` before updating the orphan `release` branch.
+  Use `--push` only when the branch should be pushed immediately.
 - Repo-local release automation lives in `.oc_local/`: `/release-build` first
   executes `@.opencode/commands/save.md`, then verifies the branch-only release
   contract, runs `tests/release-build.sh`, calls
@@ -182,17 +189,18 @@ task code-open -- develop0
 
 ## Verification Already Done
 
-- Latest targeted verification for `README_release.md` passed:
+- Latest targeted verification for release README publication passed:
 
 ```bash
+bash -n scripts/release-build.sh tests/release-build.sh
+tests/release-build.sh
 git diff --check
 ```
 
-- Latest full-suite attempt for `README_release.md` ran `task tests-run` and
-  failed inside the Dev Containers image build while extracting `scc` with
-  `tar: scc: Wrote only 4608 of 10240 bytes`. Docker storage was constrained on
-  `/var/lib/docker` tmpfs; treat this as an environment/build blocker, not a
-  completed full-suite pass.
+- Latest full-suite attempt ran `task tests-run` and failed inside the Dev
+  Containers image build while extracting `scc` with
+  `tar: scc: Wrote only 2560 of 10240 bytes`. Treat this as the current
+  environment/build-storage blocker, not a completed full-suite pass.
 
 - Latest targeted verification for the release command save preflight passed:
 

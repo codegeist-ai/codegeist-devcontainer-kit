@@ -59,6 +59,7 @@ cat >"$expected_files" <<'EOF'
 .local.env.example
 .oc_local.gitignore.example
 Dockerfile
+README.md
 compose.local.yml.example
 devcontainer.json
 docker-compose.yml
@@ -70,6 +71,9 @@ sort -o "$expected_files" "$expected_files"
 git -C "$release_repo" ls-tree -r --name-only "$release_branch" | sort >"$actual_files"
 diff -u "$expected_files" "$actual_files" \
   || fail "release branch contains unexpected files"
+
+diff -u "$release_repo/README_release.md" <(git -C "$release_repo" show "$release_branch:README.md") \
+  || fail "release branch README.md does not match README_release.md"
 
 [[ "$(git -C "$release_repo" log -1 --format=%s "$release_branch")" = "chore(release): update devcontainer runtime branch" ]] \
   || fail "release branch commit subject is wrong"

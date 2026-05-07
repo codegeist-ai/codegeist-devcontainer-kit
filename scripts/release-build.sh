@@ -14,6 +14,7 @@
 #
 # Related files:
 # - ../Taskfile.yaml
+# - ../README_release.md
 # - ../devcontainer.json
 # - ../docker-compose.yml
 # - ../Dockerfile
@@ -24,6 +25,7 @@ release_branch="release"
 push_branch=0
 repo_root=""
 tmp_index=""
+tmp_tree=""
 
 runtime_files=(
   ".gitignore"
@@ -37,6 +39,8 @@ runtime_files=(
   "initialize.sh"
 )
 
+runtime_readme_source="README_release.md"
+
 fail() {
   printf 'ERROR: %s\n' "$*" >&2
   exit 1
@@ -49,6 +53,10 @@ usage() {
 cleanup() {
   if [ -n "$tmp_index" ]; then
     rm -f "$tmp_index"
+  fi
+
+  if [ -n "$tmp_tree" ]; then
+    rm -rf "$tmp_tree"
   fi
 }
 
@@ -91,12 +99,20 @@ git -C "$repo_root" check-ref-format --branch "$release_branch" >/dev/null \
 for runtime_file in "${runtime_files[@]}"; do
   [ -e "$repo_root/$runtime_file" ] || fail "runtime file is missing: $runtime_file"
 done
+[ -e "$repo_root/$runtime_readme_source" ] || fail "runtime file is missing: $runtime_readme_source"
 
 trap cleanup EXIT
 
 tmp_index="$(mktemp)"
+tmp_tree="$(mktemp -d)"
+
+for runtime_file in "${runtime_files[@]}"; do
+  cp -p "$repo_root/$runtime_file" "$tmp_tree/$runtime_file"
+done
+cp -p "$repo_root/$runtime_readme_source" "$tmp_tree/README.md"
+
 GIT_INDEX_FILE="$tmp_index" git -C "$repo_root" read-tree --empty
-GIT_INDEX_FILE="$tmp_index" git -C "$repo_root" add -- "${runtime_files[@]}"
+GIT_INDEX_FILE="$tmp_index" git --git-dir="$repo_root/.git" --work-tree="$tmp_tree" add -- .
 runtime_tree="$(GIT_INDEX_FILE="$tmp_index" git -C "$repo_root" write-tree)"
 
 parent_args=()

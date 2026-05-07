@@ -14,7 +14,7 @@
   development repository. Do not edit them directly during normal project work
   unless the task is explicit submodule work.
 - `.devcontainer` currently points at runtime `release` commit
-  `a6bdb55efdb957564f21616d6c8973d17478041a`.
+  `26332d0e12b9e24c02a9353ae1c4389e7986a8b7`.
 - `Dockerfile` installs `@mermaid-js/mermaid-cli` with the global npm tooling
   alongside `opencode-ai`, `repomix`, `@ast-grep/cli`, and
   `@devcontainers/cli`.
@@ -57,6 +57,9 @@
 ## Verification
 
 - Latest full `task tests-run` passed after pruning Docker storage.
+- Latest `tests/release-build.sh` and `task release-build -- release --push`
+  passed, publishing runtime `release` commit
+  `26332d0e12b9e24c02a9353ae1c4389e7986a8b7`.
 - The suite covers initialization, Compose config resolution, branch worktree
   setup, local Docker image build, TTY `docker-run`, `devcontainer up`,
   `BRANCH` + `devcontainer up`, and the consuming-repo submodule workflow.

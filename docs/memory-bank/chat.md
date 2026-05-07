@@ -28,6 +28,8 @@
 - The local `.devcontainer` submodule checkout is intentionally updated to the
   latest runtime `origin/release` commit when release work is ready for a parent
   gitlink commit.
+- Latest pushed runtime release is `7b18c2adcba4cf7002aafc3a0490d489902a7c2d`;
+  the parent `.devcontainer` gitlink should point at that commit.
 - The parent repository still sees this directory as an untracked nested Git repo;
   treat this repository as the source of truth for the kit work.
 
@@ -196,6 +198,19 @@ bash -n scripts/release-build.sh tests/release-build.sh
 tests/release-build.sh
 git diff --check
 ```
+
+- Latest runtime release publish passed:
+
+```bash
+tests/release-build.sh
+task release-build -- release --push
+git ls-remote --heads origin refs/heads/release
+git ls-tree -r --name-only release
+diff -u README_release.md <(git show release:README.md)
+```
+
+- The pushed `release` branch and `.devcontainer` submodule checkout both point
+  at `7b18c2adcba4cf7002aafc3a0490d489902a7c2d`.
 
 - Latest full-suite attempt ran `task tests-run` and failed inside the Dev
   Containers image build while extracting `scc` with

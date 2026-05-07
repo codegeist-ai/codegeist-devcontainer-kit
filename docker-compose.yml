@@ -28,7 +28,7 @@
 # - entrypoint.sh
 # - initialize.sh
 # - ../compose.local.yml
-# - .gen.env
+# - .env
 # - compose.local.gen.yml
 # - ../.local.env
 services:
@@ -49,7 +49,7 @@ services:
     extra_hosts:
       - host.docker.internal:host-gateway
     env_file:
-      - path: .gen.env
+      - path: .env
         required: false
       - path: ../.local.env
         required: false

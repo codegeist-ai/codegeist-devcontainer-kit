@@ -41,7 +41,7 @@ devcontainer_cli up --workspace-folder "$fixture_dir" | tee "$log_file"
 
 [[ -f "$fixture_dir/compose.local.yml" ]] || fail "initializeCommand did not create root compose.local.yml"
 [[ -f "$fixture_dir/.local.env" ]] || fail "initializeCommand did not create root .local.env"
-[[ -f "$fixture_dir/.devcontainer/.gen.env" ]] || fail "initializeCommand did not create .devcontainer/.gen.env"
+[[ -f "$fixture_dir/.devcontainer/.env" ]] || fail "initializeCommand did not create .devcontainer/.env"
 [[ -f "$fixture_dir/.devcontainer/compose.local.gen.yml" ]] || fail "initializeCommand did not create .devcontainer/compose.local.gen.yml"
 expected_hostname="$(expected_generated_hostname "$fixture_dir" "")"
 [[ "$(<"$fixture_dir/.devcontainer/compose.local.gen.yml")" == *"hostname: $expected_hostname"* ]] || fail "generated compose file does not set expected hostname"

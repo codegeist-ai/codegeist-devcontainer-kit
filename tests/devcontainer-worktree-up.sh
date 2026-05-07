@@ -55,7 +55,7 @@ worktree_path="$repo_dir/.worktrees/$branch_name"
 [[ -f "$repo_dir/.local.env" ]] || fail "root .local.env was not created"
 
 [[ -f "$repo_dir/compose.local.yml" ]] || fail "initializeCommand did not create root compose.local.yml"
-[[ -f "$repo_dir/.devcontainer/.gen.env" ]] || fail "initializeCommand did not create .devcontainer/.gen.env"
+[[ -f "$repo_dir/.devcontainer/.env" ]] || fail "initializeCommand did not create .devcontainer/.env"
 [[ -f "$repo_dir/.devcontainer/compose.local.gen.yml" ]] || fail "initializeCommand did not create .devcontainer/compose.local.gen.yml"
 expected_hostname="$(expected_generated_hostname "$repo_dir" "$branch_name")"
 [[ "$(<"$repo_dir/.devcontainer/compose.local.gen.yml")" == *"hostname: $expected_hostname"* ]] || fail "generated compose file does not set worktree hostname"

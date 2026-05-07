@@ -59,7 +59,8 @@ CODE_BIN="$fake_code" \
 
 env -u BRANCH "$fixture_dir/.devcontainer/initialize.sh"
 [[ -d "$fixture_dir/.worktrees/$branch_name" ]] || fail "initializeCommand did not read branch from fixture .env"
-[[ "$(<"$fixture_dir/.devcontainer/.gen.env")" == *"DEVCONTAINER_BRANCH_NAME=$branch_name"* ]] || fail "generated env does not use persisted branch"
+[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_BRANCH_NAME=$branch_name"* ]] || fail "generated env does not use persisted branch"
+[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"BRANCH=$branch_name"* ]] || fail "generated env does not keep persisted branch"
 
 compose_config="$(cd "$fixture_dir" && env -u BRANCH docker compose \
   -f ".devcontainer/docker-compose.yml" \

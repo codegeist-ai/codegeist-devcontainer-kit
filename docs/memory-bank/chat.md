@@ -19,9 +19,9 @@
   now includes `.oc_local/rules/submodule-editing.md` to make that convention
   explicit, and `.oc_local/opencode.json` loads both `.oc_local/rules` and
   `README.md` as instruction sources.
-- Latest work adds `README_release.md`, a focused guide for projects that pin
-  this kit's runtime-only `release` branch as a `.devcontainer` Git submodule,
-  including coding-agent rules for consumer repositories.
+- Latest work keeps generated `.env` files ignored without direct edits inside
+  `.devcontainer/`: root `.gitignore` now covers the release-branch root `.env`,
+  and release builds copy that `.gitignore` into the runtime-only branch.
 - The parent repository still sees this directory as an untracked nested Git repo;
   treat this repository as the source of truth for the kit work.
 

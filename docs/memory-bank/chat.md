@@ -19,10 +19,9 @@
   now includes `.oc_local/rules/submodule-editing.md` to make that convention
   explicit, and `.oc_local/opencode.json` loads both `.oc_local/rules` and
   `README.md` as instruction sources.
-- Latest work fixes `postStartCommand` failures when a stale
-  root-owned `/tmp/dockerd.log` exists in the container. `entrypoint.sh` now
-  removes the stale log with `sudo` and starts `dockerd` from a root shell so log
-  redirection is not performed by the unprivileged workspace user.
+- Latest work adds `README_release.md`, a focused guide for projects that pin
+  this kit's runtime-only `release` branch as a `.devcontainer` Git submodule,
+  including coding-agent rules for consumer repositories.
 - The parent repository still sees this directory as an untracked nested Git repo;
   treat this repository as the source of truth for the kit work.
 
@@ -55,6 +54,9 @@
   lifecycle.
 - `README.md` is the primary usage documentation for consuming repos and for
   developing this kit.
+- `README_release.md` is the focused guide for projects that consume the
+  runtime-only `release` branch as a `.devcontainer` Git submodule, including
+  coding-agent rules for consumer repositories.
 
 ## Usage Contract
 
@@ -179,6 +181,18 @@ task code-open -- develop0
   `.local.env`; existing normal `.local.env` files in worktrees are preserved.
 
 ## Verification Already Done
+
+- Latest targeted verification for `README_release.md` passed:
+
+```bash
+git diff --check
+```
+
+- Latest full-suite attempt for `README_release.md` ran `task tests-run` and
+  failed inside the Dev Containers image build while extracting `scc` with
+  `tar: scc: Wrote only 4608 of 10240 bytes`. Docker storage was constrained on
+  `/var/lib/docker` tmpfs; treat this as an environment/build blocker, not a
+  completed full-suite pass.
 
 - Latest targeted verification for the release command save preflight passed:
 

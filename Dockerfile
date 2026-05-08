@@ -102,6 +102,7 @@ RUN apt-get update \
       python3 \
       python3-pip \
       ripgrep \
+      rsync \
       sudo \
       unzip \
       wget \

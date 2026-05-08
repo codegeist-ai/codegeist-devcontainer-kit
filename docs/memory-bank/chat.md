@@ -14,7 +14,9 @@
   development repository. Do not edit them directly during normal project work
   unless the task is explicit submodule work.
 - `.devcontainer` currently points at runtime `release` commit
-  `26332d0e12b9e24c02a9353ae1c4389e7986a8b7`.
+  `e551e560b19a8897533265f6cbb5e7bec02c614a`; the parent repository still has
+  this as a pending gitlink update.
+- `Dockerfile` now adds `rsync` to the APT toolchain.
 - `Dockerfile` installs `@mermaid-js/mermaid-cli` with the global npm tooling
   alongside `opencode-ai`, `repomix`, `@ast-grep/cli`, and
   `@devcontainers/cli`.
@@ -63,15 +65,20 @@
   the full suite, report the blocker and list targeted checks that passed.
 - Runtime releases are published from clean `main` with `task release-build`;
   use `--push` only when the branch should be pushed immediately.
+- The local `release-build` command workflow now requires `save` to finish,
+  then a clean-worktree check, then `task tests-run`, then
+  `tests/release-build.sh`, before publishing with
+  `task release-build -- release --push`.
 - In consuming repos, treat both `.devcontainer/` and `.opencode/` as submodules:
   do not customize one project by editing their checked-out contents directly.
 
 ## Verification
 
-- Latest full `task tests-run` passed after pruning Docker storage.
-- Latest `tests/release-build.sh` and `task release-build -- release --push`
-  passed, publishing runtime `release` commit
-  `26332d0e12b9e24c02a9353ae1c4389e7986a8b7`.
+- `task tests-run` must be rerun after the current save and clean-worktree check
+  before any next release publish.
+- `.devcontainer` is already checked out at prior runtime release
+  `e551e560b19a8897533265f6cbb5e7bec02c614a`; record the parent gitlink update
+  with the surrounding task changes when saving.
 - The suite covers initialization, Compose config resolution, branch worktree
   setup, local Docker image build, TTY `docker-run`, `devcontainer up`,
   `BRANCH` + `devcontainer up`, and the consuming-repo submodule workflow.

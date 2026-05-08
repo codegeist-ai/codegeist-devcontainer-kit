@@ -13,13 +13,12 @@
 - `.devcontainer/` and `.opencode/` are checked-out shared submodules in this
   development repository. Do not edit them directly during normal project work
   unless the task is explicit submodule work.
-- `.devcontainer` currently points at runtime `release` commit
-  `e551e560b19a8897533265f6cbb5e7bec02c614a`; the parent repository still has
+- `.devcontainer` currently points at prior runtime `release` commit
+  `0913c719682f89314649ed78f7fe6fe7f515ee67`; the parent repository still has
   this as a pending gitlink update.
-- `Dockerfile` now adds `rsync` to the APT toolchain.
-- `Dockerfile` installs `@mermaid-js/mermaid-cli` with the global npm tooling
-  alongside `opencode-ai`, `repomix`, `@ast-grep/cli`, and
-  `@devcontainers/cli`.
+- `Dockerfile` installs `tiktoken-cli` in the global npm CLI toolchain alongside
+  `opencode-ai`, `repomix`, `@ast-grep/cli`, `@devcontainers/cli`, and related
+  tools.
 - `compose.local.yml` and `compose.local.yml.example` are intentionally minimal
   override files with `services: {}`. Shared defaults belong in
   `docker-compose.yml`; local or consuming-repo overrides can be added only when
@@ -74,10 +73,12 @@
 
 ## Verification
 
-- `task tests-run` must be rerun after the current save and clean-worktree check
-  before any next release publish.
+- `task tests-run` passed after Docker cleanup for the `tiktoken-cli` Dockerfile
+  change.
+- The release workflow must rerun `task tests-run` after save and the
+  clean-worktree check before publishing.
 - `.devcontainer` is already checked out at prior runtime release
-  `e551e560b19a8897533265f6cbb5e7bec02c614a`; record the parent gitlink update
+  `0913c719682f89314649ed78f7fe6fe7f515ee67`; record the parent gitlink update
   with the surrounding task changes when saving.
 - The suite covers initialization, Compose config resolution, branch worktree
   setup, local Docker image build, TTY `docker-run`, `devcontainer up`,

@@ -8,6 +8,9 @@ local override templates in this repository.
 - Keep Mermaid CLI (`@mermaid-js/mermaid-cli`, `mmdc`) in the default image
   toolchain. It supports repo-owned software documentation diagrams without
   requiring per-project installation.
+- Keep `tiktoken-cli` in the default image npm toolchain. It supports AI and
+  documentation workflows that need token counting without requiring
+  per-project installation.
 - When changing default image tools, update the matching documentation and smoke
   coverage if the tool is part of the documented development contract.
 

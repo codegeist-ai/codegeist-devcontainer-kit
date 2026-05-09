@@ -27,6 +27,8 @@ source "$script_dir/helpers.sh"
 
 branch_name="${1:-${BRANCH:-}}"
 fixture_dir="${KEEP_CODE_FIXTURE_DIR:-$(mktemp -d -t devcontainer-code-open-XXXXXX)}"
+remote_workspace_folder=""
+expected_workspace_folder=""
 
 if [ -e "$fixture_dir" ] && [ -n "$(ls -A "$fixture_dir" 2>/dev/null)" ]; then
   fail "fixture directory is not empty: $fixture_dir"
@@ -44,4 +46,37 @@ else
   CODE_OPEN_WORKSPACE="$fixture_dir" task -t "$project_root/Taskfile.yaml" code-open
 fi
 
-pass "started VS Code for temporary devcontainer fixture: $fixture_dir"
+if [ "${CODE_OPEN_TEST_SKIP_UP:-false}" != "true" ]; then
+  log "starting devcontainer CLI from fixture root"
+  devcontainer_log="$fixture_dir/devcontainer-up.log"
+  expected_workspace_folder="$(expected_workspace_folder "$fixture_dir" "$branch_name")"
+  if [ -n "$branch_name" ]; then
+    devcontainer_cli up --remove-existing-container --workspace-folder "$expected_workspace_folder" | tee "$devcontainer_log"
+  else
+    devcontainer_cli up --remove-existing-container --workspace-folder "$fixture_dir" | tee "$devcontainer_log"
+  fi
+
+  remote_workspace_folder="$(extract_remote_workspace_folder_from_log "$devcontainer_log")"
+  [ -n "$remote_workspace_folder" ] || fail "devcontainer CLI did not report a remote workspace folder"
+  [ "$remote_workspace_folder" = "$expected_workspace_folder" ] \
+    || fail "devcontainer CLI reported $remote_workspace_folder, expected $expected_workspace_folder"
+
+  if [ -n "$branch_name" ]; then
+    devcontainer_cli exec --workspace-folder "$expected_workspace_folder" bash -lc '
+      set -eu
+      test "$PWD" = "'"$expected_workspace_folder"'"
+      test "$DEVCONTAINER_WORKSPACE_FOLDER" = "'"$expected_workspace_folder"'"
+      git rev-parse --is-inside-work-tree >/dev/null
+      test "$(git rev-parse --abbrev-ref HEAD)" = "'"$branch_name"'"
+    '
+  else
+    devcontainer_cli exec --workspace-folder "$fixture_dir" bash -lc '
+      set -eu
+      test "$PWD" = "'"$expected_workspace_folder"'"
+      test "$DEVCONTAINER_WORKSPACE_FOLDER" = "'"$expected_workspace_folder"'"
+      git rev-parse --is-inside-work-tree >/dev/null
+    '
+  fi
+fi
+
+pass "started VS Code and devcontainer for temporary fixture: $fixture_dir"

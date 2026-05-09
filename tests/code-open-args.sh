@@ -36,6 +36,8 @@ set -euo pipefail
 {
   printf 'PWD=%s\n' "$PWD"
   printf 'BRANCH=%s\n' "${BRANCH:-}"
+  printf 'DEVCONTAINER_WORKSPACE_RELATIVE=%s\n' "${DEVCONTAINER_WORKSPACE_RELATIVE:-}"
+  printf 'DEVCONTAINER_WORKSPACE_SUFFIX=%s\n' "${DEVCONTAINER_WORKSPACE_SUFFIX:-}"
   printf 'ARGS=%s\n' "$*"
 } >"$CODE_OPEN_CAPTURE"
 EOF
@@ -43,14 +45,18 @@ chmod +x "$fake_code"
 
 CODE_BIN="$fake_code" \
   CODE_OPEN_CAPTURE="$capture_file" \
+  CODE_OPEN_TEST_SKIP_UP=true \
   KEEP_CODE_FIXTURE_DIR="$fixture_dir" \
   task -t "$project_root/Taskfile.yaml" code-open-test -- "$branch_name" >/dev/null
 
 [[ -f "$capture_file" ]] || fail "fake code command was not invoked"
-[[ "$(extract_key_value "$(<"$capture_file")" PWD)" = "$fixture_dir" ]] || fail "code-open-test did not start code from the fixture root"
+expected_workspace_folder="$(expected_workspace_folder "$fixture_dir" "$branch_name")"
+[[ "$(extract_key_value "$(<"$capture_file")" PWD)" = "$expected_workspace_folder" ]] || fail "code-open-test did not start code from the selected worktree"
 [[ "$(extract_key_value "$(<"$capture_file")" BRANCH)" = "$branch_name" ]] || fail "code-open-test did not forward CLI branch as BRANCH"
+[[ "$(extract_key_value "$(<"$capture_file")" DEVCONTAINER_WORKSPACE_RELATIVE)" = ".worktrees/$branch_name" ]] || fail "code-open-test did not pass relative workspace path"
+[[ "$(extract_key_value "$(<"$capture_file")" DEVCONTAINER_WORKSPACE_SUFFIX)" = "/.worktrees/$branch_name" ]] || fail "code-open-test did not pass workspace suffix"
 [[ "$(extract_key_value "$(<"$capture_file")" ARGS)" = "." ]] || fail "code-open-test did not open the fixture root with code ."
-[[ "$(<"$fixture_dir/.devcontainer/.env")" = "BRANCH=$branch_name" ]] || fail "code-open-test did not persist branch for Compose startup"
+[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"BRANCH=$branch_name"* ]] || fail "code-open-test did not persist branch for Compose startup"
 [[ ! -e "$fixture_dir/.devcontainer/.devcontainer" ]] || fail "code-open-test copied a nested .devcontainer into the fixture"
 [[ ! -e "$fixture_dir/.devcontainer/.local.env" ]] || fail "code-open-test copied root .local.env into the kit directory"
 [[ ! -e "$fixture_dir/.devcontainer/compose.local.yml" ]] || fail "code-open-test copied root compose.local.yml into the kit directory"
@@ -68,7 +74,11 @@ compose_config="$(cd "$fixture_dir" && env -u BRANCH docker compose \
   -f "compose.local.yml" \
   --profile '*' \
   config)"
-[[ "$compose_config" == *"source: $fixture_dir/.worktrees/$branch_name"* ]] || fail "Compose did not select persisted branch worktree for /workspace"
-[[ "$(<"$fixture_dir/.devcontainer/devcontainer.json")" == *'"workspaceFolder": "/workspace"'* ]] || fail "devcontainer workspaceFolder is not /workspace"
+[[ "$compose_config" == *"source: $fixture_dir/.worktrees/$branch_name"* ]] || fail "Compose did not select persisted branch worktree"
+[[ "$compose_config" == *"target: $expected_workspace_folder"* ]] || fail "Compose did not mount selected worktree at the stable workspace path"
+[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_WORKSPACE_FOLDER=$expected_workspace_folder"* ]] || fail "generated env does not persist selected workspace folder"
+[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_WORKSPACE_RELATIVE=.worktrees/$branch_name"* ]] || fail "generated env does not persist relative workspace folder"
+[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_WORKSPACE_SUFFIX=/.worktrees/$branch_name"* ]] || fail "generated env does not persist workspace suffix"
+[[ "$(<"$fixture_dir/.devcontainer/devcontainer.json")" == *'"workspaceFolder": "${localWorkspaceFolder}"'* ]] || fail "devcontainer workspaceFolder does not use the opened workspace folder"
 
 pass "code-open-test forwards task CLI branch arguments to VS Code and Compose startup"

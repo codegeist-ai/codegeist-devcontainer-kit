@@ -7,7 +7,7 @@
 		"../compose.local.yml"
 	],
 	"service": "workspace",
-	"workspaceFolder": "/workspace",
+	"workspaceFolder": "${localWorkspaceFolder}",
 	"postStartCommand": "sudo -E /usr/local/bin/devcontainer-entrypoint true",
 	"remoteUser": "${localEnv:USER}",
 	"containerUser": "${localEnv:USER}",

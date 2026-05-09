@@ -5,7 +5,8 @@
 - This repository maintains the reusable `codegeist-devcontainer-kit` for
   consuming projects that want the normal VS Code Dev Containers workflow with
   the current Codegeist/planner-style toolchain.
-- OpenCode work should continue from `/workspace`, this repository root.
+- OpenCode work should continue from this repository root, currently
+  `/workspace` in the maintenance container.
 
 ## Current State
 
@@ -13,8 +14,8 @@
 - `.devcontainer/` and `.opencode/` are checked-out shared submodules in this
   development repository. Do not edit them directly during normal project work
   unless the task is explicit submodule work.
-- `.devcontainer` currently points at prior runtime `release` commit
-  `c71522401be85b1a22886b033c5fe482dd4e93aa`; the parent repository still has
+- `.devcontainer` currently points at runtime `release` commit
+  `9ce8459fd00b579c3561654f778630b52bc98734`; the parent repository still has
   this as a pending gitlink update.
 - `Dockerfile` installs `tiktoken-cli`, Mike Farah `yq`, network diagnostics,
   Kubernetes administration CLIs (`kubectl`, `helm`, `k9s`, `talosctl`), and
@@ -39,13 +40,23 @@
 - `initialize.sh` is the host-side `initializeCommand`; it creates local config,
   generated runtime files, root `.oc_local/`, and optional branch worktrees.
 - Normal flow starts from the consuming repository root with `code .`.
-- Worktree flow also starts from the consuming repository root with
-  `BRANCH=<branch> code .`; Compose mounts `.worktrees/<branch>` at
-  `/workspace`.
+- Worktree flow prepares from the consuming repository root with
+  `BRANCH=<branch> .devcontainer/initialize.sh`, then opens
+  `.worktrees/<branch>` directly. The container workspace path matches that
+  checkout's absolute host path so OpenCode sessions do not collapse across
+  projects or branches that would otherwise all appear as `/workspace`.
+- In this repository, `task code-open -- <branch>` performs that prepare-then-open
+  flow and invokes `code .` from the selected worktree.
+- `task code-open-test -- <branch>` now runs the real `code-open` path and then
+  starts the fixture through Dev Containers CLI, so terminal cwd failures after
+  container startup are caught by the test.
 - Generated runtime files such as `.local.env`, `.devcontainer/.env`,
   `.devcontainer/compose.local.gen.yml`, `.oc_local/`, `compose.local.yml`, and
   `.worktrees/` should stay untracked unless a consuming repository explicitly
   owns an overlay.
+- Generated `.oc_local/.gitignore` now ignores everything in the local OpenCode
+  overlay and the initializer excludes both `/.oc_local/` and
+  `/.oc_local/.gitignore` when no tracked project overlay exists.
 - The runtime kit creates writable `.oc_local/` when no tracked overlay exists,
   but does not ship this repository's development-only `.opencode/` checkout.
 - Consuming repositories that want shared OpenCode commands, rules, and skills
@@ -76,18 +87,21 @@
 
 ## Verification
 
-- `task tests-run` passed after adding `yq`, network diagnostics, Kubernetes
-  CLIs, Terraform, Ansible, the Hugo asset URL fix, and removing the forced
-  nested-Docker `vfs` storage driver. Latest output:
-  `/home/test/.local/share/opencode/tool-output/tool_e0cd722840011fv6g01BwTWlRP`.
+- Latest `task tests-run` is blocked by Docker Hub's unauthenticated pull rate
+  limit for `debian:bookworm-slim` after the initialize test reaches a worktree
+  Dev Containers config with absolute worktree and repo-root mounts.
+- Passing checks from the current workspace-path update:
+  `bash -n initialize.sh tests/initialize.sh tests/devcontainer-worktree-up.sh tests/submodule-workflow.sh tests/worktree.sh`,
+  `git --no-pager diff --check`, `bash tests/code-open-args.sh` with a temp
+  suite dir, and `CODE_OPEN_TEST_SKIP_UP=true task code-open-test -- dev1`.
 - The release workflow must rerun `task tests-run` after save and the
   clean-worktree check before publishing.
-- `.devcontainer` is already checked out at prior runtime release
-  `c71522401be85b1a22886b033c5fe482dd4e93aa`; record the parent gitlink update
+- `.devcontainer` is already checked out at runtime release
+  `9ce8459fd00b579c3561654f778630b52bc98734`; record the parent gitlink update
   with the surrounding task changes when saving.
 - The suite covers initialization, Compose config resolution, branch worktree
-  setup, local Docker image build, TTY `docker-run`, `devcontainer up`,
-  `BRANCH` + `devcontainer up`, and the consuming-repo submodule workflow.
+  setup, local Docker image build, TTY `docker-run`, root `devcontainer up`,
+  direct worktree `devcontainer up`, and the consuming-repo submodule workflow.
 
 ## Useful Commands
 

@@ -4,9 +4,9 @@
 # Why this exists:
 # - Exercises a consuming repository that does not vendor the kit directly but
 #   adds it as `.devcontainer` through `git submodule add`.
-# - Verifies the real Dev Containers CLI lifecycle from the consuming repo root
-#   with `BRANCH=dev0`, including generated root files, selected worktree mount,
-#   nested Docker, and a commit/merge workflow.
+# - Verifies the real Dev Containers CLI lifecycle from the selected worktree
+#   after the consuming repo root prepares it with `BRANCH=dev0`, including
+#   generated local files, nested Docker, and a commit/merge workflow.
 #
 # Related files:
 # - ../initialize.sh
@@ -26,6 +26,7 @@ branch_name="dev0"
 container_id=""
 log_file="$suite_tmp_dir/submodule-workflow.log"
 expected_hostname=""
+expected_workspace_folder=""
 expected_user="$(id -u):$(id -u)"
 expected_user_name="$(expected_container_user)"
 
@@ -51,12 +52,10 @@ git -C "$p1_dir" commit -m "initial p1" >/dev/null
 git -C "$p1_dir" -c protocol.file.allow=always submodule add "$kit_repo_dir" .devcontainer >/dev/null
 git -C "$p1_dir" commit -m "add devcontainer submodule" >/dev/null
 
-BRANCH="$branch_name" devcontainer_cli up --workspace-folder "$p1_dir" | tee "$log_file"
-container_id="$(extract_container_id_from_log "$log_file" || true)"
-[[ -n "$container_id" ]] || fail "could not extract workspace container id from devcontainer output"
-[[ "$(extract_remote_workspace_folder_from_log "$log_file" || true)" = "/workspace" ]] || fail "submodule workflow did not report /workspace as remote workspace folder"
+BRANCH="$branch_name" "$p1_dir/.devcontainer/initialize.sh"
 
 worktree_path="$p1_dir/.worktrees/$branch_name"
+expected_workspace_folder="$(expected_workspace_folder "$p1_dir" "$branch_name")"
 
 [[ -d "$worktree_path" ]] || fail "BRANCH did not create .worktrees/$branch_name"
 [[ -f "$worktree_path/.git" ]] || fail "selected worktree does not have a Git file"
@@ -65,27 +64,39 @@ worktree_path="$p1_dir/.worktrees/$branch_name"
 [[ -f "$p1_dir/.devcontainer/.env" ]] || fail ".devcontainer/.env was not created"
 [[ -z "$(git -C "$p1_dir/.devcontainer" status --porcelain -- .env)" ]] || fail ".devcontainer/.env is not ignored by the submodule"
 [[ -f "$p1_dir/.devcontainer/compose.local.gen.yml" ]] || fail ".devcontainer/compose.local.gen.yml was not created"
-expected_hostname="$(expected_generated_hostname "$p1_dir" "$branch_name")"
-[[ "$(<"$p1_dir/.devcontainer/compose.local.gen.yml")" == *"hostname: $expected_hostname"* ]] || fail "generated compose file does not set submodule hostname"
-[[ "$(<"$p1_dir/.devcontainer/compose.local.gen.yml")" == *"CONTAINER_USER: $expected_user_name"* ]] || fail "generated compose file does not set submodule build user"
-[[ "$(<"$p1_dir/.devcontainer/compose.local.gen.yml")" == *"user: \"$expected_user\""* ]] || fail "generated compose file does not set submodule user"
+[[ "$(<"$p1_dir/.devcontainer/.env")" == *"DEVCONTAINER_WORKSPACE_FOLDER=$expected_workspace_folder"* ]] || fail "generated env does not set submodule workspace folder"
 [[ -L "$worktree_path/.local.env" ]] || fail "worktree .local.env is not a symlink"
 [[ -f "$worktree_path/.devcontainer/devcontainer.json" ]] || fail "submodule devcontainer is missing in worktree"
 
-docker exec -w /workspace -u "$expected_user_name" "$container_id" bash -lc '
-  test "$(pwd)" = /workspace
+devcontainer_cli up --remove-existing-container --workspace-folder "$worktree_path" | tee "$log_file"
+container_id="$(extract_container_id_from_log "$log_file" || true)"
+[[ -n "$container_id" ]] || fail "could not extract workspace container id from devcontainer output"
+[[ "$(extract_remote_workspace_folder_from_log "$log_file" || true)" = "$expected_workspace_folder" ]] || fail "submodule workflow did not report expected remote workspace folder"
+
+[[ -f "$worktree_path/compose.local.yml" ]] || fail "worktree compose.local.yml was not created"
+[[ -f "$worktree_path/.devcontainer/.env" ]] || fail "worktree .devcontainer/.env was not created"
+[[ -f "$worktree_path/.devcontainer/compose.local.gen.yml" ]] || fail "worktree .devcontainer/compose.local.gen.yml was not created"
+expected_hostname="$(expected_generated_hostname "$worktree_path" "$branch_name")"
+[[ "$(<"$worktree_path/.devcontainer/compose.local.gen.yml")" == *"hostname: $expected_hostname"* ]] || fail "generated compose file does not set submodule hostname"
+[[ "$(<"$worktree_path/.devcontainer/compose.local.gen.yml")" == *"CONTAINER_USER: $expected_user_name"* ]] || fail "generated compose file does not set submodule build user"
+[[ "$(<"$worktree_path/.devcontainer/compose.local.gen.yml")" == *"user: \"$expected_user\""* ]] || fail "generated compose file does not set submodule user"
+[[ "$(<"$worktree_path/.devcontainer/.env")" == *"DEVCONTAINER_WORKSPACE_FOLDER=$expected_workspace_folder"* ]] || fail "worktree generated env does not set submodule workspace folder"
+
+docker exec -w "$expected_workspace_folder" -u "$expected_user_name" "$container_id" bash -lc '
+  test "$(pwd)" = "'"$expected_workspace_folder"'"
   test "$(hostname)" = "'"$expected_hostname"'"
   test "$DEVCONTAINER_HOSTNAME" = "'"$expected_hostname"'"
+  test "$DEVCONTAINER_WORKSPACE_FOLDER" = "'"$expected_workspace_folder"'"
   test "$DEVCONTAINER_USER" = "'"$expected_user_name"'"
   test "$DEVCONTAINER_UID:$DEVCONTAINER_GID" = "'"$expected_user"'"
-  test "$(git rev-parse --show-toplevel)" = /workspace
+  test "$(git rev-parse --show-toplevel)" = "'"$expected_workspace_folder"'"
   test "$(git rev-parse --abbrev-ref HEAD)" = dev0
   test -f .git
   grep -q "/.git/worktrees/dev0" .git
   docker ps >/dev/null
 '
 
-docker exec -w /workspace -u "$expected_user_name" "$container_id" bash -lc '
+docker exec -w "$expected_workspace_folder" -u "$expected_user_name" "$container_id" bash -lc '
   printf "dev0 change\n" > dev0-change.txt
   git add dev0-change.txt
   git commit -m "add dev0 change" >/dev/null

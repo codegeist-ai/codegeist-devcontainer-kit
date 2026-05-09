@@ -23,6 +23,10 @@ set -euo pipefail
 branch_name="${1:-${BRANCH:-}}"
 workspace_dir="${CODE_OPEN_WORKSPACE:-$PWD}"
 code_bin="${CODE_BIN:-code}"
+container_workspace_dir=""
+container_workspace_relative="."
+container_workspace_suffix=""
+code_workspace_dir=""
 
 fail() {
   printf 'ERROR: %s\n' "$*" >&2
@@ -73,10 +77,20 @@ git_root="$(git -C "$workspace_dir" rev-parse --show-toplevel)"
 
 update_branch_env "$workspace_dir/.devcontainer/.env" "$branch_name"
 
+container_workspace_dir="$workspace_dir"
+code_workspace_dir="$workspace_dir"
+if [ -n "$branch_name" ]; then
+  BRANCH="$branch_name" "$workspace_dir/.devcontainer/initialize.sh"
+  container_workspace_dir="$workspace_dir/.worktrees/$branch_name"
+  container_workspace_relative=".worktrees/$branch_name"
+  container_workspace_suffix="/.worktrees/$branch_name"
+  code_workspace_dir="$container_workspace_dir"
+fi
+
 if [ -n "$branch_name" ]; then
   log "opening VS Code from Git root with BRANCH=$branch_name: $workspace_dir"
-  (cd "$workspace_dir" && BRANCH="$branch_name" "$code_bin" .)
+  (cd "$code_workspace_dir" && BRANCH="$branch_name" DEVCONTAINER_WORKSPACE_FOLDER="$container_workspace_dir" DEVCONTAINER_WORKSPACE_RELATIVE="$container_workspace_relative" DEVCONTAINER_WORKSPACE_SUFFIX="$container_workspace_suffix" "$code_bin" .)
 else
   log "opening VS Code from Git root without BRANCH: $workspace_dir"
-  (cd "$workspace_dir" && "$code_bin" .)
+  (cd "$code_workspace_dir" && DEVCONTAINER_WORKSPACE_FOLDER="$container_workspace_dir" DEVCONTAINER_WORKSPACE_RELATIVE="$container_workspace_relative" DEVCONTAINER_WORKSPACE_SUFFIX="$container_workspace_suffix" "$code_bin" .)
 fi

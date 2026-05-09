@@ -4,8 +4,8 @@
 # Why this exists:
 # - proves initializeCommand creates required local compose/env files
 # - protects user-edited local files from being overwritten across devcontainer up
-# - proves worktree setup is triggered by Dev Containers lifecycle, not by direct
-#   script calls
+# - proves root-side worktree preparation and later Dev Containers lifecycle
+#   initialization preserve user-owned local files
 #
 # Related files:
 # - ../initialize.sh
@@ -25,6 +25,7 @@ log_file="$suite_tmp_dir/initialize-devcontainer.log"
 expected_hostname=""
 expected_user="$(id -u):$(id -u)"
 expected_user_name="$(expected_container_user)"
+worktree_path=""
 worktree_local_env=""
 create_git_fixture_repo "$fixture_dir"
 
@@ -40,9 +41,7 @@ rm -f "$fixture_dir/.local.env"
 rm -f "$fixture_dir/.devcontainer/.env"
 rm -f "$fixture_dir/.devcontainer/compose.local.gen.yml"
 
-BRANCH=feature/initialize-test devcontainer_cli up --workspace-folder "$fixture_dir" | tee "$log_file"
-container_id="$(extract_container_id_from_log "$log_file" || true)"
-[[ -n "$container_id" ]] || fail "could not extract workspace container id from devcontainer output"
+BRANCH=feature/initialize-test "$fixture_dir/.devcontainer/initialize.sh"
 expected_hostname="$(expected_generated_hostname "$fixture_dir" "feature/initialize-test")"
 
 [[ -f "$fixture_dir/compose.local.yml" ]] || fail "compose.local.yml was not created in repository root"
@@ -63,8 +62,9 @@ expected_hostname="$(expected_generated_hostname "$fixture_dir" "feature/initial
 [[ "$(<"$fixture_dir/.devcontainer/compose.local.gen.yml")" == *"hostname: $expected_hostname"* ]] || fail "generated compose file does not set generated hostname"
 [[ "$(<"$fixture_dir/.devcontainer/compose.local.gen.yml")" == *"CONTAINER_USER: $expected_user_name"* ]] || fail "generated compose file does not set generated build user"
 [[ "$(<"$fixture_dir/.devcontainer/compose.local.gen.yml")" == *"user: \"$expected_user\""* ]] || fail "generated compose file does not set generated user"
-[[ -d "$fixture_dir/.worktrees/feature/initialize-test" ]] || fail "initializeCommand did not create the requested worktree"
-worktree_local_env="$fixture_dir/.worktrees/feature/initialize-test/.local.env"
+worktree_path="$fixture_dir/.worktrees/feature/initialize-test"
+[[ -d "$worktree_path" ]] || fail "root initializer did not create the requested worktree"
+worktree_local_env="$worktree_path/.local.env"
 [[ -L "$worktree_local_env" ]] || fail "worktree .local.env is not a symlink"
 rm -f "$worktree_local_env"
 printf 'WORKTREE_LOCAL_ENV=1\n' >"$worktree_local_env"
@@ -82,16 +82,18 @@ cp "$fixture_dir/.local.env" "$fixture_dir/.local.env.before"
 printf '\n# local compose marker\n' >>"$fixture_dir/compose.local.yml"
 printf 'CUSTOM_ENV=1\n' >"$fixture_dir/.local.env"
 
-BRANCH=feature/initialize-test devcontainer_cli up --workspace-folder "$fixture_dir" >/dev/null
+BRANCH=feature/initialize-test "$fixture_dir/.devcontainer/initialize.sh"
 
 [[ "$(<"$fixture_dir/compose.local.yml")" == *"# local compose marker"* ]] || fail "compose.local.yml was overwritten"
 [[ "$(<"$fixture_dir/.local.env")" = "CUSTOM_ENV=1" ]] || fail ".local.env was overwritten"
 
-devcontainer_cli up --workspace-folder "$fixture_dir" >/dev/null
-expected_hostname="$(expected_generated_hostname "$fixture_dir" "feature/initialize-test")"
+devcontainer_cli up --remove-existing-container --workspace-folder "$worktree_path" | tee "$log_file"
+container_id="$(extract_container_id_from_log "$log_file" || true)"
+[[ -n "$container_id" ]] || fail "could not extract workspace container id from devcontainer output"
+expected_hostname="$(expected_generated_hostname "$worktree_path" "feature/initialize-test")"
 
 [[ "$(<"$fixture_dir/compose.local.yml")" == *"# local compose marker"* ]] || fail "compose.local.yml was overwritten when BRANCH was unset"
 [[ "$(<"$fixture_dir/.local.env")" = "CUSTOM_ENV=1" ]] || fail ".local.env was overwritten when BRANCH was unset"
-[[ "$(<"$fixture_dir/.devcontainer/compose.local.gen.yml")" == *"hostname: $expected_hostname"* ]] || fail "generated compose hostname was not refreshed without BRANCH"
+[[ "$(<"$worktree_path/.devcontainer/compose.local.gen.yml")" == *"hostname: $expected_hostname"* ]] || fail "generated compose hostname was not refreshed for worktree start"
 
-pass "initializeCommand creates local files and selected BRANCH worktrees without owning compose mounts"
+pass "initialize creates local files and selected BRANCH worktrees without owning compose mounts"

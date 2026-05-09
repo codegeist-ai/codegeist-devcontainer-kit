@@ -88,6 +88,9 @@ task_project() {
 
 devcontainer_cli() {
   local workspace_folder=""
+  local container_workspace_folder=""
+  local container_workspace_relative="."
+  local container_workspace_suffix=""
   local previous_arg=""
   local arg=""
 
@@ -101,7 +104,12 @@ devcontainer_cli() {
   done
 
   if [ -n "$workspace_folder" ]; then
-    (cd "$workspace_folder" && npx --yes @devcontainers/cli "$@")
+    container_workspace_folder="$(expected_workspace_folder "$workspace_folder" "${BRANCH:-}")"
+    if [ -n "${BRANCH:-}" ]; then
+      container_workspace_relative=".worktrees/$BRANCH"
+      container_workspace_suffix="/.worktrees/$BRANCH"
+    fi
+    (cd "$workspace_folder" && DEVCONTAINER_WORKSPACE_FOLDER="${DEVCONTAINER_WORKSPACE_FOLDER:-$container_workspace_folder}" DEVCONTAINER_WORKSPACE_RELATIVE="${DEVCONTAINER_WORKSPACE_RELATIVE:-$container_workspace_relative}" DEVCONTAINER_WORKSPACE_SUFFIX="${DEVCONTAINER_WORKSPACE_SUFFIX:-$container_workspace_suffix}" npx --yes @devcontainers/cli "$@")
     return
   fi
 
@@ -200,6 +208,18 @@ expected_generated_hostname() {
 
 expected_container_user() {
   printf '%s\n' "${USER:-$(id -un)}"
+}
+
+expected_workspace_folder() {
+  local repo_dir="$1"
+  local branch_name="${2:-}"
+
+  if [ -n "$branch_name" ]; then
+    printf '%s/.worktrees/%s\n' "$repo_dir" "$branch_name"
+    return 0
+  fi
+
+  printf '%s\n' "$repo_dir"
 }
 
 copy_project_files() {

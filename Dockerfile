@@ -7,8 +7,9 @@
 # - Provides a system Maven installation so the app does not need a wrapper.
 # - Adds the Nix package manager for later package migration work without
 #   switching the devcontainer setup to flakes yet.
-# - Includes Hugo plus FTP clients so the shared workspace can also handle site
-#   preview and simple deployment tasks.
+# - Includes Hugo, Kubernetes, Terraform, Ansible, YAML, network, and FTP tools
+#   so the shared workspace can handle site, infrastructure, and deployment
+#   tasks.
 #
 # Inputs:
 # - CONTAINER_USER and CONTAINER_GROUP select the login user created in the image.
@@ -71,20 +72,27 @@ RUN install -m 0755 -d /etc/apt/keyrings \
  && printf 'Types: deb\nURIs: https://packages.microsoft.com/repos/code\nSuites: stable\nComponents: main\nSigned-By: /etc/apt/keyrings/microsoft.gpg\n' \
       > /etc/apt/sources.list.d/vscode.sources \
  && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
-      -o /etc/apt/keyrings/githubcli-archive-keyring.gpg \
- && chmod a+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
- && printf 'Types: deb\nURIs: https://cli.github.com/packages\nSuites: stable\nComponents: main\nArchitectures: amd64\nSigned-By: /etc/apt/keyrings/githubcli-archive-keyring.gpg\n' \
-      > /etc/apt/sources.list.d/github-cli.sources
+       -o /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+  && chmod a+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+  && printf 'Types: deb\nURIs: https://cli.github.com/packages\nSuites: stable\nComponents: main\nArchitectures: amd64\nSigned-By: /etc/apt/keyrings/githubcli-archive-keyring.gpg\n' \
+       > /etc/apt/sources.list.d/github-cli.sources \
+ && curl -fsSL https://apt.releases.hashicorp.com/gpg \
+      | gpg --dearmor -o /etc/apt/keyrings/hashicorp-archive-keyring.gpg \
+ && chmod a+r /etc/apt/keyrings/hashicorp-archive-keyring.gpg \
+ && printf 'Types: deb\nURIs: https://apt.releases.hashicorp.com\nSuites: %s\nComponents: main\nSigned-By: /etc/apt/keyrings/hashicorp-archive-keyring.gpg\n' \
+      "${VERSION_CODENAME}" > /etc/apt/sources.list.d/hashicorp.sources
 
 # Install the shared development toolchain in one APT transaction.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       build-essential \
+      ansible \
       bash \
       ca-certificates \
       code \
       containerd.io \
       curl \
+      direnv \
       docker-buildx-plugin \
       docker-ce \
       docker-ce-cli \
@@ -95,6 +103,8 @@ RUN apt-get update \
       jq \
       lftp \
       gnupg \
+      iproute2 \
+      iputils-ping \
       netcat-openbsd \
       maven \
       nodejs \
@@ -103,7 +113,9 @@ RUN apt-get update \
       python3-pip \
       ripgrep \
       rsync \
+      socat \
       sudo \
+      terraform \
       unzip \
       wget \
       xz-utils \
@@ -142,7 +154,28 @@ RUN curl -fsSL "https://github.com/go-task/task/releases/latest/download/task_li
  && chmod +x /usr/local/bin/task \
  && rm -f /tmp/task.tar.gz
 
-RUN curl -fsSL "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-amd64.tar.gz" \
+RUN curl -fsSL "https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64" \
+      -o /usr/local/bin/yq \
+ && chmod +x /usr/local/bin/yq \
+ && yq --version \
+ && curl -fsSL "https://dl.k8s.io/release/$(curl -fsSL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" \
+      -o /usr/local/bin/kubectl \
+ && chmod +x /usr/local/bin/kubectl \
+ && kubectl version --client=true \
+ && curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 \
+      | bash \
+ && helm version \
+ && curl -fsSL "https://github.com/derailed/k9s/releases/latest/download/k9s_linux_amd64.deb" \
+      -o /tmp/k9s_linux_amd64.deb \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends /tmp/k9s_linux_amd64.deb \
+ && rm -f /tmp/k9s_linux_amd64.deb \
+ && rm -rf /var/lib/apt/lists/* \
+ && k9s version \
+ && curl -fsSL https://talos.dev/install | sh \
+ && talosctl version --client
+
+RUN curl -fsSL "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_Linux-64bit.tar.gz" \
       -o /tmp/hugo.tar.gz \
  && tar -xzf /tmp/hugo.tar.gz -C /tmp hugo \
  && install -m 0755 /tmp/hugo /usr/local/bin/hugo \

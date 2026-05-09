@@ -7,16 +7,16 @@
 #   resolved.
 # - `../.local.env` carries machine-local runtime values and should be created
 #   from the template only once.
-# - Git worktrees are selected through BRANCH while the Dev Containers CLI or VS
-#   Code still starts from the repository root.
-# - BRANCH lets `initializeCommand` create or reuse a managed worktree before
-#   the container starts while VS Code is still opened at the repository root.
+# - Git worktrees are prepared through BRANCH before VS Code or the Dev
+#   Containers CLI starts from the selected worktree path.
+# - BRANCH lets root-side helpers create or reuse a managed worktree while the
+#   later worktree `initializeCommand` writes runtime files for that checkout.
 # - `.env` and `compose.local.gen.yml` are generated kit-owned files under
 #   `.devcontainer/`; users should edit root `.local.env` and `compose.local.yml`
 #   instead.
-# - OpenCode reads `OPENCODE_CONFIG_DIR=/workspace/.oc_local` from
-#   `devcontainer.json`, so fresh checkouts need that directory before the TUI
-#   starts inside the container.
+# - OpenCode keys session state by directory path, so the container workspace
+#   path must match the selected root/worktree path instead of a shared
+#   `/workspace` mount.
 # - The script runs as a Dev Containers `initializeCommand` on the host and must
 #   stay idempotent, non-interactive, and safe for repeated starts.
 #
@@ -46,6 +46,19 @@ copy_if_missing() {
 
 repo_root() {
   git -C "$checkout_dir" rev-parse --show-toplevel
+}
+
+repo_storage_root() {
+  local root_dir="$1"
+  local common_dir=""
+
+  common_dir="$(git -C "$root_dir" rev-parse --path-format=absolute --git-common-dir)"
+  if [ "$(basename "$common_dir")" = ".git" ]; then
+    dirname "$common_dir"
+    return 0
+  fi
+
+  printf '%s\n' "$root_dir"
 }
 
 slugify_hostname_part() {
@@ -127,16 +140,27 @@ write_generated_env() {
   local branch_name="$3"
   local host_name=""
   local repo_name=""
+  local repo_storage_dir=""
   local selected_branch=""
   local container_hostname=""
+  local workspace_folder=""
+  local workspace_relative="."
+  local workspace_suffix=""
   local user_name=""
   local group_name=""
   local uid=""
 
   host_name="$(slugify_hostname_part "$(hostname -s 2>/dev/null || hostname)")"
   repo_name="$(slugify_hostname_part "$(basename "$root_dir")")"
+  repo_storage_dir="$(repo_storage_root "$root_dir")"
   selected_branch="${branch_name:-$(current_branch_name "$root_dir")}"
   container_hostname="$(generated_hostname "$root_dir" "$selected_branch")"
+  workspace_folder="$root_dir"
+  if [ -n "$branch_name" ]; then
+    workspace_folder="$root_dir/.worktrees/$branch_name"
+    workspace_relative=".worktrees/$branch_name"
+    workspace_suffix="/.worktrees/$branch_name"
+  fi
   user_name="${USER:-$(id -un)}"
   group_name="$(id -gn)"
   uid="$(id -u)"
@@ -147,8 +171,12 @@ write_generated_env() {
 # Do not edit manually. Local environment overrides belong in ../.local.env.
 DEVCONTAINER_HOST_NAME=$host_name
 DEVCONTAINER_REPO_NAME=$repo_name
+DEVCONTAINER_REPO_ROOT=$repo_storage_dir
 DEVCONTAINER_BRANCH_NAME=$(slugify_hostname_part "$selected_branch")
 DEVCONTAINER_HOSTNAME=$container_hostname
+DEVCONTAINER_WORKSPACE_FOLDER=$workspace_folder
+DEVCONTAINER_WORKSPACE_RELATIVE=$workspace_relative
+DEVCONTAINER_WORKSPACE_SUFFIX=$workspace_suffix
 DEVCONTAINER_USER=$user_name
 DEVCONTAINER_GROUP=$group_name
 DEVCONTAINER_UID=$uid
@@ -300,6 +328,7 @@ main() {
       ensure_opencode_local_config_dir "$root_dir"
       if ! has_tracked_opencode_local_overlay "$root_dir"; then
         ensure_git_exclude_pattern "$root_dir" "/.oc_local/"
+        ensure_git_exclude_pattern "$root_dir" "/.oc_local/.gitignore"
       fi
       write_generated_env "$script_dir/.env" "$root_dir" "$branch_name"
       write_generated_compose "$script_dir/compose.local.gen.yml" "$(generated_hostname "$root_dir" "$branch_name")"

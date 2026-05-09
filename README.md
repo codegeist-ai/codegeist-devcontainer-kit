@@ -54,9 +54,11 @@ checkout and are ignored by the release kit itself.
 ## OpenCode Agent Setup
 
 The release kit creates root `.oc_local/` when no tracked project overlay exists
-so `OPENCODE_CONFIG_DIR=/workspace/.oc_local` is always writable inside the
-container. It does not include this repository's development-only `.opencode/`
-checkout.
+so `OPENCODE_CONFIG_DIR` can point at the selected workspace's `.oc_local`
+directory inside the container. The container workspace path matches the
+selected checkout's host path instead of a shared `/workspace` path, which keeps
+OpenCode sessions separated by project and branch. It does not include this
+repository's development-only `.opencode/` checkout.
 
 When a consuming project should use the shared OpenCode commands, rules, and
 skills, add the OpenCode agent kit as a separate submodule from the consuming
@@ -97,11 +99,13 @@ own the container lifecycle:
 code .
 ```
 
-To start the container with a managed Git worktree mounted at `/workspace`, set
-`BRANCH` while still starting from the consuming project root:
+To start the container with a managed Git worktree mounted at its stable host
+path, prepare the worktree from the consuming project root and then open that
+checkout:
 
 ```bash
-BRANCH=develop0 code .
+BRANCH=develop0 .devcontainer/initialize.sh
+code .worktrees/develop0
 ```
 
 The first start creates local runtime files when missing:
@@ -192,9 +196,9 @@ changes by committing only the parent gitlink.
 
 ## Troubleshooting
 
-If changing `BRANCH` does not change `/workspace`, rebuild or remove the existing
-devcontainer before starting VS Code again. Docker Compose cannot remount an
-already running container just because `.env` changed.
+If changing `BRANCH` does not change the selected workspace path, rebuild or
+remove the existing devcontainer before starting VS Code again. Docker Compose
+cannot remount an already running container just because `.env` changed.
 
 If the Dev Containers image build fails, inspect Docker storage first:
 
@@ -207,6 +211,7 @@ This kit currently uses Docker-in-Docker and a large development image, so build
 need enough Docker storage. A storage failure is an environment blocker, not a
 valid release verification pass.
 
-If OpenCode cannot write under `/workspace/.oc_local`, make sure the consuming
-repository either tracks its own `.oc_local/` overlay intentionally or lets the
-kit generate a local ignored `.oc_local/` directory during `initializeCommand`.
+If OpenCode cannot write under the selected workspace's `.oc_local`, make sure
+the consuming repository either tracks its own `.oc_local/` overlay intentionally
+or lets the kit generate a local ignored `.oc_local/` directory during
+`initializeCommand`.

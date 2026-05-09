@@ -9,7 +9,8 @@ This repository is a reusable devcontainer kit that can be added to other
 repositories at `.devcontainer/`, either as a Git subtree or as a Git submodule.
 The current Dockerfile intentionally carries the full Codegeist/planner-style
 toolchain, including Docker CE, Node 24, VS Code, GitHub CLI, Maven, GraalVM,
-Hugo, Nix, OpenCode tooling, Repomix, and related CLI tools.
+Hugo, Nix, OpenCode tooling, Repomix, Kubernetes and infrastructure CLIs,
+network diagnostics, and related CLI tools.
 
 The consuming project should use the standard VS Code flow:
 

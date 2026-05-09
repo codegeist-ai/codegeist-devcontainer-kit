@@ -54,9 +54,10 @@ ensure_docker_daemon() {
   sudo -n env CONTAINER_GROUP="${CONTAINER_GROUP:-docker}" \
     DOCKERD_LOG_FILE="$dockerd_log_file" \
     bash -c '
+      # Let Docker choose the storage driver so nested Docker can use overlay2
+      # when available. Forcing vfs duplicates layers and exhausts disk quickly.
       nohup dockerd \
         --group "$CONTAINER_GROUP" \
-        --storage-driver=vfs \
         >"$DOCKERD_LOG_FILE" 2>&1 &
     '
 

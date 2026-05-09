@@ -14,11 +14,14 @@
   development repository. Do not edit them directly during normal project work
   unless the task is explicit submodule work.
 - `.devcontainer` currently points at prior runtime `release` commit
-  `0913c719682f89314649ed78f7fe6fe7f515ee67`; the parent repository still has
+  `c71522401be85b1a22886b033c5fe482dd4e93aa`; the parent repository still has
   this as a pending gitlink update.
-- `Dockerfile` installs `tiktoken-cli` in the global npm CLI toolchain alongside
-  `opencode-ai`, `repomix`, `@ast-grep/cli`, `@devcontainers/cli`, and related
-  tools.
+- `Dockerfile` installs `tiktoken-cli`, Mike Farah `yq`, network diagnostics,
+  Kubernetes administration CLIs (`kubectl`, `helm`, `k9s`, `talosctl`), and
+  infrastructure tools (`terraform`, `ansible`) in the default toolchain.
+- `entrypoint.sh` starts nested `dockerd` without forcing a storage driver so
+  Docker can use `overlay2` when available. Do not reintroduce `vfs` by default;
+  it duplicates layers and can exhaust disk during full image builds.
 - `compose.local.yml` and `compose.local.yml.example` are intentionally minimal
   override files with `services: {}`. Shared defaults belong in
   `docker-compose.yml`; local or consuming-repo overrides can be added only when
@@ -73,12 +76,14 @@
 
 ## Verification
 
-- `task tests-run` passed after Docker cleanup for the `tiktoken-cli` Dockerfile
-  change.
+- `task tests-run` passed after adding `yq`, network diagnostics, Kubernetes
+  CLIs, Terraform, Ansible, the Hugo asset URL fix, and removing the forced
+  nested-Docker `vfs` storage driver. Latest output:
+  `/home/test/.local/share/opencode/tool-output/tool_e0cd722840011fv6g01BwTWlRP`.
 - The release workflow must rerun `task tests-run` after save and the
   clean-worktree check before publishing.
 - `.devcontainer` is already checked out at prior runtime release
-  `0913c719682f89314649ed78f7fe6fe7f515ee67`; record the parent gitlink update
+  `c71522401be85b1a22886b033c5fe482dd4e93aa`; record the parent gitlink update
   with the surrounding task changes when saving.
 - The suite covers initialization, Compose config resolution, branch worktree
   setup, local Docker image build, TTY `docker-run`, `devcontainer up`,

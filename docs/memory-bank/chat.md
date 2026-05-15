@@ -15,8 +15,7 @@
   development repository. Do not edit them directly during normal project work
   unless the task is explicit submodule work.
 - `.devcontainer` currently points at runtime `release` commit
-  `9ce8459fd00b579c3561654f778630b52bc98734`; the parent repository still has
-  this as a pending gitlink update.
+  `35f46d91d952f483887aa0a94cb9f660a9291ab5`.
 - `Dockerfile` installs `tiktoken-cli`, Mike Farah `yq`, network diagnostics,
   Kubernetes administration CLIs (`kubectl`, `helm`, `k9s`, `talosctl`), and
   infrastructure tools (`terraform`, `ansible`) in the default toolchain.
@@ -37,6 +36,8 @@
 - `README_release.md` documents the runtime-release consumer path: pin
   `.devcontainer` to the kit's runtime-only `release` branch, not `main`.
 - `devcontainer.json` is the VS Code / Dev Containers entrypoint.
+- `devcontainer.json` includes default VS Code extensions for Docker, YAML,
+  Nushell, Excalidraw, Mermaid, PlantUML, Spring Boot, Java, and Helm editing.
 - `initialize.sh` is the host-side `initializeCommand`; it creates local config,
   generated runtime files, root `.oc_local/`, and optional branch worktrees.
 - Normal flow starts from the consuming repository root with `code .`.
@@ -97,8 +98,7 @@
 - The release workflow must rerun `task tests-run` after save and the
   clean-worktree check before publishing.
 - `.devcontainer` is already checked out at runtime release
-  `9ce8459fd00b579c3561654f778630b52bc98734`; record the parent gitlink update
-  with the surrounding task changes when saving.
+  `35f46d91d952f483887aa0a94cb9f660a9291ab5`.
 - The suite covers initialization, Compose config resolution, branch worktree
   setup, local Docker image build, TTY `docker-run`, root `devcontainer up`,
   direct worktree `devcontainer up`, and the consuming-repo submodule workflow.

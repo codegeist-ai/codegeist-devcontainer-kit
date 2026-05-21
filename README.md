@@ -89,6 +89,55 @@ Do not edit `.devcontainer/.env` or
 `initialize.sh`. Put manual overrides in root `.local.env` and
 `compose.local.yml` instead.
 
+## Browser Support
+
+The devcontainer image includes Google Chrome for browser checks and visible
+browser sessions that must run from inside the container's network, DNS, and
+certificate trust context. The shared kit installs a `chrome` launcher for direct
+visible browser startup when the devcontainer has access to a host display, and
+the same launcher supports deterministic headless automation for tests. It does
+not add VNC, noVNC, browser profiles, bookmarks, credentials, or
+project-specific service URLs.
+
+Run visible Chrome from a terminal inside the devcontainer when you need to load
+a URL with container-side DNS and certificates:
+
+```bash
+chrome https://example.test
+```
+
+The visible command does not start VNC or noVNC. It expects `DISPLAY` or
+`WAYLAND_DISPLAY` to be available inside the container through the user's
+devcontainer/host display setup. Chrome stores its normal profile data in the
+container user's home directory by default, so cookies and browser state stay in
+the devcontainer rather than in a host browser profile. In this repository, the
+same command can be exercised from the kit image:
+
+```bash
+task browser-open-test
+```
+
+Pass a URL after `--` when you want the visible test fixture to open a specific
+page instead of its local data URL default.
+
+For non-interactive tests and automation, use the same launcher in headless mode:
+
+```bash
+chrome --headless --dump-dom https://example.test
+```
+
+The workspace service sets `shm_size: '1gb'` because Chrome and other browser
+processes can fail with Docker's small default `/dev/shm`. Chrome hardware
+acceleration is disabled by a managed policy at
+`/etc/opt/chrome/policies/managed/disable-hardware-accel.json`.
+
+The repository test suite also includes a Chrome DevTools Protocol UI smoke test
+in `tests/browser-smoke.sh`. It starts a Dev Containers CLI fixture, launches
+Chrome through `chrome --headless` inside the workspace container, captures
+a PNG screenshot of a container-local HTML file, and compares rendered
+accessibility text against the expected value. This keeps the test path aligned
+with the visible launcher while staying deterministic in CI-like environments.
+
 ## Develop This Kit
 
 Clone this repository with submodules initialized because `.devcontainer/` and
@@ -162,6 +211,7 @@ devcontainer.json
 docker-compose.yml
 entrypoint.sh
 initialize.sh
+scripts/chrome.sh
 ```
 
 ## OpenCode Workspace
@@ -486,6 +536,8 @@ compose.local.yml       # generated, ignored by the consuming repo
   Dockerfile
   entrypoint.sh
   initialize.sh
+  scripts/
+    chrome.sh
   .local.env.example
   compose.local.yml.example
   tests/
@@ -499,6 +551,8 @@ Roles:
   mounts.
 - `Dockerfile` builds the workspace image.
 - `entrypoint.sh` runs inside the container.
+- `scripts/chrome.sh` is installed as `/usr/local/bin/chrome`; it starts visible
+  Chrome on the current container display or headless Chrome for automation.
 - `.local.env.example` documents root `.local.env` values.
 - `.oc_local.gitignore.example` seeds root `.oc_local/.gitignore` when the
   consuming repository has no tracked `.oc_local/` overlay.

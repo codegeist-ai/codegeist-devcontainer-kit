@@ -65,6 +65,7 @@ devcontainer.json
 docker-compose.yml
 entrypoint.sh
 initialize.sh
+scripts/chrome.sh
 EOF
 sort -o "$expected_files" "$expected_files"
 

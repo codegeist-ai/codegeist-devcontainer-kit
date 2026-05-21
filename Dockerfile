@@ -118,6 +118,9 @@ RUN apt-get update \
       terraform \
       unzip \
       wget \
+      x11-apps \
+      x11-utils \
+      xauth \
       xz-utils \
       zlib1g-dev \
   && rm -rf /var/lib/apt/lists/*
@@ -177,10 +180,25 @@ RUN curl -fsSL "https://github.com/mikefarah/yq/releases/latest/download/yq_linu
 
 RUN curl -fsSL "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_Linux-64bit.tar.gz" \
       -o /tmp/hugo.tar.gz \
- && tar -xzf /tmp/hugo.tar.gz -C /tmp hugo \
- && install -m 0755 /tmp/hugo /usr/local/bin/hugo \
- && hugo version \
- && rm -f /tmp/hugo.tar.gz /tmp/hugo
+  && tar -xzf /tmp/hugo.tar.gz -C /tmp hugo \
+  && install -m 0755 /tmp/hugo /usr/local/bin/hugo \
+  && hugo version \
+  && rm -f /tmp/hugo.tar.gz /tmp/hugo
+
+RUN curl -fsSL "https://dl.google.com/linux/direct/google-chrome-stable_current_$(dpkg --print-architecture).deb" \
+      -o /tmp/chrome.deb \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends /tmp/chrome.deb \
+  && rm -f /tmp/chrome.deb \
+  && rm -rf /var/lib/apt/lists/* \
+  && google-chrome --version
+
+RUN install -d -m 0755 /etc/opt/chrome/policies/managed \
+  && printf '%s\n' \
+      '{' \
+      '  "HardwareAccelerationModeEnabled": false' \
+      '}' \
+      > /etc/opt/chrome/policies/managed/disable-hardware-accel.json
 
 RUN curl -fsSL "https://github.com/graalvm/graalvm-ce-builds/releases/download/jdk-${GRAALVM_VERSION}/graalvm-community-jdk-${GRAALVM_VERSION}_linux-x64_bin.tar.gz" \
       -o /tmp/graalvm.tar.gz \
@@ -220,8 +238,9 @@ RUN printf '%s\n' \
       > /etc/profile.d/nix.sh
 
 COPY .devcontainer/entrypoint.sh /usr/local/bin/devcontainer-entrypoint
+COPY .devcontainer/scripts/chrome.sh /usr/local/bin/chrome
 
-RUN chmod +x /usr/local/bin/devcontainer-entrypoint
+RUN chmod +x /usr/local/bin/devcontainer-entrypoint /usr/local/bin/chrome
 
 ENV USER=${CONTAINER_USER}
 ENV HOME=/home/${CONTAINER_USER}

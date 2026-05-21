@@ -68,7 +68,13 @@ env -u BRANCH "$fixture_dir/.devcontainer/initialize.sh"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_BRANCH_NAME=$branch_name"* ]] || fail "generated env does not use persisted branch"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" == *"BRANCH=$branch_name"* ]] || fail "generated env does not keep persisted branch"
 
-compose_config="$(cd "$fixture_dir" && env -u BRANCH docker compose \
+compose_config="$(cd "$fixture_dir" && env \
+  -u BRANCH \
+  -u DEVCONTAINER_REPO_ROOT \
+  -u DEVCONTAINER_WORKSPACE_FOLDER \
+  -u DEVCONTAINER_WORKSPACE_RELATIVE \
+  -u DEVCONTAINER_WORKSPACE_SUFFIX \
+  docker compose \
   -f ".devcontainer/docker-compose.yml" \
   -f ".devcontainer/compose.local.gen.yml" \
   -f "compose.local.yml" \

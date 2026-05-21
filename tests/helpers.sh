@@ -38,7 +38,10 @@ fail() {
 }
 
 setup_suite() {
-  suite_tmp_dir="$(mktemp -d)"
+  local suite_tmp_root="${DEVCONTAINER_TEST_TMP_ROOT:-$project_root/.test-tmp}"
+
+  mkdir -p "$suite_tmp_root"
+  suite_tmp_dir="$(mktemp -d "$suite_tmp_root/suite.XXXXXX")"
   suite_start_epoch="$(date +%s)"
   export suite_tmp_dir suite_start_epoch
 }
@@ -109,7 +112,7 @@ devcontainer_cli() {
       container_workspace_relative=".worktrees/$BRANCH"
       container_workspace_suffix="/.worktrees/$BRANCH"
     fi
-    (cd "$workspace_folder" && DEVCONTAINER_WORKSPACE_FOLDER="${DEVCONTAINER_WORKSPACE_FOLDER:-$container_workspace_folder}" DEVCONTAINER_WORKSPACE_RELATIVE="${DEVCONTAINER_WORKSPACE_RELATIVE:-$container_workspace_relative}" DEVCONTAINER_WORKSPACE_SUFFIX="${DEVCONTAINER_WORKSPACE_SUFFIX:-$container_workspace_suffix}" npx --yes @devcontainers/cli "$@")
+    (cd "$workspace_folder" && DEVCONTAINER_WORKSPACE_FOLDER="$container_workspace_folder" DEVCONTAINER_WORKSPACE_RELATIVE="$container_workspace_relative" DEVCONTAINER_WORKSPACE_SUFFIX="$container_workspace_suffix" npx --yes @devcontainers/cli "$@")
     return
   fi
 
@@ -233,6 +236,8 @@ copy_project_files() {
     --exclude='.git' \
     --exclude='.devcontainer' \
     --exclude='.opencode' \
+    --exclude='.test-tmp' \
+    --exclude='.browser-smoke-tmp' \
     --exclude='.local.env' \
     --exclude='compose.local.yml' \
     -C "$project_root" \

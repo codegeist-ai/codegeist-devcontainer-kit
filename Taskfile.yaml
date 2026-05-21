@@ -16,6 +16,8 @@
 # - scripts/release-build.sh
 # - tests/run.sh
 # - tests/code-open-test.sh
+# - scripts/chrome.sh
+# - tests/browser-open-test.sh
 
 version: '3'
 
@@ -67,6 +69,11 @@ tasks:
         -w {{.WORKSPACE}}
         {{.IMAGE}}
         {{.COMMAND}}
+
+  browser-open-test:
+    desc: Start a temp Dev Containers CLI repo and open visible Chrome
+    cmds:
+      - '{{.TASKFILE_DIR}}/tests/browser-open-test.sh {{.CLI_ARGS}}'
 
   tests-run:
     desc: Run the generic devcontainer kit test suite

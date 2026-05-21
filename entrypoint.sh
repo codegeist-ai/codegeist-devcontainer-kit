@@ -3,6 +3,8 @@
 #
 # Why this exists:
 # - The devcontainer needs Docker tooling available inside the workspace.
+# - Visible Chrome expects a system DBus socket even when browser traffic and UI
+#   rendering are otherwise handled directly inside the container.
 # - The Dockerfile sets USER to the workspace user, so dockerd is started through
 #   passwordless sudo configured during image build.
 #
@@ -18,6 +20,20 @@ set -euo pipefail
 
 dockerd_log_file="/tmp/dockerd.log"
 dockerd_pid_file="/var/run/docker.pid"
+dbus_socket_file="/run/dbus/system_bus_socket"
+
+ensure_system_dbus() {
+  if [ -S "$dbus_socket_file" ]; then
+    return 0
+  fi
+
+  if ! command -v dbus-daemon >/dev/null 2>&1; then
+    return 0
+  fi
+
+  sudo -n install -d -m 0755 /run/dbus
+  sudo -n dbus-daemon --system --fork --nopidfile || true
+}
 
 clear_stale_docker_pid() {
   local existing_pid=""
@@ -78,6 +94,7 @@ ensure_docker_daemon() {
   return 1
 }
 
+ensure_system_dbus
 ensure_docker_daemon
 
 if [ "$#" -eq 0 ]; then

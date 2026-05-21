@@ -5,6 +5,28 @@
 - This repository maintains the reusable `codegeist-devcontainer-kit` for
   consuming projects that want the normal VS Code Dev Containers workflow with
   the current Codegeist/planner-style toolchain.
+- Browser support task `docs/tasks/T001_add_browser_support_to_devcontainer/task.md`
+  is finalized. The kit installs Google Chrome from the official Linux `.deb`,
+  disables hardware acceleration through a managed Chrome policy, sets Compose
+  `shm_size: '1gb'`, and verifies headless/rendered browser behavior through Dev
+  Containers CLI-started fixtures.
+- The user clarified the UI-level browser test must stay inside `T001_01`, not a
+  separate child task. The implemented UI mechanism is a dependency-free Chrome
+  DevTools Protocol test driven by Node 24 inside the Dev Containers CLI-started
+  workspace. It launches Chrome, captures a PNG screenshot, reads the rendered
+  accessibility tree, and compares expected versus actual content without manual
+  screen inspection.
+- The user then clarified that Chrome must also be visible without VNC/noVNC.
+  `T001_02` adds the shared `chrome` launcher: visible mode starts Chrome on the
+  current container display and stores the normal Chrome profile in the container
+  user's home; test mode uses `chrome --headless` so the browser smoke remains
+  deterministic. There is intentionally no `chrome-open` runtime alias. In the
+  current maintenance environment, direct visible verification passes with
+  `DISPLAY=localhost:10.0 XAUTHORITY=/home/test/.Xauthority task
+  browser-open-test`; the runtime Compose defaults use host networking so SSH X11
+  forwarding reaches the host-side listener from inside the container. `code`
+  working is not proof that GUI display forwarding works because VS Code can use
+  its remote CLI path instead of opening an X11/Wayland GUI process.
 - OpenCode work should continue from this repository root, currently
   `/workspace` in the maintenance container.
 
@@ -70,10 +92,20 @@
 ## Workflow Decisions
 
 - No root-level launcher is required for normal VS Code usage.
+- Lightweight task handoff files now live under `docs/tasks/`; top-level tasks
+  use `TNNN_<slug>.md` and the canonical open status is `open`.
 - `initializeCommand` must stay idempotent, non-interactive, host-side only, and
   must not open VS Code or start/remove containers.
 - Tests should exercise the real Dev Containers lifecycle when behavior depends
   on VS Code or the Dev Containers CLI integration.
+- Test fixtures now use repo-local ignored temp roots (`.test-tmp/` and
+  `.browser-smoke-tmp/`) because Docker bind mounts in this workspace cannot rely
+  on arbitrary `/tmp` paths being visible to the daemon.
+- Browser UI verification uses `tests/browser-ui-cdp.mjs`, a Node 24 Chrome
+  DevTools Protocol driver invoked by `tests/browser-smoke.sh`; tests launch
+  Chrome through `chrome --headless`, while users can run visible Chrome by
+  typing `chrome` when the devcontainer has access to `DISPLAY` or
+  `WAYLAND_DISPLAY`.
 - After code, script, or workflow changes, run the complete `task tests-run`
   suite before handoff when the environment allows it. If the environment blocks
   the full suite, report the blocker and list targeted checks that passed.
@@ -88,20 +120,25 @@
 
 ## Verification
 
-- Latest `task tests-run` is blocked by Docker Hub's unauthenticated pull rate
-  limit for `debian:bookworm-slim` after the initialize test reaches a worktree
-  Dev Containers config with absolute worktree and repo-root mounts.
-- Passing checks from the current workspace-path update:
-  `bash -n initialize.sh tests/initialize.sh tests/devcontainer-worktree-up.sh tests/submodule-workflow.sh tests/worktree.sh`,
-  `git --no-pager diff --check`, `bash tests/code-open-args.sh` with a temp
-  suite dir, and `CODE_OPEN_TEST_SKIP_UP=true task code-open-test -- dev1`.
+- Latest browser-support verification passed: `bash -n
+  scripts/chrome.sh tests/browser-smoke.sh tests/run.sh
+  tests/release-build.sh scripts/release-build.sh`, `node --check
+  tests/browser-ui-cdp.mjs`, `git --no-pager diff --check`,
+  `tests/release-build.sh`, `tests/browser-smoke.sh`, `task browser-open-test --
+  --help`, `docker run --rm --entrypoint bash codegeist-devcontainer-kit:local
+  -lc 'command -v chrome && ! command -v chrome-open'`, and `task tests-run`.
+- Direct visible verification passed with `DISPLAY=localhost:10.0
+  XAUTHORITY=/home/test/.Xauthority task browser-open-test`.
+  `tests/browser-open-test.sh` now fails loudly and prints Chrome logs when Chrome
+  exits before a real X11 Chrome window appears for the current temporary profile.
 - The release workflow must rerun `task tests-run` after save and the
   clean-worktree check before publishing.
 - `.devcontainer` is already checked out at runtime release
   `35f46d91d952f483887aa0a94cb9f660a9291ab5`.
 - The suite covers initialization, Compose config resolution, branch worktree
-  setup, local Docker image build, TTY `docker-run`, root `devcontainer up`,
-  direct worktree `devcontainer up`, and the consuming-repo submodule workflow.
+  setup, local Docker image build, TTY `docker-run`, browser smoke including CDP
+  UI coverage, root `devcontainer up`, direct worktree `devcontainer up`, and the
+  consuming-repo submodule workflow.
 
 ## Useful Commands
 

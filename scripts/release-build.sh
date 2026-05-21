@@ -37,6 +37,7 @@ runtime_files=(
   "docker-compose.yml"
   "entrypoint.sh"
   "initialize.sh"
+  "scripts/chrome.sh"
 )
 
 runtime_readme_source="README_release.md"
@@ -107,6 +108,7 @@ tmp_index="$(mktemp)"
 tmp_tree="$(mktemp -d)"
 
 for runtime_file in "${runtime_files[@]}"; do
+  mkdir -p "$tmp_tree/$(dirname "$runtime_file")"
   cp -p "$repo_root/$runtime_file" "$tmp_tree/$runtime_file"
 done
 cp -p "$repo_root/$runtime_readme_source" "$tmp_tree/README.md"

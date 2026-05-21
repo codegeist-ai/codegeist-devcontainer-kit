@@ -3,3 +3,5 @@
 /.devcontainer/.env
 /.local.env
 /.worktrees/**/.local.env
+/.test-tmp/
+/.browser-smoke-tmp/

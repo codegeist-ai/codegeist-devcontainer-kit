@@ -120,6 +120,37 @@ The first start creates local runtime files when missing:
 Do not edit generated files directly. Put environment overrides in root
 `.local.env` and Compose overrides in root `compose.local.yml`.
 
+## Browser Support
+
+The release kit includes Google Chrome for visible, headless, and automated UI
+browser checks that must use the devcontainer's DNS, networking, and installed
+certificates. Start visible Chrome from inside the container when a resource is
+only reachable from that runtime context:
+
+```bash
+chrome https://example.test
+```
+
+The visible command does not start VNC or noVNC. It expects `DISPLAY` or
+`WAYLAND_DISPLAY` to be available inside the container through the user's
+devcontainer/host display setup. Chrome stores its normal profile data in the
+container user's home directory by default. Tests and automation use the same
+launcher without a visible session:
+
+```bash
+chrome --headless --dump-dom https://example.test
+```
+
+The workspace service sets `shm_size: '1gb'` for browser stability, and Chrome
+hardware acceleration is disabled through the managed policy file at
+`/etc/opt/chrome/policies/managed/disable-hardware-accel.json`.
+
+The shared UI smoke-test path uses Chrome DevTools Protocol automation from
+inside the container through `chrome --headless`. It captures a PNG
+screenshot and compares rendered accessibility text for container-local content.
+Browser profiles, bookmarks, credentials, and project-specific service URLs
+belong in consuming-repository overrides or future focused kit work.
+
 ## Updating The Kit
 
 To update an existing consuming project to the latest runtime release:

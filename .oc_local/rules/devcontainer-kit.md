@@ -37,3 +37,16 @@ local override templates in this repository.
 - Keep the `.devcontainer` and `.opencode` submodules configured with their
   `release` branches in `.gitmodules` so the shared update workflow can refresh
   both gitlinks non-interactively.
+
+## Runtime Release Workflow
+
+- Publish runtime artifacts through the `release` branch only. Do not use SemVer
+  selection or Git release tags for this repository's release workflow.
+- Before building the release branch, run the shared save workflow to completion
+  so pending task work is committed, rebased, and synchronized on `main`.
+- After save, require a clean worktree, rerun `task tests-run`, run
+  `tests/release-build.sh`, then publish with
+  `task release-build -- release --push`.
+- After the release branch is pushed, update only the local `.devcontainer/`
+  submodule checkout to `origin/release` and report the parent gitlink change;
+  do not commit that gitlink automatically unless the user explicitly asks.

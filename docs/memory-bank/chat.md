@@ -116,11 +116,17 @@
   suite before handoff when the environment allows it. If the environment blocks
   the full suite, report the blocker and list targeted checks that passed.
 - Runtime releases are published from clean `main` with `task release-build`;
-  use `--push` only when the branch should be pushed immediately.
+  use `--push` only when the branch should be pushed immediately. This repository
+  publishes runtime artifacts through the `release` branch only, not through
+  SemVer selection or Git release tags.
 - The local `release-build` command workflow now requires `save` to finish,
   then a clean-worktree check, then `task tests-run`, then
   `tests/release-build.sh`, before publishing with
   `task release-build -- release --push`.
+- After pushing a release branch update, move the local `.devcontainer/`
+  submodule checkout to the pushed `origin/release` commit and report the parent
+  gitlink change. Do not update `.opencode/` or automatically commit the
+  `.devcontainer` gitlink unless the user explicitly asks.
 - In consuming repos, treat both `.devcontainer/` and `.opencode/` as submodules:
   do not customize one project by editing their checked-out contents directly.
 

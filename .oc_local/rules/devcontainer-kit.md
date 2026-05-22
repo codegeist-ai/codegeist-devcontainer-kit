@@ -40,6 +40,10 @@ local override templates in this repository.
 
 ## Runtime Release Workflow
 
+- Keep `README_release.md` consumer-facing. It becomes `README.md` on the
+  runtime-only `release` branch, so it must describe shipped runtime behavior and
+  consumer usage, not source-only tests, internal task files, or files omitted by
+  `scripts/release-build.sh`.
 - Publish runtime artifacts through the `release` branch only. Do not use SemVer
   selection or Git release tags for this repository's release workflow.
 - Before building the release branch, run the shared save workflow to completion

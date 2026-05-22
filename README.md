@@ -134,8 +134,8 @@ chrome https://example.test
 The visible command does not start VNC or noVNC. It expects `DISPLAY` or
 `WAYLAND_DISPLAY` to be available inside the container through the user's
 devcontainer/host display setup. Chrome stores its normal profile data in the
-container user's home directory by default. Tests and automation use the same
-launcher without a visible session:
+container user's home directory by default. Non-interactive automation can use
+the same launcher without a visible session:
 
 ```bash
 chrome --headless --dump-dom https://example.test
@@ -145,9 +145,6 @@ The workspace service sets `shm_size: '1gb'` for browser stability, and Chrome
 hardware acceleration is disabled through the managed policy file at
 `/etc/opt/chrome/policies/managed/disable-hardware-accel.json`.
 
-The shared UI smoke-test path uses Chrome DevTools Protocol automation from
-inside the container through `chrome --headless`. It captures a PNG
-screenshot and compares rendered accessibility text for container-local content.
 Browser profiles, bookmarks, credentials, and project-specific service URLs
 belong in consuming-repository overrides or future focused kit work.
 
@@ -162,11 +159,36 @@ host exposes them. `initialize.sh` writes `DEVCONTAINER_KVM_GID` from
 `stat -c %g /dev/kvm`; existing generated env files can use `KVM_GID` in
 `.local.env` as a manual override when needed.
 
-The kit verification workflow includes `task qemu-alpine-smoke` in the source
-repository. That smoke test requires writable `/dev/kvm`, downloads pinned Alpine
-Linux `3.20.3`, and boots it with QEMU KVM acceleration until the fixed
-`localhost login:` prompt appears. Hosts that run the devcontainer inside another
-VM must enable nested virtualization before this suite can pass.
+Hosts that run the devcontainer inside another VM must enable nested
+virtualization before KVM-accelerated QEMU can work inside the container. If
+`/dev/kvm` is missing or not writable, QEMU commands that require KVM will fail
+until the host or outer VM exposes the device with suitable permissions.
+
+To check QEMU from inside a consuming project's devcontainer, download a small
+Alpine ISO and boot it with KVM acceleration:
+
+```bash
+mkdir -p .qemu
+curl -fL \
+  -o .qemu/alpine-standard-3.20.3-x86_64.iso \
+  https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86_64/alpine-standard-3.20.3-x86_64.iso
+qemu-img info .qemu/alpine-standard-3.20.3-x86_64.iso
+test -r /dev/kvm && test -w /dev/kvm
+qemu-system-x86_64 \
+  -machine accel=kvm \
+  -cpu host \
+  -m 512M \
+  -cdrom .qemu/alpine-standard-3.20.3-x86_64.iso \
+  -boot d \
+  -display none \
+  -serial stdio \
+  -no-reboot
+```
+
+The command is healthy when Alpine reaches a `localhost login:` prompt. Press
+`Ctrl-a` then `x` to exit QEMU from the terminal. For non-interactive project
+checks, wrap the same QEMU command with `expect` and fail if the login prompt is
+not printed within the chosen timeout.
 
 ## Updating The Kit
 
@@ -218,11 +240,9 @@ If the kit behavior itself needs to change:
 
 1. Make the change in this kit repository, not in the consuming repository's
    `.devcontainer/` checkout.
-2. Run the kit's verification workflow from this repository. The expected full
-   suite entrypoint is `task tests-run`; report environmental blockers such as
-   Docker storage exhaustion explicitly.
-3. Run this repository's release workflow so the runtime-only `release` branch is
-   updated.
+2. Verify the upstream kit change before publishing a new runtime-only
+   `release` branch commit.
+3. Publish the updated runtime-only `release` branch from this kit repository.
 4. In the consuming repository, update only the `.devcontainer` submodule gitlink
    to the new `origin/release` commit.
 5. Commit the consuming repository gitlink update with a focused message such as

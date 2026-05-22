@@ -38,7 +38,8 @@ create_git_fixture_repo "$fixture_dir"
 rm -f "$fixture_dir/compose.local.yml"
 rm -f "$fixture_dir/.local.env"
 
-devcontainer_cli up --workspace-folder "$fixture_dir" | tee "$log_file"
+prepare_devcontainer_home "$fixture_dir"
+HOME="$fixture_dir" devcontainer_cli up --workspace-folder "$fixture_dir" | tee "$log_file"
 
 [[ -f "$fixture_dir/compose.local.yml" ]] || fail "initializeCommand did not create root compose.local.yml"
 [[ -f "$fixture_dir/.local.env" ]] || fail "initializeCommand did not create root .local.env"

@@ -38,7 +38,8 @@ expected_workspace_folder="$(expected_workspace_folder "$repo_dir" "$branch_name
 [[ -L "$worktree_path/.local.env" ]] || fail "worktree .local.env is not a symlink"
 [[ -f "$repo_dir/.local.env" ]] || fail "root .local.env was not created"
 
-devcontainer_cli up --remove-existing-container --workspace-folder "$worktree_path" | tee "$log_file"
+prepare_devcontainer_home "$worktree_path"
+HOME="$worktree_path" devcontainer_cli up --remove-existing-container --workspace-folder "$worktree_path" | tee "$log_file"
 container_id="$(extract_container_id_from_log "$log_file" || true)"
 [[ -n "$container_id" ]] || fail "could not extract workspace container id from devcontainer output"
 

@@ -7,9 +7,9 @@
 # - Provides a system Maven installation so the app does not need a wrapper.
 # - Adds the Nix package manager for later package migration work without
 #   switching the devcontainer setup to flakes yet.
-# - Includes Hugo, Kubernetes, Terraform, Ansible, YAML, network, and FTP tools
-#   so the shared workspace can handle site, infrastructure, and deployment
-#   tasks.
+# - Includes Hugo, Kubernetes, Terraform, Ansible, QEMU/KVM, YAML, network, and
+#   FTP tools so the shared workspace can handle site, infrastructure,
+#   virtualization, and deployment tasks.
 #
 # Inputs:
 # - CONTAINER_USER and CONTAINER_GROUP select the login user created in the image.
@@ -103,19 +103,32 @@ RUN apt-get update \
       jq \
       lftp \
       gnupg \
+      bridge-utils \
+      cloud-image-utils \
+      cpio \
+      dnsmasq \
+      expect \
       iproute2 \
       iputils-ping \
+      iptables \
+      kmod \
       netcat-openbsd \
       maven \
       nodejs \
       nushell \
+      pwgen \
       python3 \
       python3-pip \
+      qemu-kvm \
+      qemu-system-x86 \
+      qemu-utils \
       ripgrep \
       rsync \
+      sshpass \
       socat \
       sudo \
       terraform \
+      tigervnc-viewer \
       unzip \
       wget \
       x11-apps \
@@ -218,6 +231,7 @@ RUN groupadd --gid "$CONTAINER_GID" "$CONTAINER_GROUP" \
  && install -d -m 0755 "/home/$CONTAINER_USER/.m2" \
  && install -d -m 0755 "/home/$CONTAINER_USER/.local/share" \
  && install -d -m 0755 "/home/$CONTAINER_USER/.local/state/opencode" \
+  && install -o "$CONTAINER_UID" -g "$CONTAINER_GID" -m 0600 /dev/null "/home/$CONTAINER_USER/.Xauthority" \
   && chown -R "$CONTAINER_UID:$CONTAINER_GID" /nix \
       "/home/$CONTAINER_USER/.config" \
       "/home/$CONTAINER_USER/.m2" \

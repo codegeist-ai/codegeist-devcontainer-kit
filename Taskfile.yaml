@@ -75,6 +75,11 @@ tasks:
     cmds:
       - '{{.TASKFILE_DIR}}/tests/browser-open-test.sh {{.CLI_ARGS}}'
 
+  qemu-alpine-smoke:
+    desc: Download and boot Alpine Linux through QEMU
+    cmds:
+      - '{{.TASKFILE_DIR}}/tests/qemu-alpine-smoke.sh'
+
   tests-run:
     desc: Run the generic devcontainer kit test suite
     cmds:

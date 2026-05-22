@@ -116,7 +116,8 @@ if [ -n "$volume_lines" ]; then
   printf '    volumes:\n%s' "$volume_lines" >>"$compose_override"
 fi
 
-devcontainer_cli up --workspace-folder "$fixture_dir" | tee "$log_file"
+prepare_devcontainer_home "$fixture_dir"
+HOME="$fixture_dir" devcontainer_cli up --workspace-folder "$fixture_dir" | tee "$log_file"
 container_id="$(extract_container_id_from_log "$log_file" || true)"
 [[ -n "$container_id" ]] || fail "could not extract workspace container id from devcontainer output"
 

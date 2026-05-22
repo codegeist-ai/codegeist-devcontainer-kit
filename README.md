@@ -10,7 +10,7 @@ repositories at `.devcontainer/`, either as a Git subtree or as a Git submodule.
 The current Dockerfile intentionally carries the full Codegeist/planner-style
 toolchain, including Docker CE, Node 24, VS Code, GitHub CLI, Maven, GraalVM,
 Hugo, Nix, OpenCode tooling, Repomix, Kubernetes and infrastructure CLIs,
-network diagnostics, and related CLI tools.
+QEMU/KVM virtualization tools, network diagnostics, and related CLI tools.
 
 The consuming project should use the standard VS Code flow:
 
@@ -137,6 +137,30 @@ Chrome through `chrome --headless` inside the workspace container, captures
 a PNG screenshot of a container-local HTML file, and compares rendered
 accessibility text against the expected value. This keeps the test path aligned
 with the visible launcher while staying deterministic in CI-like environments.
+
+## QEMU Support
+
+The devcontainer image includes QEMU/KVM tooling for local VM and ISO workflows:
+`qemu-system-x86_64`, `qemu-img`, `qemu-kvm`, `cloud-localds`, bridge/network
+utilities, and small automation helpers such as `expect`, `sshpass`, and
+`pwgen`. The Compose runtime is privileged, maps `/dev/kvm` explicitly, and adds
+the numeric KVM device group so QEMU can use host virtualization devices when the
+host exposes them. `initialize.sh` writes `DEVCONTAINER_KVM_GID` from
+`stat -c %g /dev/kvm`; existing generated env files can use `KVM_GID` in
+`.local.env` as a manual override when needed.
+
+The smoke path requires `/dev/kvm` to be available and writable inside the
+container. It downloads pinned Alpine Linux `3.20.3` into
+`.test-tmp/qemu-cache/` and boots the ISO with QEMU KVM acceleration until the
+fixed `localhost login:` prompt appears:
+
+```bash
+task qemu-alpine-smoke
+```
+
+The test fails when `/dev/kvm` is missing or not writable. Hosts that run the
+devcontainer inside another VM must enable nested virtualization before this
+suite can pass.
 
 ## Develop This Kit
 
@@ -500,6 +524,8 @@ Recommended test layers:
 - `devcontainer up` for the real lifecycle, including `initializeCommand`
 - `devcontainer exec` or `docker exec` for observable checks inside the running
   workspace service
+- QEMU image-level smoke tests with KVM acceleration when virtualization tooling
+  changes, so the suite proves `/dev/kvm` works inside the container
 
 The tests should verify at least:
 
@@ -514,6 +540,7 @@ The tests should verify at least:
 - no VS Code window is opened by kit scripts
 - no project-specific names such as `CODEGEIST_*` are required
 - the workspace service starts and accepts a basic command
+- QEMU can download and boot a small pinned Alpine Linux ISO to its login prompt
 - generated local files are not accidentally tracked
 
 Use direct `docker compose` tests only for focused Compose behavior that the CLI

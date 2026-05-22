@@ -19,6 +19,11 @@ local override templates in this repository.
   `kubectl`, `helm`, `k9s`, `talosctl`, `terraform`, and `ansible`. Install the
   CLI tools from their latest upstream channels unless the repository later
   records a version-pinning policy.
+- Keep QEMU/KVM and related VM utility tools in the default image: `qemu-kvm`,
+  `qemu-system-x86`, `qemu-utils`, `cloud-image-utils`, `bridge-utils`, `kmod`,
+  `iptables`, `dnsmasq`, `cpio`, `sshpass`, `pwgen`, `expect`, and
+  `tigervnc-viewer`. Verify QEMU with the Alpine ISO smoke test and keep that
+  test KVM-only so the suite proves `/dev/kvm` works inside the container.
 - When changing default image tools, update the matching documentation and smoke
   coverage if the tool is part of the documented development contract.
 
@@ -29,3 +34,6 @@ local override templates in this repository.
 - Shared runtime behavior belongs in `docker-compose.yml` or generated
   `compose.local.gen.yml`; `compose.local.yml` is only the stable include point
   for local or consuming-repository customizations.
+- Keep the `.devcontainer` and `.opencode` submodules configured with their
+  `release` branches in `.gitmodules` so the shared update workflow can refresh
+  both gitlinks non-interactively.

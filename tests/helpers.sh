@@ -160,6 +160,16 @@ extract_key_value() {
   done <<<"$input"
 }
 
+prepare_devcontainer_home() {
+  local home_dir="$1"
+
+  mkdir -p \
+    "$home_dir/.config/opencode" \
+    "$home_dir/.local/share/opencode" \
+    "$home_dir/.local/state/opencode"
+  touch "$home_dir/.Xauthority"
+}
+
 slug_hostname_part() {
   local value="${1:-detached}"
 

@@ -37,10 +37,16 @@
   development repository. Do not edit them directly during normal project work
   unless the task is explicit submodule work.
 - `.devcontainer` currently points at runtime `release` commit
-  `35f46d91d952f483887aa0a94cb9f660a9291ab5`.
+  `de44d108581224b67a4bbb30d5821d23eda37666` in the working tree.
 - `Dockerfile` installs `tiktoken-cli`, Mike Farah `yq`, network diagnostics,
-  Kubernetes administration CLIs (`kubectl`, `helm`, `k9s`, `talosctl`), and
-  infrastructure tools (`terraform`, `ansible`) in the default toolchain.
+  QEMU/KVM virtualization tools, Kubernetes administration CLIs (`kubectl`,
+  `helm`, `k9s`, `talosctl`), and infrastructure tools (`terraform`,
+  `ansible`) in the default toolchain.
+- `docker-compose.yml` maps `/dev/kvm` explicitly and adds the KVM device group
+  through `DEVCONTAINER_KVM_GID`, falling back to `KVM_GID` or `993` for older
+  generated env files on the current host.
+- `.gitmodules` configures both `.devcontainer` and `.opencode` to track their
+  `release` branches so the shared submodule update workflow can refresh them.
 - `entrypoint.sh` starts nested `dockerd` without forcing a storage driver so
   Docker can use `overlay2` when available. Do not reintroduce `vfs` by default;
   it duplicates layers and can exhaust disk during full image builds.
@@ -133,17 +139,19 @@
   exits before a real X11 Chrome window appears for the current temporary profile.
 - The release workflow must rerun `task tests-run` after save and the
   clean-worktree check before publishing.
-- `.devcontainer` is already checked out at runtime release
-  `35f46d91d952f483887aa0a94cb9f660a9291ab5`.
+- `.devcontainer` is checked out at runtime release
+  `de44d108581224b67a4bbb30d5821d23eda37666`.
 - The suite covers initialization, Compose config resolution, branch worktree
-  setup, local Docker image build, TTY `docker-run`, browser smoke including CDP
-  UI coverage, root `devcontainer up`, direct worktree `devcontainer up`, and the
-  consuming-repo submodule workflow.
+  setup, local Docker image build, QEMU Alpine `3.20.3` ISO boot via KVM
+  acceleration until `localhost login:`, TTY `docker-run`, browser smoke
+  including CDP UI coverage, root `devcontainer up`, direct worktree
+  `devcontainer up`, and the consuming-repo submodule workflow.
 
 ## Useful Commands
 
 ```bash
 task tests-run
+task qemu-alpine-smoke
 task code-open
 task code-open -- develop0
 task code-open-test

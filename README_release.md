@@ -151,6 +151,23 @@ screenshot and compares rendered accessibility text for container-local content.
 Browser profiles, bookmarks, credentials, and project-specific service URLs
 belong in consuming-repository overrides or future focused kit work.
 
+## QEMU Support
+
+The release kit includes QEMU/KVM tooling for local VM and ISO workflows:
+`qemu-system-x86_64`, `qemu-img`, `qemu-kvm`, `cloud-localds`, bridge/network
+utilities, and small automation helpers such as `expect`, `sshpass`, and
+`pwgen`. The Compose runtime is privileged, maps `/dev/kvm` explicitly, and adds
+the numeric KVM device group so QEMU can use host virtualization devices when the
+host exposes them. `initialize.sh` writes `DEVCONTAINER_KVM_GID` from
+`stat -c %g /dev/kvm`; existing generated env files can use `KVM_GID` in
+`.local.env` as a manual override when needed.
+
+The kit verification workflow includes `task qemu-alpine-smoke` in the source
+repository. That smoke test requires writable `/dev/kvm`, downloads pinned Alpine
+Linux `3.20.3`, and boots it with QEMU KVM acceleration until the fixed
+`localhost login:` prompt appears. Hosts that run the devcontainer inside another
+VM must enable nested virtualization before this suite can pass.
+
 ## Updating The Kit
 
 To update an existing consuming project to the latest runtime release:

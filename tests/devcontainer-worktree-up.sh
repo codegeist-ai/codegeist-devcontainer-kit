@@ -59,7 +59,8 @@ expected_workspace_folder="$(expected_workspace_folder "$repo_dir" "$branch_name
 [[ -e "$worktree_path/.local.env" ]] || fail "worktree .local.env disappeared after devcontainer up"
 [[ -L "$worktree_path/.local.env" ]] || fail "worktree .local.env stopped being a symlink"
 
-devcontainer_cli up --remove-existing-container --workspace-folder "$worktree_path" | tee "$log_file"
+prepare_devcontainer_home "$worktree_path"
+HOME="$worktree_path" devcontainer_cli up --remove-existing-container --workspace-folder "$worktree_path" | tee "$log_file"
 root_container_id="$(extract_container_id_from_log "$log_file" || true)"
 [[ -n "$root_container_id" ]] || fail "could not extract worktree container id from devcontainer output"
 [[ "$(extract_remote_workspace_folder_from_log "$log_file" || true)" = "$expected_workspace_folder" ]] || fail "worktree devcontainer did not report expected remote workspace folder"

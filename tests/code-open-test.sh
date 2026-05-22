@@ -51,9 +51,11 @@ if [ "${CODE_OPEN_TEST_SKIP_UP:-false}" != "true" ]; then
   devcontainer_log="$fixture_dir/devcontainer-up.log"
   expected_workspace_folder="$(expected_workspace_folder "$fixture_dir" "$branch_name")"
   if [ -n "$branch_name" ]; then
-    devcontainer_cli up --remove-existing-container --workspace-folder "$expected_workspace_folder" | tee "$devcontainer_log"
+    prepare_devcontainer_home "$expected_workspace_folder"
+    HOME="$expected_workspace_folder" devcontainer_cli up --remove-existing-container --workspace-folder "$expected_workspace_folder" | tee "$devcontainer_log"
   else
-    devcontainer_cli up --remove-existing-container --workspace-folder "$fixture_dir" | tee "$devcontainer_log"
+    prepare_devcontainer_home "$fixture_dir"
+    HOME="$fixture_dir" devcontainer_cli up --remove-existing-container --workspace-folder "$fixture_dir" | tee "$devcontainer_log"
   fi
 
   remote_workspace_folder="$(extract_remote_workspace_folder_from_log "$devcontainer_log")"

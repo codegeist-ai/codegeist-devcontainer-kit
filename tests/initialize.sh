@@ -28,6 +28,8 @@ expected_user_name="$(expected_container_user)"
 expected_kvm_gid="$(stat -c %g /dev/kvm 2>/dev/null || id -g)"
 worktree_path=""
 worktree_local_env=""
+current_branch=""
+current_branch_alias=""
 create_git_fixture_repo "$fixture_dir"
 
 cleanup_devcontainer() {
@@ -89,6 +91,17 @@ BRANCH=feature/initialize-test "$fixture_dir/.devcontainer/initialize.sh"
 
 [[ "$(<"$fixture_dir/compose.local.yml")" == *"# local compose marker"* ]] || fail "compose.local.yml was overwritten"
 [[ "$(<"$fixture_dir/.local.env")" = "CUSTOM_ENV=1" ]] || fail ".local.env was overwritten"
+
+current_branch="$(git -C "$fixture_dir" rev-parse --abbrev-ref HEAD)"
+current_branch_alias="$fixture_dir/.worktrees/$current_branch"
+BRANCH="$current_branch" "$fixture_dir/.devcontainer/initialize.sh"
+[[ -L "$current_branch_alias" ]] || fail "current branch did not create a worktree alias"
+[[ "$(readlink -f "$current_branch_alias")" = "$fixture_dir" ]] || fail "current branch alias does not resolve to repository root"
+git -C "$fixture_dir" switch -c replacement-root >/dev/null
+BRANCH="$current_branch" "$fixture_dir/.devcontainer/initialize.sh"
+[[ -d "$current_branch_alias" ]] || fail "stale current branch alias was not replaced with a worktree"
+[[ ! -L "$current_branch_alias" ]] || fail "stale current branch alias is still a symlink"
+[[ "$(git -C "$current_branch_alias" rev-parse --abbrev-ref HEAD)" = "$current_branch" ]] || fail "replaced current branch alias is not on the original branch"
 
 prepare_devcontainer_home "$worktree_path"
 HOME="$worktree_path" devcontainer_cli up --remove-existing-container --workspace-folder "$worktree_path" | tee "$log_file"

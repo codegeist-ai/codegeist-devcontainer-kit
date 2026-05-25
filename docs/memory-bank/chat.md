@@ -69,14 +69,18 @@
 - `initialize.sh` is the host-side `initializeCommand`; it creates local config,
   generated runtime files, root `.oc_local/`, and optional branch worktrees.
 - Normal flow starts from the consuming repository root with `code .`.
-- Worktree flow prepares from the consuming repository root with
-  `BRANCH=<branch> .devcontainer/initialize.sh`, then opens
-  `.worktrees/<branch>` directly. The container workspace path matches that
-  checkout's absolute host path so OpenCode sessions do not collapse across
-  projects or branches that would otherwise all appear as `/workspace`.
-- In this repository, `task code-open -- <branch>` performs that prepare-then-open
-  flow and invokes `code .` from the selected worktree.
-- `task code-open-test -- <branch>` now runs the real `code-open` path and then
+- Remote SSH or Dev Containers CLI worktree flow starts from the repository root
+  with `BRANCH=<branch>` in the host environment. `initializeCommand` creates or
+  reuses `.worktrees/<branch>`, and `devcontainer.json` opens that checkout as
+  the remote workspace folder.
+- If `BRANCH` names the branch already checked out at the repository root, for
+  example `BRANCH=main` on `main`, `initialize.sh` creates
+  `.worktrees/<branch>` as a symlink alias back to the root so the configured
+  `workspaceFolder` still exists without a duplicate Git worktree.
+- Local `code` invocations can still use `task code-open -- <branch>`; it
+  prepares the worktree and invokes `code .` from the selected checkout without
+  leaking `BRANCH` into the opened VS Code process.
+- `task code-open-test -- <branch>` runs the real `code-open` path and then
   starts the fixture through Dev Containers CLI, so terminal cwd failures after
   container startup are caught by the test.
 - Generated runtime files such as `.local.env`, `.devcontainer/.env`,
@@ -150,8 +154,10 @@
 - The suite covers initialization, Compose config resolution, branch worktree
   setup, local Docker image build, QEMU Alpine `3.20.3` ISO boot via KVM
   acceleration until `localhost login:`, TTY `docker-run`, browser smoke
-  including CDP UI coverage, root `devcontainer up`, direct worktree
-  `devcontainer up`, and the consuming-repo submodule workflow.
+  including CDP UI coverage, root `devcontainer up`, explicit current-branch
+  `BRANCH=main`, Remote SSH-style `BRANCH=<branch>` root `devcontainer up`, a
+  real SSH `SetEnv BRANCH` smoke path, direct worktree starts, and the
+  consuming-repo submodule workflow.
 
 ## Useful Commands
 
@@ -162,5 +168,7 @@ task code-open
 task code-open -- develop0
 task code-open-test
 task code-open-test -- develop0
+tests/devcontainer-current-branch-up.sh
+tests/remote-ssh-branch.sh
 task release-build -- release --push
 ```

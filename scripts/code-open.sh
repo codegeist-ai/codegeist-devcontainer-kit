@@ -89,7 +89,7 @@ fi
 
 if [ -n "$branch_name" ]; then
   log "opening VS Code from Git root with BRANCH=$branch_name: $workspace_dir"
-  (cd "$code_workspace_dir" && BRANCH="$branch_name" DEVCONTAINER_WORKSPACE_FOLDER="$container_workspace_dir" DEVCONTAINER_WORKSPACE_RELATIVE="$container_workspace_relative" DEVCONTAINER_WORKSPACE_SUFFIX="$container_workspace_suffix" "$code_bin" .)
+  (cd "$code_workspace_dir" && DEVCONTAINER_WORKSPACE_FOLDER="$container_workspace_dir" DEVCONTAINER_WORKSPACE_RELATIVE="$container_workspace_relative" DEVCONTAINER_WORKSPACE_SUFFIX="$container_workspace_suffix" "$code_bin" .)
 else
   log "opening VS Code from Git root without BRANCH: $workspace_dir"
   (cd "$code_workspace_dir" && DEVCONTAINER_WORKSPACE_FOLDER="$container_workspace_dir" DEVCONTAINER_WORKSPACE_RELATIVE="$container_workspace_relative" DEVCONTAINER_WORKSPACE_SUFFIX="$container_workspace_suffix" "$code_bin" .)

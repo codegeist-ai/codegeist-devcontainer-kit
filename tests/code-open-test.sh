@@ -29,6 +29,7 @@ branch_name="${1:-${BRANCH:-}}"
 fixture_dir="${KEEP_CODE_FIXTURE_DIR:-$(mktemp -d -t devcontainer-code-open-XXXXXX)}"
 remote_workspace_folder=""
 expected_workspace_folder=""
+expected_remote_workspace_folder=""
 
 if [ -e "$fixture_dir" ] && [ -n "$(ls -A "$fixture_dir" 2>/dev/null)" ]; then
   fail "fixture directory is not empty: $fixture_dir"
@@ -51,22 +52,24 @@ if [ "${CODE_OPEN_TEST_SKIP_UP:-false}" != "true" ]; then
   devcontainer_log="$fixture_dir/devcontainer-up.log"
   expected_workspace_folder="$(expected_workspace_folder "$fixture_dir" "$branch_name")"
   if [ -n "$branch_name" ]; then
+    expected_remote_workspace_folder="$(expected_remote_workspace_folder "$expected_workspace_folder")"
     prepare_devcontainer_home "$expected_workspace_folder"
     HOME="$expected_workspace_folder" devcontainer_cli up --remove-existing-container --workspace-folder "$expected_workspace_folder" | tee "$devcontainer_log"
   else
+    expected_remote_workspace_folder="$(expected_remote_workspace_folder "$fixture_dir")"
     prepare_devcontainer_home "$fixture_dir"
     HOME="$fixture_dir" devcontainer_cli up --remove-existing-container --workspace-folder "$fixture_dir" | tee "$devcontainer_log"
   fi
 
   remote_workspace_folder="$(extract_remote_workspace_folder_from_log "$devcontainer_log")"
   [ -n "$remote_workspace_folder" ] || fail "devcontainer CLI did not report a remote workspace folder"
-  [ "$remote_workspace_folder" = "$expected_workspace_folder" ] \
-    || fail "devcontainer CLI reported $remote_workspace_folder, expected $expected_workspace_folder"
+  [ "$remote_workspace_folder" = "$expected_remote_workspace_folder" ] \
+    || fail "devcontainer CLI reported $remote_workspace_folder, expected $expected_remote_workspace_folder"
 
   if [ -n "$branch_name" ]; then
     devcontainer_cli exec --workspace-folder "$expected_workspace_folder" bash -lc '
       set -eu
-      test "$PWD" = "'"$expected_workspace_folder"'"
+      test "$(pwd -P)" = "'"$expected_workspace_folder"'"
       test "$DEVCONTAINER_WORKSPACE_FOLDER" = "'"$expected_workspace_folder"'"
       git rev-parse --is-inside-work-tree >/dev/null
       test "$(git rev-parse --abbrev-ref HEAD)" = "'"$branch_name"'"
@@ -74,7 +77,7 @@ if [ "${CODE_OPEN_TEST_SKIP_UP:-false}" != "true" ]; then
   else
     devcontainer_cli exec --workspace-folder "$fixture_dir" bash -lc '
       set -eu
-      test "$PWD" = "'"$expected_workspace_folder"'"
+      test "$(pwd -P)" = "'"$expected_workspace_folder"'"
       test "$DEVCONTAINER_WORKSPACE_FOLDER" = "'"$expected_workspace_folder"'"
       git rev-parse --is-inside-work-tree >/dev/null
     '

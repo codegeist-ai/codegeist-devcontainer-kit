@@ -91,9 +91,6 @@ task_project() {
 
 devcontainer_cli() {
   local workspace_folder=""
-  local container_workspace_folder=""
-  local container_workspace_relative="."
-  local container_workspace_suffix=""
   local previous_arg=""
   local arg=""
 
@@ -107,16 +104,39 @@ devcontainer_cli() {
   done
 
   if [ -n "$workspace_folder" ]; then
-    container_workspace_folder="$(expected_workspace_folder "$workspace_folder" "${BRANCH:-}")"
-    if [ -n "${BRANCH:-}" ]; then
-      container_workspace_relative=".worktrees/$BRANCH"
-      container_workspace_suffix="/.worktrees/$BRANCH"
-    fi
-    (cd "$workspace_folder" && DEVCONTAINER_WORKSPACE_FOLDER="$container_workspace_folder" DEVCONTAINER_WORKSPACE_RELATIVE="$container_workspace_relative" DEVCONTAINER_WORKSPACE_SUFFIX="$container_workspace_suffix" npx --yes @devcontainers/cli "$@")
+    (cd "$workspace_folder" && env \
+      -u DEVCONTAINER_HOST_NAME \
+      -u DEVCONTAINER_REPO_NAME \
+      -u DEVCONTAINER_REPO_ROOT \
+      -u DEVCONTAINER_BRANCH_NAME \
+      -u DEVCONTAINER_HOSTNAME \
+      -u DEVCONTAINER_WORKSPACE_FOLDER \
+      -u DEVCONTAINER_WORKSPACE_RELATIVE \
+      -u DEVCONTAINER_WORKSPACE_SUFFIX \
+      -u DEVCONTAINER_USER \
+      -u DEVCONTAINER_GROUP \
+      -u DEVCONTAINER_UID \
+      -u DEVCONTAINER_GID \
+      -u DEVCONTAINER_KVM_GID \
+      npx --yes @devcontainers/cli "$@")
     return
   fi
 
-  npx --yes @devcontainers/cli "$@"
+  env \
+    -u DEVCONTAINER_HOST_NAME \
+    -u DEVCONTAINER_REPO_NAME \
+    -u DEVCONTAINER_REPO_ROOT \
+    -u DEVCONTAINER_BRANCH_NAME \
+    -u DEVCONTAINER_HOSTNAME \
+    -u DEVCONTAINER_WORKSPACE_FOLDER \
+    -u DEVCONTAINER_WORKSPACE_RELATIVE \
+    -u DEVCONTAINER_WORKSPACE_SUFFIX \
+    -u DEVCONTAINER_USER \
+    -u DEVCONTAINER_GROUP \
+    -u DEVCONTAINER_UID \
+    -u DEVCONTAINER_GID \
+    -u DEVCONTAINER_KVM_GID \
+    npx --yes @devcontainers/cli "$@"
 }
 
 run_project_tty() {
@@ -233,6 +253,18 @@ expected_workspace_folder() {
   fi
 
   printf '%s\n' "$repo_dir"
+}
+
+expected_remote_workspace_folder() {
+  local local_workspace_folder="$1"
+  local branch_name="${2:-}"
+
+  if [ -n "$branch_name" ]; then
+    printf '%s/.worktrees/%s\n' "$local_workspace_folder" "$branch_name"
+    return 0
+  fi
+
+  printf '%s/.worktrees/..\n' "$local_workspace_folder"
 }
 
 copy_project_files() {

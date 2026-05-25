@@ -52,7 +52,7 @@ CODE_BIN="$fake_code" \
 [[ -f "$capture_file" ]] || fail "fake code command was not invoked"
 expected_workspace_folder="$(expected_workspace_folder "$fixture_dir" "$branch_name")"
 [[ "$(extract_key_value "$(<"$capture_file")" PWD)" = "$expected_workspace_folder" ]] || fail "code-open-test did not start code from the selected worktree"
-[[ "$(extract_key_value "$(<"$capture_file")" BRANCH)" = "$branch_name" ]] || fail "code-open-test did not forward CLI branch as BRANCH"
+[[ "$(extract_key_value "$(<"$capture_file")" BRANCH)" = "" ]] || fail "code-open-test should not leak CLI branch into the opened worktree"
 [[ "$(extract_key_value "$(<"$capture_file")" DEVCONTAINER_WORKSPACE_RELATIVE)" = ".worktrees/$branch_name" ]] || fail "code-open-test did not pass relative workspace path"
 [[ "$(extract_key_value "$(<"$capture_file")" DEVCONTAINER_WORKSPACE_SUFFIX)" = "/.worktrees/$branch_name" ]] || fail "code-open-test did not pass workspace suffix"
 [[ "$(extract_key_value "$(<"$capture_file")" ARGS)" = "." ]] || fail "code-open-test did not open the fixture root with code ."
@@ -85,6 +85,6 @@ compose_config="$(cd "$fixture_dir" && env \
 [[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_WORKSPACE_FOLDER=$expected_workspace_folder"* ]] || fail "generated env does not persist selected workspace folder"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_WORKSPACE_RELATIVE=.worktrees/$branch_name"* ]] || fail "generated env does not persist relative workspace folder"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_WORKSPACE_SUFFIX=/.worktrees/$branch_name"* ]] || fail "generated env does not persist workspace suffix"
-[[ "$(<"$fixture_dir/.devcontainer/devcontainer.json")" == *'"workspaceFolder": "${localWorkspaceFolder}"'* ]] || fail "devcontainer workspaceFolder does not use the opened workspace folder"
+[[ "$(<"$fixture_dir/.devcontainer/devcontainer.json")" == *'"workspaceFolder": "${localWorkspaceFolder}/.worktrees/${localEnv:BRANCH:..}"'* ]] || fail "devcontainer workspaceFolder does not use BRANCH to select the workspace folder"
 
-pass "code-open-test forwards task CLI branch arguments to VS Code and Compose startup"
+pass "code-open-test prepares the selected worktree without leaking BRANCH to VS Code"

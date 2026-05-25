@@ -8,9 +8,10 @@
 # - `../.local.env` carries machine-local runtime values and should be created
 #   from the template only once.
 # - Git worktrees are prepared through BRANCH before VS Code or the Dev
-#   Containers CLI starts from the selected worktree path.
-# - BRANCH lets root-side helpers create or reuse a managed worktree while the
-#   later worktree `initializeCommand` writes runtime files for that checkout.
+#   Containers CLI opens the selected workspace path.
+# - BRANCH lets root-side helpers create or reuse a managed worktree; when the
+#   branch is already checked out, `.worktrees/<branch>` is a symlink alias back
+#   to the current checkout so `workspaceFolder` still resolves.
 # - `.env` and `compose.local.gen.yml` are generated kit-owned files under
 #   `.devcontainer/`; users should edit root `.local.env` and `compose.local.yml`
 #   instead.
@@ -101,6 +102,13 @@ current_branch_name() {
   printf '%s\n' "$branch_name"
 }
 
+branch_selects_current_checkout() {
+  local root_dir="$1"
+  local branch_name="$2"
+
+  [ -n "$branch_name" ] && [ "$(current_branch_name "$root_dir")" = "$branch_name" ]
+}
+
 local_env_value() {
   local env_file="$1"
   local key="$2"
@@ -157,7 +165,7 @@ write_generated_env() {
   selected_branch="${branch_name:-$(current_branch_name "$root_dir")}"
   container_hostname="$(generated_hostname "$root_dir" "$selected_branch")"
   workspace_folder="$root_dir"
-  if [ -n "$branch_name" ]; then
+  if [ -n "$branch_name" ] && ! branch_selects_current_checkout "$root_dir" "$branch_name"; then
     workspace_folder="$root_dir/.worktrees/$branch_name"
     workspace_relative=".worktrees/$branch_name"
     workspace_suffix="/.worktrees/$branch_name"
@@ -239,6 +247,40 @@ ensure_opencode_local_config_dir() {
   copy_if_missing "$root_dir/.devcontainer/.oc_local.gitignore.example" "$config_dir/.gitignore"
 }
 
+ensure_worktrees_dir() {
+  local root_dir="$1"
+
+  mkdir -p "$root_dir/.worktrees"
+}
+
+ensure_current_checkout_alias() {
+  local root_dir="$1"
+  local branch_name="$2"
+  local alias_path="$root_dir/.worktrees/$branch_name"
+  local alias_target=""
+  local resolved_alias=""
+
+  mkdir -p "$(dirname "$alias_path")"
+
+  if [ -L "$alias_path" ]; then
+    resolved_alias="$(readlink -f "$alias_path" 2>/dev/null || true)"
+    if [ "$resolved_alias" = "$root_dir" ]; then
+      return 0
+    fi
+
+    printf 'Refusing to reuse %s because it does not resolve to %s\n' "$alias_path" "$root_dir" >&2
+    return 1
+  fi
+
+  if [ -e "$alias_path" ]; then
+    printf 'Refusing to replace existing non-symlink path: %s\n' "$alias_path" >&2
+    return 1
+  fi
+
+  alias_target="$(realpath --relative-to="$(dirname "$alias_path")" "$root_dir")"
+  ln -s "$alias_target" "$alias_path"
+}
+
 has_tracked_opencode_local_overlay() {
   local root_dir="$1"
 
@@ -273,9 +315,20 @@ ensure_worktree() {
   local branch="$2"
   local slug="$3"
   local worktree_path="$root_dir/.worktrees/$slug"
+  local resolved_worktree=""
 
   git check-ref-format --branch "$branch" >/dev/null
   mkdir -p "$(dirname "$worktree_path")"
+
+  if [ -L "$worktree_path" ]; then
+    resolved_worktree="$(readlink -f "$worktree_path" 2>/dev/null || true)"
+    if [ "$resolved_worktree" != "$root_dir" ]; then
+      printf 'Refusing to replace existing symlink path: %s\n' "$worktree_path" >&2
+      return 1
+    fi
+
+    rm "$worktree_path"
+  fi
 
   if [ -e "$worktree_path" ]; then
     [ "$(git -C "$worktree_path" rev-parse --show-toplevel)" = "$worktree_path" ]
@@ -311,6 +364,11 @@ prepare_selected_worktree() {
   local branch_name="$2"
   local worktree_path=""
 
+  if branch_selects_current_checkout "$root_dir" "$branch_name"; then
+    ensure_current_checkout_alias "$root_dir" "$branch_name"
+    return 0
+  fi
+
   worktree_path="$(ensure_worktree "$root_dir" "$branch_name" "$branch_name")"
 
   ensure_worktree_local_env_link "$root_dir" "$worktree_path"
@@ -329,10 +387,12 @@ main() {
       ensure_root_compose_local "$root_dir"
       ensure_root_local_env "$root_dir"
       ensure_opencode_local_config_dir "$root_dir"
+      ensure_worktrees_dir "$root_dir"
       if ! has_tracked_opencode_local_overlay "$root_dir"; then
         ensure_git_exclude_pattern "$root_dir" "/.oc_local/"
         ensure_git_exclude_pattern "$root_dir" "/.oc_local/.gitignore"
       fi
+      ensure_git_exclude_pattern "$root_dir" "/.worktrees/"
       write_generated_env "$script_dir/.env" "$root_dir" "$branch_name"
       write_generated_compose "$script_dir/compose.local.gen.yml" "$(generated_hostname "$root_dir" "$branch_name")"
 

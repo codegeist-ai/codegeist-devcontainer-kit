@@ -55,7 +55,7 @@ checkout and are ignored by the release kit itself.
 
 The release kit creates root `.oc_local/` when no tracked project overlay exists
 so `OPENCODE_CONFIG_DIR` can point at the selected workspace's `.oc_local`
-directory inside the container. The container workspace path matches the
+directory inside the container. The container workspace path resolves to the
 selected checkout's host path instead of a shared `/workspace` path, which keeps
 OpenCode sessions separated by project and branch. It does not include this
 repository's development-only `.opencode/` checkout.
@@ -100,8 +100,25 @@ code .
 ```
 
 To start the container with a managed Git worktree mounted at its stable host
-path, prepare the worktree from the consuming project root and then open that
-checkout:
+path from VS Code Remote SSH, set `BRANCH` in the SSH environment and reopen the
+repository root in the container. If `BRANCH` names the already checked-out
+branch, such as `BRANCH=main` on `main`, `.worktrees/<branch>` is a symlink
+alias back to the repository root:
+
+```sshconfig
+Host project-dev0
+  SetEnv BRANCH=develop0
+```
+
+The same branch selection can be smoke-tested with the Dev Containers CLI:
+
+```bash
+BRANCH=develop0 npx --yes @devcontainers/cli up --workspace-folder <repo-root>
+```
+
+For local `code` commands where an already running VS Code process may not
+inherit new environment variables, prepare the worktree from the consuming
+project root and then open that checkout:
 
 ```bash
 BRANCH=develop0 .devcontainer/initialize.sh
@@ -113,7 +130,8 @@ The first start creates local runtime files when missing:
 - root `.local.env`
 - root `compose.local.yml`
 - root `.oc_local/` when no tracked project overlay exists
-- root `.worktrees/<branch>` when `BRANCH` is set
+- root `.worktrees/`; `.worktrees/<branch>` as a worktree or current-branch
+  symlink alias when `BRANCH` is set
 - `.devcontainer/.env`
 - `.devcontainer/compose.local.gen.yml`
 

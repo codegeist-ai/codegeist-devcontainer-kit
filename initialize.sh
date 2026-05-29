@@ -165,25 +165,6 @@ branch_selects_current_checkout() {
   [ -n "$branch_name" ] && [ "$(current_branch_name "$root_dir")" = "$branch_name" ]
 }
 
-local_env_value() {
-  local env_file="$1"
-  local key="$2"
-  local line=""
-
-  if [ ! -f "$env_file" ]; then
-    return 0
-  fi
-
-  while IFS= read -r line; do
-    case "$line" in
-      "$key="*)
-        printf '%s\n' "${line#*=}"
-        return 0
-        ;;
-    esac
-  done <"$env_file"
-}
-
 generated_hostname() {
   local root_dir="$1"
   local branch_name="$2"
@@ -250,9 +231,6 @@ DEVCONTAINER_GID=$uid
 DEVCONTAINER_KVM_GID=$kvm_gid
 EOF
 
-  if [ -n "$branch_name" ]; then
-    printf 'BRANCH=%s\n' "$branch_name" >>"$target_file"
-  fi
 }
 
 write_generated_compose() {
@@ -437,8 +415,7 @@ main() {
   case "${1:-}" in
     "")
       root_dir="$(repo_root)"
-      branch_name="${BRANCH:-$(local_env_value "$root_dir/.env" BRANCH)}"
-      branch_name="${branch_name:-$(local_env_value "$script_dir/.env" BRANCH)}"
+      branch_name="${BRANCH:-}"
 
       ensure_root_compose_local "$root_dir"
       ensure_root_local_env "$root_dir"

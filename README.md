@@ -139,6 +139,11 @@ The first start creates local runtime files when missing:
 Do not edit generated files directly. Put environment overrides in root
 `.local.env` and Compose overrides in root `compose.local.yml`.
 
+`BRANCH` is a startup input only. The kit uses it to prepare `.worktrees/<branch>`
+and compute generated workspace values, but it does not persist `BRANCH=` into
+`.devcontainer/.env`; later starts without `BRANCH` resolve back to the current
+checkout.
+
 ## Local Dockerfile Extensions
 
 Consuming projects can extend the shared image by adding a root `Dockerfile` next

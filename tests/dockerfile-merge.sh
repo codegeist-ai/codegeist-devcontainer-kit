@@ -48,6 +48,10 @@ rm -f "$merged_dockerfile"
 compose_config="$(cd "$fixture_dir/.devcontainer" && docker compose -f docker-compose.yml -f compose.local.gen.yml -f ../compose.local.yml config)"
 [[ "$compose_config" == *"Dockerfile.merged.gen"* ]] || fail "compose config does not build from the merged Dockerfile"
 
+cp "$fixture_dir/.devcontainer/Dockerfile" "$fixture_dir/Dockerfile"
+"$fixture_dir/.devcontainer/initialize.sh"
+[[ "$(<"$merged_dockerfile")" != *"Local project Dockerfile extension"* ]] || fail "source repo Dockerfile copy was treated as a local extension"
+
 cat >"$fixture_dir/Dockerfile" <<'EOF'
 # Dockerfile - local devcontainer extension for the fixture
 

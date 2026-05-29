@@ -37,32 +37,6 @@ log() {
   printf '[%(%Y-%m-%dT%H:%M:%S%z)T] %s\n' -1 "$*"
 }
 
-update_branch_env() {
-  local env_file="$1"
-  local branch="$2"
-  local tmp_file=""
-
-  mkdir -p "$(dirname "$env_file")"
-
-  if [ -n "$branch" ]; then
-    printf 'BRANCH=%s\n' "$branch" >"$env_file"
-    return 0
-  fi
-
-  if [ ! -f "$env_file" ]; then
-    return 0
-  fi
-
-  tmp_file="$(mktemp)"
-  grep -v '^BRANCH=' "$env_file" >"$tmp_file" || true
-
-  if [ -s "$tmp_file" ]; then
-    mv "$tmp_file" "$env_file"
-  else
-    rm -f "$tmp_file" "$env_file"
-  fi
-}
-
 workspace_dir="$(realpath "$workspace_dir")"
 
 git -C "$workspace_dir" rev-parse --is-inside-work-tree >/dev/null 2>&1 \
@@ -74,8 +48,6 @@ git_root="$(git -C "$workspace_dir" rev-parse --show-toplevel)"
 
 [ -f "$workspace_dir/.devcontainer/devcontainer.json" ] \
   || fail "workspace has no .devcontainer/devcontainer.json: $workspace_dir"
-
-update_branch_env "$workspace_dir/.devcontainer/.env" "$branch_name"
 
 container_workspace_dir="$workspace_dir"
 code_workspace_dir="$workspace_dir"

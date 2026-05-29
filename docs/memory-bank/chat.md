@@ -41,6 +41,10 @@
   extension fragment. `initialize.sh` skips the root file when it is identical to
   the kit Dockerfile so VS Code can open this repository after updating the
   submodule to `origin/release`.
+- The BRANCH sticky-start bug is fixed in source: `initialize.sh` no longer
+  writes `BRANCH=` into `.devcontainer/.env` or reads branch selection back from
+  generated env files, and `scripts/code-open.sh` no longer persists branch
+  selection before opening VS Code.
 - `docker-compose.yml` maps `/dev/kvm` explicitly and adds the KVM device group
   through `DEVCONTAINER_KVM_GID`, falling back to `KVM_GID` or `993` for older
   generated env files on the current host.
@@ -76,6 +80,9 @@
   example `BRANCH=main` on `main`, `initialize.sh` creates
   `.worktrees/<branch>` as a symlink alias back to the root so the configured
   `workspaceFolder` still exists without a duplicate Git worktree.
+- `BRANCH` is a startup input only. `initialize.sh` must not write `BRANCH=` into
+  `.devcontainer/.env` or read stale branch selection back from generated env;
+  later starts without `BRANCH` should use the current checkout.
 - Local `code` invocations can still use `task code-open -- <branch>`; it
   prepares the worktree and invokes `code .` from the selected checkout without
   leaking `BRANCH` into the opened VS Code process.
@@ -148,6 +155,9 @@
   exits before a real X11 Chrome window appears for the current temporary profile.
 - The release workflow must rerun `task tests-run` after save and the
   clean-worktree check before publishing.
+- Latest BRANCH startup-only verification passed with targeted script checks,
+  `tests/release-build.sh`, `git --no-pager diff --check`, and the full
+  `task tests-run` suite.
 - The suite covers initialization, Compose config resolution, branch worktree
   setup, local Docker image build, QEMU Alpine `3.20.3` ISO boot via KVM
   acceleration until `localhost login:`, TTY `docker-run`, browser smoke

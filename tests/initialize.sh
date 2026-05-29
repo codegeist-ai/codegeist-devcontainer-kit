@@ -63,6 +63,7 @@ expected_hostname="$(expected_generated_hostname "$fixture_dir" "feature/initial
 [[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_UID=$(id -u)"* ]] || fail ".env does not contain generated UID"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_GID=$(id -u)"* ]] || fail ".env does not contain generated GID"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_KVM_GID=$expected_kvm_gid"* ]] || fail ".env does not contain generated KVM GID"
+[[ "$(<"$fixture_dir/.devcontainer/.env")" != *"BRANCH="* ]] || fail ".env persisted BRANCH input"
 [[ "$(<"$fixture_dir/.devcontainer/compose.local.gen.yml")" == *"hostname: $expected_hostname"* ]] || fail "generated compose file does not set generated hostname"
 [[ "$(<"$fixture_dir/.devcontainer/compose.local.gen.yml")" == *"CONTAINER_USER: $expected_user_name"* ]] || fail "generated compose file does not set generated build user"
 [[ "$(<"$fixture_dir/.devcontainer/compose.local.gen.yml")" == *"user: \"$expected_user\""* ]] || fail "generated compose file does not set generated user"
@@ -91,6 +92,11 @@ BRANCH=feature/initialize-test "$fixture_dir/.devcontainer/initialize.sh"
 
 [[ "$(<"$fixture_dir/compose.local.yml")" == *"# local compose marker"* ]] || fail "compose.local.yml was overwritten"
 [[ "$(<"$fixture_dir/.local.env")" = "CUSTOM_ENV=1" ]] || fail ".local.env was overwritten"
+
+env -u BRANCH "$fixture_dir/.devcontainer/initialize.sh"
+[[ "$(<"$fixture_dir/.devcontainer/.env")" != *"BRANCH="* ]] || fail "generated .env kept stale BRANCH after unset start"
+[[ "$(<"$fixture_dir/.devcontainer/.env")" != *"DEVCONTAINER_BRANCH_NAME=feature-initialize-test"* ]] || fail "generated .env reused stale branch after unset start"
+[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_WORKSPACE_FOLDER=$fixture_dir"* ]] || fail "generated .env did not reset workspace when BRANCH was unset"
 
 current_branch="$(git -C "$fixture_dir" rev-parse --abbrev-ref HEAD)"
 current_branch_alias="$fixture_dir/.worktrees/$current_branch"

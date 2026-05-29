@@ -59,7 +59,7 @@ container_id="$(extract_container_id_from_log "$log_file" || true)"
 [[ -f "$repo_dir/.devcontainer/.env" ]] || fail "initializeCommand did not create .devcontainer/.env"
 generated_env="$(<"$repo_dir/.devcontainer/.env")"
 [[ "$generated_env" == *"DEVCONTAINER_WORKSPACE_FOLDER=$expected_workspace_folder"* ]] || fail "generated env does not keep current branch workspace at repository root"
-[[ "$generated_env" == *"BRANCH=$branch_name"* ]] || fail "generated env does not persist explicit current branch"
+[[ "$generated_env" != *"BRANCH="* ]] || fail "generated env persisted explicit current branch"
 
 expected_hostname="$(expected_generated_hostname "$repo_dir" "$branch_name")"
 [[ "$(<"$repo_dir/.devcontainer/compose.local.gen.yml")" == *"hostname: $expected_hostname"* ]] || fail "generated compose file does not set current branch hostname"

@@ -158,7 +158,7 @@ expected_remote_workspace_folder="$(expected_remote_workspace_folder "$repo_dir"
 
 [[ -d "$repo_dir/.worktrees/$branch_name" ]] || fail "remote SSH BRANCH did not create selected worktree"
 [[ -L "$repo_dir/.worktrees/$branch_name/.local.env" ]] || fail "remote SSH worktree .local.env is not a symlink"
-[[ "$(<"$repo_dir/.devcontainer/.env")" == *"BRANCH=$branch_name"* ]] || fail "remote SSH initializeCommand did not persist BRANCH"
+[[ "$(<"$repo_dir/.devcontainer/.env")" != *"BRANCH="* ]] || fail "remote SSH initializeCommand persisted BRANCH"
 [[ "$(<"$repo_dir/.devcontainer/.env")" == *"DEVCONTAINER_WORKSPACE_FOLDER=$expected_workspace_folder"* ]] || fail "remote SSH generated env does not select worktree workspace"
 
 expected_hostname="$(fit_hostname "$(slug_hostname_part "$remote_host_short")-$(slug_hostname_part "$(basename "$repo_dir")")-$(slug_hostname_part "$branch_name")")"

@@ -56,7 +56,8 @@ expected_workspace_folder="$(expected_workspace_folder "$fixture_dir" "$branch_n
 [[ "$(extract_key_value "$(<"$capture_file")" DEVCONTAINER_WORKSPACE_RELATIVE)" = ".worktrees/$branch_name" ]] || fail "code-open-test did not pass relative workspace path"
 [[ "$(extract_key_value "$(<"$capture_file")" DEVCONTAINER_WORKSPACE_SUFFIX)" = "/.worktrees/$branch_name" ]] || fail "code-open-test did not pass workspace suffix"
 [[ "$(extract_key_value "$(<"$capture_file")" ARGS)" = "." ]] || fail "code-open-test did not open the fixture root with code ."
-[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"BRANCH=$branch_name"* ]] || fail "code-open-test did not persist branch for Compose startup"
+[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_WORKSPACE_FOLDER=$expected_workspace_folder"* ]] || fail "code-open-test did not generate selected workspace folder"
+[[ "$(<"$fixture_dir/.devcontainer/.env")" != *"BRANCH="* ]] || fail "code-open-test persisted BRANCH in generated env"
 [[ ! -e "$fixture_dir/.devcontainer/.devcontainer" ]] || fail "code-open-test copied a nested .devcontainer into the fixture"
 [[ ! -e "$fixture_dir/.devcontainer/.local.env" ]] || fail "code-open-test copied root .local.env into the kit directory"
 [[ ! -e "$fixture_dir/.devcontainer/compose.local.yml" ]] || fail "code-open-test copied root compose.local.yml into the kit directory"
@@ -64,9 +65,9 @@ expected_workspace_folder="$(expected_workspace_folder "$fixture_dir" "$branch_n
 [[ -f "$fixture_dir/.devcontainer/compose.local.yml.example" ]] || fail "code-open-test did not keep compose.local.yml.example in the kit directory"
 
 env -u BRANCH "$fixture_dir/.devcontainer/initialize.sh"
-[[ -d "$fixture_dir/.worktrees/$branch_name" ]] || fail "initializeCommand did not read branch from fixture .env"
-[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_BRANCH_NAME=$branch_name"* ]] || fail "generated env does not use persisted branch"
-[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"BRANCH=$branch_name"* ]] || fail "generated env does not keep persisted branch"
+[[ -d "$fixture_dir/.worktrees/$branch_name" ]] || fail "prepared worktree disappeared after root initialize without BRANCH"
+[[ "$(<"$fixture_dir/.devcontainer/.env")" != *"DEVCONTAINER_BRANCH_NAME=$branch_name"* ]] || fail "generated env reused stale branch"
+[[ "$(<"$fixture_dir/.devcontainer/.env")" != *"BRANCH="* ]] || fail "generated env kept stale BRANCH"
 
 compose_config="$(cd "$fixture_dir" && env \
   -u BRANCH \
@@ -80,11 +81,11 @@ compose_config="$(cd "$fixture_dir" && env \
   -f "compose.local.yml" \
   --profile '*' \
   config)"
-[[ "$compose_config" == *"source: $fixture_dir/.worktrees/$branch_name"* ]] || fail "Compose did not select persisted branch worktree"
-[[ "$compose_config" == *"target: $expected_workspace_folder"* ]] || fail "Compose did not mount selected worktree at the stable workspace path"
-[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_WORKSPACE_FOLDER=$expected_workspace_folder"* ]] || fail "generated env does not persist selected workspace folder"
-[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_WORKSPACE_RELATIVE=.worktrees/$branch_name"* ]] || fail "generated env does not persist relative workspace folder"
-[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_WORKSPACE_SUFFIX=/.worktrees/$branch_name"* ]] || fail "generated env does not persist workspace suffix"
+[[ "$compose_config" == *"source: $fixture_dir"* ]] || fail "Compose did not reset to repository root without BRANCH"
+[[ "$compose_config" != *"source: $fixture_dir/.worktrees/$branch_name"* ]] || fail "Compose reused stale branch worktree without BRANCH"
+[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_WORKSPACE_FOLDER=$fixture_dir"* ]] || fail "generated env does not reset workspace folder without BRANCH"
+[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_WORKSPACE_RELATIVE=."* ]] || fail "generated env does not reset relative workspace folder"
+[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_WORKSPACE_SUFFIX="* ]] || fail "generated env does not reset workspace suffix"
 [[ "$(<"$fixture_dir/.devcontainer/devcontainer.json")" == *'"workspaceFolder": "${localWorkspaceFolder}/.worktrees/${localEnv:BRANCH:..}"'* ]] || fail "devcontainer workspaceFolder does not use BRANCH to select the workspace folder"
 
 pass "code-open-test prepares the selected worktree without leaking BRANCH to VS Code"

@@ -635,7 +635,7 @@ Roles:
 - `.oc_local.gitignore.example` seeds root `.oc_local/.gitignore` when the
   consuming repository has no tracked `.oc_local/` overlay.
 - `compose.local.yml.example` is copied to root `compose.local.yml`.
-- `.env` exposes generated runtime values and optional branch selection to the container.
+- `.env` exposes generated runtime values to Compose and the container.
 - `Dockerfile.merged.gen` is the generated Docker build input used by Compose.
 - `compose.local.gen.yml` sets generated Compose-only values such as hostname.
 - `tests/` verifies host initialization and container configuration contracts.
@@ -705,6 +705,11 @@ from an already selected checkout, `initializeCommand` writes that checkout's
 `.devcontainer/.env`, `.devcontainer/Dockerfile.merged.gen`,
 `.devcontainer/compose.local.gen.yml`, and `compose.local.yml` without nesting
 another worktree for the same branch.
+
+`BRANCH` is a startup input only. `initialize.sh` uses it to compute generated
+workspace values and prepare worktrees, but does not persist `BRANCH=` into
+`.devcontainer/.env`; later starts without `BRANCH` should resolve back to the
+current checkout instead of reusing an older branch selection.
 
 `docker-compose.yml` mounts the selected workspace at the same absolute path
 inside the container. For linked worktrees it also mounts the parent repository

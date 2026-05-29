@@ -118,6 +118,7 @@ RUN apt-get update \
       nushell \
       pwgen \
       python3 \
+      python3-dev \
       python3-pip \
       qemu-kvm \
       qemu-system-x86 \

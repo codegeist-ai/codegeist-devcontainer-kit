@@ -31,7 +31,7 @@ HOME="$fixture_dir" devcontainer_cli up --workspace-folder "$fixture_dir" | tee 
 container_id="$(extract_container_id_from_log "$log_file" || true)"
 [[ -n "$container_id" ]] || fail "could not extract workspace container id from devcontainer output"
 
-[[ -f "$fixture_dir/compose.local.yml" ]] || fail "initializeCommand did not create root compose.local.yml"
+[[ -f "$fixture_dir/.codegeist/compose.local.yml" ]] || fail "initializeCommand did not create .codegeist/compose.local.yml"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_KVM_GID=$kvm_gid"* ]] || fail "initializeCommand did not write KVM GID"
 
 container_config="$(docker inspect "$container_id")"

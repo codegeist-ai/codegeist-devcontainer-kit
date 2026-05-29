@@ -36,14 +36,13 @@ cleanup_devcontainer() {
 trap cleanup_devcontainer EXIT
 
 create_git_fixture_repo "$fixture_dir"
-rm -f "$fixture_dir/compose.local.yml"
-rm -f "$fixture_dir/.local.env"
+rm -rf "$fixture_dir/.codegeist"
 
 prepare_devcontainer_home "$fixture_dir"
 HOME="$fixture_dir" devcontainer_cli up --workspace-folder "$fixture_dir" | tee "$log_file"
 
-[[ -f "$fixture_dir/compose.local.yml" ]] || fail "initializeCommand did not create root compose.local.yml"
-[[ -f "$fixture_dir/.local.env" ]] || fail "initializeCommand did not create root .local.env"
+[[ -f "$fixture_dir/.codegeist/compose.local.yml" ]] || fail "initializeCommand did not create .codegeist/compose.local.yml"
+[[ -f "$fixture_dir/.codegeist/.local.env" ]] || fail "initializeCommand did not create .codegeist/.local.env"
 [[ -f "$fixture_dir/.devcontainer/.env" ]] || fail "initializeCommand did not create .devcontainer/.env"
 [[ -f "$fixture_dir/.devcontainer/compose.local.gen.yml" ]] || fail "initializeCommand did not create .devcontainer/compose.local.gen.yml"
 expected_hostname="$(expected_generated_hostname "$fixture_dir" "")"

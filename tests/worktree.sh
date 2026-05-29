@@ -35,8 +35,8 @@ expected_workspace_folder="$(expected_workspace_folder "$repo_dir" "$branch_name
 
 [[ -d "$worktree_path" ]] || fail "worktree path was not created: $worktree_path"
 [[ -f "$worktree_path/.devcontainer/devcontainer.json" ]] || fail "worktree .devcontainer files are missing"
-[[ -L "$worktree_path/.local.env" ]] || fail "worktree .local.env is not a symlink"
-[[ -f "$repo_dir/.local.env" ]] || fail "root .local.env was not created"
+[[ -L "$worktree_path/.codegeist/.local.env" ]] || fail "worktree .codegeist/.local.env is not a symlink"
+[[ -f "$repo_dir/.codegeist/.local.env" ]] || fail ".codegeist/.local.env was not created"
 
 prepare_devcontainer_home "$worktree_path"
 HOME="$worktree_path" devcontainer_cli up --remove-existing-container --workspace-folder "$worktree_path" | tee "$log_file"
@@ -55,4 +55,4 @@ docker exec -w "$repo_dir" -u "$expected_user_name" "$container_id" git merge --
 [[ -f "$repo_dir/worktree-change.txt" ]] || fail "worktree commit was not merged into the main checkout"
 [[ "$(<"$repo_dir/worktree-change.txt")" = "worktree change" ]] || fail "merged worktree file content is wrong"
 
-pass "devcontainer lifecycle creates generic worktree, links local env, and supports commit merge flow"
+pass "devcontainer lifecycle creates generic worktree, links .codegeist local env, and supports commit merge flow"

@@ -2,8 +2,9 @@
 # dockerfile-merge.sh - verify local Dockerfile fragments extend the kit image
 #
 # Why this exists:
-# - consuming repositories may keep project-local coding-agent tools in a root
-#   `Dockerfile` while the reusable kit lives in a `.devcontainer` submodule
+# - consuming repositories may keep project-local coding-agent tools in
+#   `.codegeist/Dockerfile` while the reusable kit lives in a `.devcontainer`
+#   submodule
 # - the generated Dockerfile must stay ignored by the submodule and must reject
 #   `FROM` so local fragments cannot accidentally replace the kit image stage
 #
@@ -45,14 +46,15 @@ rm -f "$merged_dockerfile"
 [[ "$(<"$merged_dockerfile")" == *"FROM debian:bookworm-slim"* ]] || fail "merged Dockerfile does not include the kit Dockerfile"
 [[ "$(<"$merged_dockerfile")" != *"Local project Dockerfile extension"* ]] || fail "merged Dockerfile added a local extension when no root Dockerfile exists"
 [[ -z "$(git -C "$fixture_dir" status --porcelain -- .devcontainer/Dockerfile.merged.gen)" ]] || fail "merged Dockerfile is not ignored"
-compose_config="$(cd "$fixture_dir/.devcontainer" && docker compose -f docker-compose.yml -f compose.local.gen.yml -f ../compose.local.yml config)"
+compose_config="$(cd "$fixture_dir/.devcontainer" && docker compose -f docker-compose.yml -f compose.local.gen.yml -f ../.codegeist/compose.local.yml config)"
 [[ "$compose_config" == *"Dockerfile.merged.gen"* ]] || fail "compose config does not build from the merged Dockerfile"
 
 cp "$fixture_dir/.devcontainer/Dockerfile" "$fixture_dir/Dockerfile"
 "$fixture_dir/.devcontainer/initialize.sh"
-[[ "$(<"$merged_dockerfile")" != *"Local project Dockerfile extension"* ]] || fail "source repo Dockerfile copy was treated as a local extension"
+[[ "$(<"$merged_dockerfile")" != *"Local project Dockerfile extension"* ]] || fail "root Dockerfile was treated as a local extension"
 
-cat >"$fixture_dir/Dockerfile" <<'EOF'
+mkdir -p "$fixture_dir/.codegeist"
+cat >"$fixture_dir/.codegeist/Dockerfile" <<'EOF'
 # Dockerfile - local devcontainer extension for the fixture
 
 ENV LOCAL_AGENT_PATTERN=enabled
@@ -62,11 +64,11 @@ EOF
 "$fixture_dir/.devcontainer/initialize.sh"
 merged_contents="$(<"$merged_dockerfile")"
 
-[[ "$merged_contents" == *"Local project Dockerfile extension from ../Dockerfile"* ]] || fail "merged Dockerfile does not include the local extension marker"
+[[ "$merged_contents" == *"Local project Dockerfile extension from ../.codegeist/Dockerfile"* ]] || fail "merged Dockerfile does not include the local extension marker"
 [[ "$merged_contents" == *"ENV LOCAL_AGENT_PATTERN=enabled"* ]] || fail "merged Dockerfile does not include the local extension"
 [[ "$merged_contents" == *"ENV LOCAL_AGENT_PATTERN=enabled"*'USER ${CONTAINER_USER}'* ]] || fail "merged Dockerfile does not restore the container user after the local extension"
 
-cat >"$fixture_dir/Dockerfile" <<'EOF'
+cat >"$fixture_dir/.codegeist/Dockerfile" <<'EOF'
 FROM alpine:3.20
 RUN true
 EOF
@@ -77,4 +79,4 @@ fi
 
 [[ "$(<"$merge_error_file")" == *"must not contain FROM"* ]] || fail "invalid local Dockerfile error did not explain the FROM restriction"
 
-pass "initialize generates a merged Dockerfile with root Dockerfile extension support"
+pass "initialize generates a merged Dockerfile with .codegeist/Dockerfile extension support"

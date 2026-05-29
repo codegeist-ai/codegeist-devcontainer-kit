@@ -282,6 +282,8 @@ copy_project_files() {
     --exclude='.browser-smoke-tmp' \
     --exclude='.local.env' \
     --exclude='compose.local.yml' \
+    --exclude='.codegeist/.local.env' \
+    --exclude='.codegeist/compose.local.yml' \
     --exclude='Dockerfile.merged.gen' \
     -C "$project_root" \
     -cf - . \

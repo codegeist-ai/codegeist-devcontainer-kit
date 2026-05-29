@@ -6,7 +6,8 @@
 #   adds it as `.devcontainer` through `git submodule add`.
 # - Verifies the real Dev Containers CLI lifecycle from the selected worktree
 #   after the consuming repo root prepares it with `BRANCH=dev0`, including
-#   generated local files, nested Docker, and a commit/merge workflow.
+#   generated `.codegeist` local files, nested Docker, and a commit/merge
+#   workflow.
 #
 # Related files:
 # - ../initialize.sh
@@ -43,8 +44,8 @@ create_git_repo "$p1_dir"
 
 printf '# p1\n' >"$p1_dir/README.md"
 cat >"$p1_dir/.gitignore" <<'EOF'
-/.local.env
-/compose.local.yml
+/.codegeist/.local.env
+/.codegeist/compose.local.yml
 /.worktrees/
 EOF
 
@@ -61,13 +62,13 @@ expected_remote_workspace_folder="$(expected_remote_workspace_folder "$worktree_
 
 [[ -d "$worktree_path" ]] || fail "BRANCH did not create .worktrees/$branch_name"
 [[ -f "$worktree_path/.git" ]] || fail "selected worktree does not have a Git file"
-[[ -f "$p1_dir/.local.env" ]] || fail "root .local.env was not created"
-[[ -f "$p1_dir/compose.local.yml" ]] || fail "root compose.local.yml was not created"
+[[ -f "$p1_dir/.codegeist/.local.env" ]] || fail ".codegeist/.local.env was not created"
+[[ -f "$p1_dir/.codegeist/compose.local.yml" ]] || fail ".codegeist/compose.local.yml was not created"
 [[ -f "$p1_dir/.devcontainer/.env" ]] || fail ".devcontainer/.env was not created"
 [[ -z "$(git -C "$p1_dir/.devcontainer" status --porcelain -- .env)" ]] || fail ".devcontainer/.env is not ignored by the submodule"
 [[ -f "$p1_dir/.devcontainer/compose.local.gen.yml" ]] || fail ".devcontainer/compose.local.gen.yml was not created"
 [[ "$(<"$p1_dir/.devcontainer/.env")" == *"DEVCONTAINER_WORKSPACE_FOLDER=$expected_workspace_folder"* ]] || fail "generated env does not set submodule workspace folder"
-[[ -L "$worktree_path/.local.env" ]] || fail "worktree .local.env is not a symlink"
+[[ -L "$worktree_path/.codegeist/.local.env" ]] || fail "worktree .codegeist/.local.env is not a symlink"
 [[ -f "$worktree_path/.devcontainer/devcontainer.json" ]] || fail "submodule devcontainer is missing in worktree"
 
 prepare_devcontainer_home "$worktree_path"
@@ -76,7 +77,7 @@ container_id="$(extract_container_id_from_log "$log_file" || true)"
 [[ -n "$container_id" ]] || fail "could not extract workspace container id from devcontainer output"
 [[ "$(extract_remote_workspace_folder_from_log "$log_file" || true)" = "$expected_remote_workspace_folder" ]] || fail "submodule workflow did not report expected remote workspace folder"
 
-[[ -f "$worktree_path/compose.local.yml" ]] || fail "worktree compose.local.yml was not created"
+[[ -f "$worktree_path/.codegeist/compose.local.yml" ]] || fail "worktree .codegeist/compose.local.yml was not created"
 [[ -f "$worktree_path/.devcontainer/.env" ]] || fail "worktree .devcontainer/.env was not created"
 [[ -f "$worktree_path/.devcontainer/compose.local.gen.yml" ]] || fail "worktree .devcontainer/compose.local.gen.yml was not created"
 expected_hostname="$(expected_generated_hostname "$worktree_path" "$branch_name")"

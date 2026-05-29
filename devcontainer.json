@@ -4,7 +4,7 @@
 	"dockerComposeFile": [
 		"docker-compose.yml",
 		"compose.local.gen.yml",
-		"../compose.local.yml"
+		"../.codegeist/compose.local.yml"
 	],
 	"service": "workspace",
 	"workspaceFolder": "${localWorkspaceFolder}/.worktrees/${localEnv:BRANCH:..}",

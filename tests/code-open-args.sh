@@ -59,8 +59,8 @@ expected_workspace_folder="$(expected_workspace_folder "$fixture_dir" "$branch_n
 [[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_WORKSPACE_FOLDER=$expected_workspace_folder"* ]] || fail "code-open-test did not generate selected workspace folder"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" != *"BRANCH="* ]] || fail "code-open-test persisted BRANCH in generated env"
 [[ ! -e "$fixture_dir/.devcontainer/.devcontainer" ]] || fail "code-open-test copied a nested .devcontainer into the fixture"
-[[ ! -e "$fixture_dir/.devcontainer/.local.env" ]] || fail "code-open-test copied root .local.env into the kit directory"
-[[ ! -e "$fixture_dir/.devcontainer/compose.local.yml" ]] || fail "code-open-test copied root compose.local.yml into the kit directory"
+[[ ! -e "$fixture_dir/.devcontainer/.local.env" ]] || fail "code-open-test copied .codegeist/.local.env into the kit directory"
+[[ ! -e "$fixture_dir/.devcontainer/compose.local.yml" ]] || fail "code-open-test copied .codegeist/compose.local.yml into the kit directory"
 [[ -f "$fixture_dir/.devcontainer/.local.env.example" ]] || fail "code-open-test did not keep .local.env.example in the kit directory"
 [[ -f "$fixture_dir/.devcontainer/compose.local.yml.example" ]] || fail "code-open-test did not keep compose.local.yml.example in the kit directory"
 
@@ -78,7 +78,7 @@ compose_config="$(cd "$fixture_dir" && env \
   docker compose \
   -f ".devcontainer/docker-compose.yml" \
   -f ".devcontainer/compose.local.gen.yml" \
-  -f "compose.local.yml" \
+  -f ".codegeist/compose.local.yml" \
   --profile '*' \
   config)"
 [[ "$compose_config" == *"source: $fixture_dir"* ]] || fail "Compose did not reset to repository root without BRANCH"

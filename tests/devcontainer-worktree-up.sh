@@ -4,7 +4,7 @@
 # Why this exists:
 # - proves the worktree flow works in an actual Git repository, not only a copied
 #   folder fixture
-# - verifies root .local.env is shared from the repository root into the
+# - verifies `.codegeist/.local.env` is shared from the repository root into the
 #   managed worktree
 # - verifies Remote SSH-style `BRANCH=<name>` starts from the repository root but
 #   opens the selected worktree as the remote workspace folder
@@ -53,15 +53,15 @@ root_container_id="$(extract_container_id_from_log "$log_file" || true)"
 [[ -d "$worktree_path" ]] || fail "worktree path was not created: $worktree_path"
 [[ -d "$worktree_path/.git" || -f "$worktree_path/.git" ]] || fail "worktree is not a Git checkout"
 [[ -f "$worktree_path/.devcontainer/devcontainer.json" ]] || fail "worktree .devcontainer files are missing"
-[[ -L "$worktree_path/.local.env" ]] || fail "worktree .local.env is not a symlink"
-[[ -f "$repo_dir/.local.env" ]] || fail "root .local.env was not created"
+[[ -L "$worktree_path/.codegeist/.local.env" ]] || fail "worktree .codegeist/.local.env is not a symlink"
+[[ -f "$repo_dir/.codegeist/.local.env" ]] || fail ".codegeist/.local.env was not created"
 
-[[ -f "$repo_dir/compose.local.yml" ]] || fail "initializeCommand did not create root compose.local.yml"
+[[ -f "$repo_dir/.codegeist/compose.local.yml" ]] || fail "initializeCommand did not create .codegeist/compose.local.yml"
 [[ -f "$repo_dir/.devcontainer/.env" ]] || fail "initializeCommand did not create .devcontainer/.env"
 [[ -f "$repo_dir/.devcontainer/compose.local.gen.yml" ]] || fail "initializeCommand did not create .devcontainer/compose.local.gen.yml"
 [[ "$(<"$repo_dir/.devcontainer/.env")" == *"DEVCONTAINER_WORKSPACE_FOLDER=$expected_workspace_folder"* ]] || fail "generated env does not set worktree workspace folder"
-[[ -e "$worktree_path/.local.env" ]] || fail "worktree .local.env disappeared after devcontainer up"
-[[ -L "$worktree_path/.local.env" ]] || fail "worktree .local.env stopped being a symlink"
+[[ -e "$worktree_path/.codegeist/.local.env" ]] || fail "worktree .codegeist/.local.env disappeared after devcontainer up"
+[[ -L "$worktree_path/.codegeist/.local.env" ]] || fail "worktree .codegeist/.local.env stopped being a symlink"
 
 expected_hostname="$(expected_generated_hostname "$repo_dir" "$branch_name")"
 [[ "$(<"$repo_dir/.devcontainer/compose.local.gen.yml")" == *"hostname: $expected_hostname"* ]] || fail "generated compose file does not set worktree hostname"

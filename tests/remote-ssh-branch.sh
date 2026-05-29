@@ -157,7 +157,7 @@ expected_remote_workspace_folder="$(expected_remote_workspace_folder "$repo_dir"
 [[ "$(extract_remote_workspace_folder_from_log "$remote_log_file" || true)" = "$expected_remote_workspace_folder" ]] || fail "remote SSH devcontainer did not report expected worktree workspace folder"
 
 [[ -d "$repo_dir/.worktrees/$branch_name" ]] || fail "remote SSH BRANCH did not create selected worktree"
-[[ -L "$repo_dir/.worktrees/$branch_name/.local.env" ]] || fail "remote SSH worktree .local.env is not a symlink"
+[[ -L "$repo_dir/.worktrees/$branch_name/.codegeist/.local.env" ]] || fail "remote SSH worktree .codegeist/.local.env is not a symlink"
 [[ "$(<"$repo_dir/.devcontainer/.env")" != *"BRANCH="* ]] || fail "remote SSH initializeCommand persisted BRANCH"
 [[ "$(<"$repo_dir/.devcontainer/.env")" == *"DEVCONTAINER_WORKSPACE_FOLDER=$expected_workspace_folder"* ]] || fail "remote SSH generated env does not select worktree workspace"
 

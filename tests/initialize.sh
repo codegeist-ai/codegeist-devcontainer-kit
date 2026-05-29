@@ -2,7 +2,7 @@
 # initialize.sh - verify local devcontainer runtime files are bootstrapped
 #
 # Why this exists:
-# - proves initializeCommand creates required local compose/env files
+# - proves initializeCommand creates required `.codegeist` compose/env files
 # - protects user-edited local files from being overwritten across devcontainer up
 # - proves root-side worktree preparation and later Dev Containers lifecycle
 #   initialization preserve user-owned local files
@@ -39,16 +39,19 @@ cleanup_devcontainer() {
 }
 trap cleanup_devcontainer EXIT
 
-rm -f "$fixture_dir/compose.local.yml"
-rm -f "$fixture_dir/.local.env"
+rm -rf "$fixture_dir/.codegeist"
+printf '# legacy compose marker\n' >"$fixture_dir/compose.local.yml"
+printf 'LEGACY_ENV=1\n' >"$fixture_dir/.local.env"
 rm -f "$fixture_dir/.devcontainer/.env"
 rm -f "$fixture_dir/.devcontainer/compose.local.gen.yml"
 
 BRANCH=feature/initialize-test "$fixture_dir/.devcontainer/initialize.sh"
 expected_hostname="$(expected_generated_hostname "$fixture_dir" "feature/initialize-test")"
 
-[[ -f "$fixture_dir/compose.local.yml" ]] || fail "compose.local.yml was not created in repository root"
-[[ -f "$fixture_dir/.local.env" ]] || fail ".local.env was not created in repository root"
+[[ -f "$fixture_dir/.codegeist/compose.local.yml" ]] || fail ".codegeist/compose.local.yml was not created"
+[[ -f "$fixture_dir/.codegeist/.local.env" ]] || fail ".codegeist/.local.env was not created"
+[[ "$(<"$fixture_dir/.codegeist/compose.local.yml")" == *"# legacy compose marker"* ]] || fail "legacy compose.local.yml was not migrated"
+[[ "$(<"$fixture_dir/.codegeist/.local.env")" = "LEGACY_ENV=1" ]] || fail "legacy .local.env was not migrated"
 [[ ! -e "$fixture_dir/.devcontainer/compose.local.yml" ]] || fail "compose.local.yml was created in the kit directory"
 [[ ! -e "$fixture_dir/.devcontainer/.local.env" ]] || fail ".local.env was created in the kit directory"
 [[ -f "$fixture_dir/.devcontainer/compose.local.yml.example" ]] || fail "compose.local.yml.example is missing from the kit directory"
@@ -70,28 +73,28 @@ expected_hostname="$(expected_generated_hostname "$fixture_dir" "feature/initial
 [[ "$(<"$fixture_dir/.devcontainer/compose.local.gen.yml")" != *"group_add:"* ]] || fail "generated compose file should not own KVM group_add"
 worktree_path="$fixture_dir/.worktrees/feature/initialize-test"
 [[ -d "$worktree_path" ]] || fail "root initializer did not create the requested worktree"
-worktree_local_env="$worktree_path/.local.env"
-[[ -L "$worktree_local_env" ]] || fail "worktree .local.env is not a symlink"
+worktree_local_env="$worktree_path/.codegeist/.local.env"
+[[ -L "$worktree_local_env" ]] || fail "worktree .codegeist/.local.env is not a symlink"
 rm -f "$worktree_local_env"
 printf 'WORKTREE_LOCAL_ENV=1\n' >"$worktree_local_env"
 BRANCH=feature/initialize-test "$fixture_dir/.devcontainer/initialize.sh"
-[[ -f "$worktree_local_env" ]] || fail "existing worktree .local.env file was removed"
-[[ ! -L "$worktree_local_env" ]] || fail "existing worktree .local.env file was replaced with a symlink"
-[[ "$(<"$worktree_local_env")" = "WORKTREE_LOCAL_ENV=1" ]] || fail "existing worktree .local.env file was overwritten"
-[[ -z "$(git -C "$fixture_dir" status --porcelain -- .worktrees/feature/initialize-test/.local.env)" ]] || fail "worktree .local.env is not ignored"
-[[ "$(<"$fixture_dir/compose.local.yml")" != *"/workspace"* ]] || fail "compose.local.yml should not mount the workspace"
-[[ "$(<"$fixture_dir/compose.local.yml")" != *".worktrees"* ]] || fail "compose.local.yml should not mount selected worktrees"
+[[ -f "$worktree_local_env" ]] || fail "existing worktree .codegeist/.local.env file was removed"
+[[ ! -L "$worktree_local_env" ]] || fail "existing worktree .codegeist/.local.env file was replaced with a symlink"
+[[ "$(<"$worktree_local_env")" = "WORKTREE_LOCAL_ENV=1" ]] || fail "existing worktree .codegeist/.local.env file was overwritten"
+[[ -z "$(git -C "$fixture_dir" status --porcelain -- .worktrees/feature/initialize-test/.codegeist/.local.env)" ]] || fail "worktree .codegeist/.local.env is not ignored"
+[[ "$(<"$fixture_dir/.codegeist/compose.local.yml")" != *"/workspace"* ]] || fail ".codegeist/compose.local.yml should not mount the workspace"
+[[ "$(<"$fixture_dir/.codegeist/compose.local.yml")" != *".worktrees"* ]] || fail ".codegeist/compose.local.yml should not mount selected worktrees"
 [[ -z "$(git -C "$fixture_dir" status --porcelain -- .oc_local)" ]] || fail ".oc_local is not ignored"
 
-cp "$fixture_dir/compose.local.yml" "$fixture_dir/compose.local.yml.before"
-cp "$fixture_dir/.local.env" "$fixture_dir/.local.env.before"
-printf '\n# local compose marker\n' >>"$fixture_dir/compose.local.yml"
-printf 'CUSTOM_ENV=1\n' >"$fixture_dir/.local.env"
+cp "$fixture_dir/.codegeist/compose.local.yml" "$fixture_dir/.codegeist/compose.local.yml.before"
+cp "$fixture_dir/.codegeist/.local.env" "$fixture_dir/.codegeist/.local.env.before"
+printf '\n# local compose marker\n' >>"$fixture_dir/.codegeist/compose.local.yml"
+printf 'CUSTOM_ENV=1\n' >"$fixture_dir/.codegeist/.local.env"
 
 BRANCH=feature/initialize-test "$fixture_dir/.devcontainer/initialize.sh"
 
-[[ "$(<"$fixture_dir/compose.local.yml")" == *"# local compose marker"* ]] || fail "compose.local.yml was overwritten"
-[[ "$(<"$fixture_dir/.local.env")" = "CUSTOM_ENV=1" ]] || fail ".local.env was overwritten"
+[[ "$(<"$fixture_dir/.codegeist/compose.local.yml")" == *"# local compose marker"* ]] || fail ".codegeist/compose.local.yml was overwritten"
+[[ "$(<"$fixture_dir/.codegeist/.local.env")" = "CUSTOM_ENV=1" ]] || fail ".codegeist/.local.env was overwritten"
 
 env -u BRANCH "$fixture_dir/.devcontainer/initialize.sh"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" != *"BRANCH="* ]] || fail "generated .env kept stale BRANCH after unset start"
@@ -115,8 +118,8 @@ container_id="$(extract_container_id_from_log "$log_file" || true)"
 [[ -n "$container_id" ]] || fail "could not extract workspace container id from devcontainer output"
 expected_hostname="$(expected_generated_hostname "$worktree_path" "feature/initialize-test")"
 
-[[ "$(<"$fixture_dir/compose.local.yml")" == *"# local compose marker"* ]] || fail "compose.local.yml was overwritten when BRANCH was unset"
-[[ "$(<"$fixture_dir/.local.env")" = "CUSTOM_ENV=1" ]] || fail ".local.env was overwritten when BRANCH was unset"
+[[ "$(<"$fixture_dir/.codegeist/compose.local.yml")" == *"# local compose marker"* ]] || fail ".codegeist/compose.local.yml was overwritten when BRANCH was unset"
+[[ "$(<"$fixture_dir/.codegeist/.local.env")" = "CUSTOM_ENV=1" ]] || fail ".codegeist/.local.env was overwritten when BRANCH was unset"
 [[ "$(<"$worktree_path/.devcontainer/compose.local.gen.yml")" == *"hostname: $expected_hostname"* ]] || fail "generated compose hostname was not refreshed for worktree start"
 
-pass "initialize creates local files and selected BRANCH worktrees without owning compose mounts"
+pass "initialize creates .codegeist local files and selected BRANCH worktrees without owning compose mounts"

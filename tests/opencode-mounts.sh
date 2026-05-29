@@ -25,6 +25,7 @@ fi
 fixture_dir="$suite_tmp_dir/opencode-mounts-fixture"
 compose_project="opencode-mounts-$$"
 container_user="$(expected_container_user)"
+container_group="$(id -gn)"
 container_home="/home/$container_user"
 host_uid="$(id -u)"
 workspace_folder="$(expected_workspace_folder "$fixture_dir")"
@@ -32,6 +33,16 @@ workspace_folder="$(expected_workspace_folder "$fixture_dir")"
 config_dir="$suite_tmp_dir/opencode/config"
 share_dir="$suite_tmp_dir/opencode/share"
 state_dir="$suite_tmp_dir/opencode/state"
+compose_base_env=(
+  HOME="$fixture_dir"
+  UID="$host_uid"
+  CONTAINER_USER="$container_user"
+  CONTAINER_GROUP="$container_group"
+  CONTAINER_UID="$host_uid"
+  CONTAINER_GID="$host_uid"
+  DEVCONTAINER_REPO_ROOT="$fixture_dir"
+  DEVCONTAINER_WORKSPACE_FOLDER="$workspace_folder"
+)
 
 create_fixture_repo "$fixture_dir"
 prepare_devcontainer_home "$fixture_dir"
@@ -43,12 +54,12 @@ printf 'host state write check\n' >"$state_dir/host-write-check.txt"
 
 cleanup_compose() {
   if [ -d "$fixture_dir" ]; then
-    (cd "$fixture_dir" && env HOME="$fixture_dir" UID="$host_uid" DEVCONTAINER_REPO_ROOT="$fixture_dir" DEVCONTAINER_WORKSPACE_FOLDER="$workspace_folder" docker compose -p "$compose_project" -f ".devcontainer/docker-compose.yml" down -v --remove-orphans >/dev/null 2>&1) || true
+    (cd "$fixture_dir" && env "${compose_base_env[@]}" docker compose -p "$compose_project" -f ".devcontainer/docker-compose.yml" down -v --remove-orphans >/dev/null 2>&1) || true
   fi
 }
 trap cleanup_compose EXIT
 
-default_config="$(cd "$fixture_dir" && env -u OPENCODE_DIR_CONFIG -u OPENCODE_DIR_SHARE -u OPENCODE_DIR_STATE HOME="$fixture_dir" UID="$host_uid" DEVCONTAINER_REPO_ROOT="$fixture_dir" DEVCONTAINER_WORKSPACE_FOLDER="$workspace_folder" docker compose \
+default_config="$(cd "$fixture_dir" && env -u OPENCODE_DIR_CONFIG -u OPENCODE_DIR_SHARE -u OPENCODE_DIR_STATE "${compose_base_env[@]}" docker compose \
   -f ".devcontainer/docker-compose.yml" \
   config)"
 
@@ -56,7 +67,7 @@ default_config="$(cd "$fixture_dir" && env -u OPENCODE_DIR_CONFIG -u OPENCODE_DI
 [[ "$default_config" == *"source: /home/$container_user/.local/share/opencode"* ]] || fail "default OpenCode share source did not resolve to host home"
 [[ "$default_config" == *"source: /home/$container_user/.local/state/opencode"* ]] || fail "default OpenCode state source did not resolve to host home"
 
-compose_config="$(cd "$fixture_dir" && OPENCODE_DIR_CONFIG="$config_dir" OPENCODE_DIR_SHARE="$share_dir" OPENCODE_DIR_STATE="$state_dir" env HOME="$fixture_dir" UID="$host_uid" DEVCONTAINER_REPO_ROOT="$fixture_dir" DEVCONTAINER_WORKSPACE_FOLDER="$workspace_folder" docker compose \
+compose_config="$(cd "$fixture_dir" && env "${compose_base_env[@]}" OPENCODE_DIR_CONFIG="$config_dir" OPENCODE_DIR_SHARE="$share_dir" OPENCODE_DIR_STATE="$state_dir" docker compose \
   -p "$compose_project" \
   -f ".devcontainer/docker-compose.yml" \
   config)"
@@ -70,22 +81,16 @@ compose_config="$(cd "$fixture_dir" && OPENCODE_DIR_CONFIG="$config_dir" OPENCOD
 
 (
   cd "$fixture_dir"
-  OPENCODE_DIR_CONFIG="$config_dir" \
+  env "${compose_base_env[@]}" \
+    OPENCODE_DIR_CONFIG="$config_dir" \
     OPENCODE_DIR_SHARE="$share_dir" \
     OPENCODE_DIR_STATE="$state_dir" \
-    env HOME="$fixture_dir" \
-      UID="$host_uid" \
-      DEVCONTAINER_REPO_ROOT="$fixture_dir" \
-      DEVCONTAINER_WORKSPACE_FOLDER="$workspace_folder" \
     docker compose -p "$compose_project" -f ".devcontainer/docker-compose.yml" up -d workspace >/dev/null
 
-  OPENCODE_DIR_CONFIG="$config_dir" \
+  env "${compose_base_env[@]}" \
+    OPENCODE_DIR_CONFIG="$config_dir" \
     OPENCODE_DIR_SHARE="$share_dir" \
     OPENCODE_DIR_STATE="$state_dir" \
-    env HOME="$fixture_dir" \
-      UID="$host_uid" \
-      DEVCONTAINER_REPO_ROOT="$fixture_dir" \
-      DEVCONTAINER_WORKSPACE_FOLDER="$workspace_folder" \
     docker compose -p "$compose_project" -f ".devcontainer/docker-compose.yml" exec -T workspace sh -lc "
       set -eu
       printf 'container config write check\n' >'$container_home/.config/opencode/container-write-check.txt'

@@ -47,7 +47,7 @@ kit:
 Do not ignore `/.oc_local/` if the consuming repository intentionally tracks a
 project-local OpenCode overlay there.
 
-The generated `.devcontainer/.env` and
+The generated `.devcontainer/.env`, `.devcontainer/Dockerfile.merged.gen`, and
 `.devcontainer/compose.local.gen.yml` files are written inside the submodule
 checkout and are ignored by the release kit itself.
 
@@ -133,10 +133,36 @@ The first start creates local runtime files when missing:
 - root `.worktrees/`; `.worktrees/<branch>` as a worktree or current-branch
   symlink alias when `BRANCH` is set
 - `.devcontainer/.env`
+- `.devcontainer/Dockerfile.merged.gen`
 - `.devcontainer/compose.local.gen.yml`
 
 Do not edit generated files directly. Put environment overrides in root
 `.local.env` and Compose overrides in root `compose.local.yml`.
+
+## Local Dockerfile Extensions
+
+Consuming projects can extend the shared image by adding a root `Dockerfile` next
+to `compose.local.yml`. During `initializeCommand`, the kit writes
+`.devcontainer/Dockerfile.merged.gen` from `.devcontainer/Dockerfile` and then
+appends the root `Dockerfile` as a project-local fragment.
+
+Use the root `Dockerfile` only as an extension fragment for this pattern:
+
+```Dockerfile
+# Dockerfile - project-local devcontainer extension
+
+USER root
+RUN npm install -g some-coding-agent-tool
+USER ${CONTAINER_USER}
+```
+
+Do not put `FROM` in the root fragment. A `FROM` instruction would start another
+stage and can replace the prepared kit image, so `initialize.sh` rejects it with
+a clear error. `COPY` and `ADD` paths are resolved from the consuming repository
+root because the Docker build context remains the project root.
+
+The kit does not create the root `Dockerfile`; it only appends one when the
+consuming project owns it. Do not commit `.devcontainer/Dockerfile.merged.gen`.
 
 ## Browser Support
 
@@ -239,8 +265,9 @@ not as ordinary project source.
 
 - Do not edit files inside `.devcontainer/` directly to customize one consuming
   project.
-- Do not commit `.devcontainer/.env`, `.devcontainer/compose.local.gen.yml`,
-  root `.local.env`, root `compose.local.yml`, or generated `.worktrees/` files.
+- Do not commit `.devcontainer/.env`, `.devcontainer/Dockerfile.merged.gen`,
+  `.devcontainer/compose.local.gen.yml`, root `.local.env`, root
+  `compose.local.yml`, or generated `.worktrees/` files.
 - Do not pin consumers to this kit's `main` branch unless a human explicitly asks
   for development-branch testing.
 - Do not replace the submodule with copied files unless the consuming project is

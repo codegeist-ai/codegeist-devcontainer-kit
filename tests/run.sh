@@ -26,6 +26,7 @@ setup_suite
 trap cleanup_suite EXIT
 
 run_timed "initialize bootstrap" "$WARN_FAST_SECONDS" "$script_dir/initialize.sh"
+run_timed "Dockerfile merge" "$WARN_FAST_SECONDS" "$script_dir/dockerfile-merge.sh"
 run_timed "code-open argument forwarding" "$WARN_FAST_SECONDS" "$script_dir/code-open-args.sh"
 run_timed "release build branch" "$WARN_FAST_SECONDS" "$script_dir/release-build.sh"
 run_timed "compose config" "$WARN_FAST_SECONDS" "$script_dir/compose-config.sh"

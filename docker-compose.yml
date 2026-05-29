@@ -1,7 +1,8 @@
 # docker-compose.yml - generic devcontainer runtime
 #
 # Why this exists:
-# - Uses the repo-local Dockerfile and entrypoint instead of a stock image.
+# - Uses the generated merged Dockerfile and custom entrypoint instead of a
+#   stock image.
 # - Keeps the runtime reusable for repository roots and Git worktrees without
 #   product-specific environment variable names.
 # - Mounts either the consuming repository root or the BRANCH-selected managed
@@ -29,10 +30,13 @@
 #   /dev/kvm`; KVM_GID can override older generated env files manually.
 # - OPENCODE_DIR_CONFIG, OPENCODE_DIR_SHARE, and OPENCODE_DIR_STATE select the
 #   host-side OpenCode state directories mounted into the container.
+# - initialize.sh writes `.devcontainer/Dockerfile.merged.gen` before Compose
+#   builds; this keeps project-local Dockerfile extensions outside the submodule.
 #
 # Related files:
 # - devcontainer.json
 # - Dockerfile
+# - Dockerfile.merged.gen
 # - entrypoint.sh
 # - initialize.sh
 # - ../compose.local.yml
@@ -43,7 +47,7 @@ services:
   workspace:
     build:
       context: ..
-      dockerfile: .devcontainer/Dockerfile
+      dockerfile: .devcontainer/Dockerfile.merged.gen
       args:
         CONTAINER_USER: ${CONTAINER_USER:-${USER:-vscode}}
         CONTAINER_GROUP: ${CONTAINER_GROUP:-${USER:-vscode}}

@@ -15,6 +15,9 @@
 # - `.env` and `compose.local.gen.yml` are generated kit-owned files under
 #   `.devcontainer/`; users should edit root `.local.env` and `compose.local.yml`
 #   instead.
+# - `Dockerfile.merged.gen` is generated from the kit Dockerfile and an optional
+#   root `Dockerfile` fragment so consuming projects can add local coding-agent
+#   tools without editing the `.devcontainer` submodule.
 # - OpenCode keys session state by directory path, so the container workspace
 #   path must match the selected root/worktree path instead of a shared
 #   `/workspace` mount.
@@ -24,6 +27,8 @@
 # Related files:
 # - devcontainer.json
 # - docker-compose.yml
+# - Dockerfile
+# - Dockerfile.merged.gen
 # - compose.local.gen.yml
 # - compose.local.yml.example
 # - .env
@@ -43,6 +48,53 @@ copy_if_missing() {
   fi
 
   cp "$source_file" "$target_file"
+}
+
+validate_local_dockerfile_fragment() {
+  local local_dockerfile="$1"
+
+  if grep -Eiq '^[[:space:]]*FROM([[:space:]]|$)' "$local_dockerfile"; then
+    printf 'Refusing to merge %s because local devcontainer Dockerfile fragments must not contain FROM. Extend the kit image with RUN, COPY, ENV, or similar instructions instead.\n' "$local_dockerfile" >&2
+    return 1
+  fi
+}
+
+write_merged_dockerfile() {
+  local root_dir="$1"
+  local kit_dockerfile="$script_dir/Dockerfile"
+  local local_dockerfile="$root_dir/Dockerfile"
+  local target_file="$script_dir/Dockerfile.merged.gen"
+  local kit_dockerfile_real=""
+  local local_dockerfile_real=""
+
+  [ -f "$kit_dockerfile" ] || {
+    printf 'Kit Dockerfile is missing: %s\n' "$kit_dockerfile" >&2
+    return 1
+  }
+
+  cp "$kit_dockerfile" "$target_file"
+
+  if [ ! -f "$local_dockerfile" ]; then
+    return 0
+  fi
+
+  kit_dockerfile_real="$(readlink -f "$kit_dockerfile")"
+  local_dockerfile_real="$(readlink -f "$local_dockerfile")"
+  if [ "$local_dockerfile_real" = "$kit_dockerfile_real" ]; then
+    return 0
+  fi
+
+  validate_local_dockerfile_fragment "$local_dockerfile"
+
+  {
+    printf '\n'
+    printf '# Local project Dockerfile extension from ../Dockerfile.\n'
+    printf '# Appended by .devcontainer/initialize.sh; do not edit this generated file.\n'
+    printf '\n'
+    cat "$local_dockerfile"
+    printf '\n'
+    printf 'USER ${CONTAINER_USER}\n'
+  } >>"$target_file"
 }
 
 repo_root() {
@@ -386,6 +438,7 @@ main() {
 
       ensure_root_compose_local "$root_dir"
       ensure_root_local_env "$root_dir"
+      write_merged_dockerfile "$root_dir"
       ensure_opencode_local_config_dir "$root_dir"
       ensure_worktrees_dir "$root_dir"
       if ! has_tracked_opencode_local_overlay "$root_dir"; then

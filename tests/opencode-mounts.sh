@@ -44,7 +44,8 @@ compose_base_env=(
   DEVCONTAINER_WORKSPACE_FOLDER="$workspace_folder"
 )
 
-create_fixture_repo "$fixture_dir"
+create_git_fixture_repo "$fixture_dir"
+"$fixture_dir/.devcontainer/initialize.sh"
 prepare_devcontainer_home "$fixture_dir"
 mkdir -p "$config_dir" "$share_dir" "$state_dir"
 

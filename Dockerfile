@@ -10,6 +10,8 @@
 # - Includes Hugo, Kubernetes, Terraform, Ansible, QEMU/KVM, YAML, network, and
 #   FTP tools so the shared workspace can handle site, infrastructure,
 #   virtualization, and deployment tasks.
+# - `initialize.sh` copies this file into `Dockerfile.merged.gen` and appends an
+#   optional consuming-project root `Dockerfile` fragment before Compose builds.
 #
 # Inputs:
 # - CONTAINER_USER and CONTAINER_GROUP select the login user created in the image.
@@ -20,6 +22,7 @@
 # - .devcontainer/docker-compose.yml
 # - .devcontainer/devcontainer.json
 # - .devcontainer/entrypoint.sh
+# - .devcontainer/initialize.sh
 FROM debian:bookworm-slim
 
 ARG CONTAINER_USER=vscode

@@ -31,7 +31,8 @@
 # - OPENCODE_DIR_CONFIG, OPENCODE_DIR_SHARE, and OPENCODE_DIR_STATE select the
 #   host-side OpenCode state directories mounted into the container.
 # - initialize.sh writes `.devcontainer/Dockerfile.merged.gen` before Compose
-#   builds; this keeps project-local Dockerfile extensions outside the submodule.
+#   builds; this keeps project-local `.codegeist/Dockerfile` extensions outside
+#   the submodule.
 #
 # Related files:
 # - devcontainer.json
@@ -39,10 +40,10 @@
 # - Dockerfile.merged.gen
 # - entrypoint.sh
 # - initialize.sh
-# - ../compose.local.yml
+# - ../.codegeist/compose.local.yml
 # - .env
 # - compose.local.gen.yml
-# - ../.local.env
+# - ../.codegeist/.local.env
 services:
   workspace:
     build:
@@ -70,7 +71,7 @@ services:
     env_file:
       - path: .env
         required: false
-      - path: ../.local.env
+      - path: ../.codegeist/.local.env
         required: false
     environment:
       OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER: ${OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER:-true}

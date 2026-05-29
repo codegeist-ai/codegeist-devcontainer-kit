@@ -2,7 +2,11 @@
 /Dockerfile.merged.gen
 /.env
 /.devcontainer/.env
+/.codegeist/.local.env
+/.codegeist/compose.local.yml
 /.local.env
+/compose.local.yml
+/.worktrees/**/.codegeist/.local.env
 /.worktrees/**/.local.env
 /.test-tmp/
 /.browser-smoke-tmp/

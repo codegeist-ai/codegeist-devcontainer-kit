@@ -2,10 +2,11 @@
 #
 # Why this exists:
 # - Provides a checked-in template for machine-local compose customizations.
-# - `initialize.sh` copies it to `compose.local.yml` when the local override is
-#   missing so `devcontainer.json` can always include the override file.
-# - The generated `compose.local.yml` is intentionally ignored and may be edited
-#   by each consuming checkout or worktree.
+# - `initialize.sh` copies it to `.codegeist/compose.local.yml` when the local
+#   override is missing so `devcontainer.json` can always include the override
+#   file.
+# - The generated `.codegeist/compose.local.yml` is intentionally ignored and may
+#   be edited by each consuming checkout or worktree.
 # - Shared defaults live in docker-compose.yml; keep this template empty until a
 #   real local override is needed.
 #
@@ -13,4 +14,5 @@
 # - devcontainer.json
 # - docker-compose.yml
 # - initialize.sh
+# - .codegeist/compose.local.yml
 services: {}

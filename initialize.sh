@@ -84,6 +84,10 @@ write_merged_dockerfile() {
     return 0
   fi
 
+  if cmp -s "$kit_dockerfile" "$local_dockerfile"; then
+    return 0
+  fi
+
   validate_local_dockerfile_fragment "$local_dockerfile"
 
   {

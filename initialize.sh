@@ -17,7 +17,9 @@
 #   `.codegeist/compose.local.yml` instead.
 # - `Dockerfile.merged.gen` is generated from the kit Dockerfile and an optional
 #   `.codegeist/Dockerfile` fragment so consuming projects can add local
-#   coding-agent tools without editing the `.devcontainer` submodule.
+#   coding-agent tools without editing the `.devcontainer` submodule. Runtime
+#   releases contain `Dockerfile`; source checkouts may keep the same base image
+#   as `Dockerfile.base` before release packaging renames it.
 # - OpenCode keys session state by directory path, so the container workspace
 #   path must match the selected root/worktree path instead of a shared
 #   `/workspace` mount.
@@ -28,6 +30,7 @@
 # - devcontainer.json
 # - docker-compose.yml
 # - Dockerfile
+# - Dockerfile.base
 # - Dockerfile.merged.gen
 # - compose.local.gen.yml
 # - compose.local.yml.example
@@ -61,18 +64,32 @@ validate_local_dockerfile_fragment() {
   fi
 }
 
+kit_dockerfile_path() {
+  if [ -f "$script_dir/Dockerfile" ]; then
+    printf '%s\n' "$script_dir/Dockerfile"
+    return 0
+  fi
+
+  if [ -f "$script_dir/Dockerfile.base" ]; then
+    printf '%s\n' "$script_dir/Dockerfile.base"
+    return 0
+  fi
+
+  return 1
+}
+
 write_merged_dockerfile() {
   local root_dir="$1"
-  local kit_dockerfile="$script_dir/Dockerfile"
+  local kit_dockerfile=""
   local local_dockerfile="$root_dir/.codegeist/Dockerfile"
   local target_file="$script_dir/Dockerfile.merged.gen"
   local kit_dockerfile_real=""
   local local_dockerfile_real=""
 
-  [ -f "$kit_dockerfile" ] || {
-    printf 'Kit Dockerfile is missing: %s\n' "$kit_dockerfile" >&2
+  if ! kit_dockerfile="$(kit_dockerfile_path)"; then
+    printf 'Kit Dockerfile is missing: %s or %s\n' "$script_dir/Dockerfile" "$script_dir/Dockerfile.base" >&2
     return 1
-  }
+  fi
 
   cp "$kit_dockerfile" "$target_file"
 

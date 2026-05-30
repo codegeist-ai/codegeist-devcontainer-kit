@@ -13,4 +13,5 @@ script_dir="$(dirname "$(readlink -f "$0")")"
 source "$script_dir/helpers.sh"
 
 task_project docker-build
-pass "docker image builds through Taskfile"
+docker run --rm --entrypoint pass codegeist-devcontainer-kit:local --version >/dev/null
+pass "docker image builds through Taskfile with pass available"

@@ -28,7 +28,7 @@
   its gitlink to the latest pushed `origin/release` commit, but should not
   automatically commit that parent gitlink after publishing unless the user asks.
 - `Dockerfile.base` is the source image file and installs `tiktoken-cli`, Mike
-  Farah `yq`, network diagnostics,
+  Farah `yq`, network diagnostics, password-store tooling through `pass`,
   QEMU/KVM virtualization tools, Kubernetes administration CLIs (`kubectl`,
   `helm`, `k9s`, `talosctl`), and infrastructure tools (`terraform`,
   `ansible`) in the default toolchain. It also installs `python3-dev` so

@@ -8,7 +8,7 @@
 # - drives a rendered browser UI check through Chrome DevTools Protocol
 #
 # Related files:
-# - ../Dockerfile
+# - ../Dockerfile.base
 # - ../docker-compose.yml
 # - ./helpers.sh
 

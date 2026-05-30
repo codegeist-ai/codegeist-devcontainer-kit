@@ -11,7 +11,7 @@
 # - `CHROME_OPEN_USER_DATA_DIR` optionally selects a custom profile directory.
 #
 # Related files:
-# - Dockerfile
+# - Dockerfile.base
 # - Taskfile.yaml
 # - tests/browser-smoke.sh
 

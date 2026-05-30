@@ -27,7 +27,8 @@
 - `.devcontainer` is a runtime-release submodule. Release workflows may update
   its gitlink to the latest pushed `origin/release` commit, but should not
   automatically commit that parent gitlink after publishing unless the user asks.
-- `Dockerfile` installs `tiktoken-cli`, Mike Farah `yq`, network diagnostics,
+- `Dockerfile.base` is the source image file and installs `tiktoken-cli`, Mike
+  Farah `yq`, network diagnostics,
   QEMU/KVM virtualization tools, Kubernetes administration CLIs (`kubectl`,
   `helm`, `k9s`, `talosctl`), and infrastructure tools (`terraform`,
   `ansible`) in the default toolchain. It also installs `python3-dev` so
@@ -40,7 +41,8 @@
 - `initialize.sh` no longer treats a consuming-repository root `Dockerfile` as a
   devcontainer extension. Image extension fragments belong in
   `.codegeist/Dockerfile`, leaving root `Dockerfile` available for application
-  images or this source repository's kit Dockerfile.
+  images. `scripts/release-build.sh` copies source `Dockerfile.base` into the
+  runtime-only release branch as `Dockerfile`.
 - The BRANCH sticky-start bug is fixed in source: `initialize.sh` no longer
   writes `BRANCH=` into `.devcontainer/.env` or reads branch selection back from
   generated env files, and `scripts/code-open.sh` no longer persists branch

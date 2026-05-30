@@ -7,7 +7,7 @@
 #
 # Related files:
 # - ../devcontainer.json
-# - ../Dockerfile
+# - ../Dockerfile.base
 # - ../entrypoint.sh
 
 set -euo pipefail

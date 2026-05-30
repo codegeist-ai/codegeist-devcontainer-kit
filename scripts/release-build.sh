@@ -17,7 +17,7 @@
 # - ../README_release.md
 # - ../devcontainer.json
 # - ../docker-compose.yml
-# - ../Dockerfile
+# - ../Dockerfile.base
 
 set -euo pipefail
 
@@ -31,7 +31,6 @@ runtime_files=(
   ".gitignore"
   ".local.env.example"
   ".oc_local.gitignore.example"
-  "Dockerfile"
   "compose.local.yml.example"
   "devcontainer.json"
   "docker-compose.yml"
@@ -40,6 +39,7 @@ runtime_files=(
   "scripts/chrome.sh"
 )
 
+runtime_dockerfile_source="Dockerfile.base"
 runtime_readme_source="README_release.md"
 
 fail() {
@@ -100,6 +100,7 @@ git -C "$repo_root" check-ref-format --branch "$release_branch" >/dev/null \
 for runtime_file in "${runtime_files[@]}"; do
   [ -e "$repo_root/$runtime_file" ] || fail "runtime file is missing: $runtime_file"
 done
+[ -e "$repo_root/$runtime_dockerfile_source" ] || fail "runtime file is missing: $runtime_dockerfile_source"
 [ -e "$repo_root/$runtime_readme_source" ] || fail "runtime file is missing: $runtime_readme_source"
 
 trap cleanup EXIT
@@ -111,6 +112,7 @@ for runtime_file in "${runtime_files[@]}"; do
   mkdir -p "$tmp_tree/$(dirname "$runtime_file")"
   cp -p "$repo_root/$runtime_file" "$tmp_tree/$runtime_file"
 done
+cp -p "$repo_root/$runtime_dockerfile_source" "$tmp_tree/Dockerfile"
 cp -p "$repo_root/$runtime_readme_source" "$tmp_tree/README.md"
 
 GIT_INDEX_FILE="$tmp_index" git -C "$repo_root" read-tree --empty

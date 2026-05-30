@@ -10,7 +10,7 @@
 #
 # Related files:
 # - ../initialize.sh
-# - ../Dockerfile
+# - ../Dockerfile.base
 # - ../docker-compose.yml
 
 set -euo pipefail
@@ -35,9 +35,14 @@ merged_dockerfile=""
 merge_error_file="$suite_tmp_dir/dockerfile-merge-error.log"
 merged_contents=""
 compose_config=""
+kit_dockerfile=""
 
 create_git_fixture_repo "$fixture_dir"
 merged_dockerfile="$fixture_dir/.devcontainer/Dockerfile.merged.gen"
+kit_dockerfile="$fixture_dir/.devcontainer/Dockerfile"
+if [ ! -f "$kit_dockerfile" ]; then
+  kit_dockerfile="$fixture_dir/.devcontainer/Dockerfile.base"
+fi
 
 rm -f "$merged_dockerfile"
 "$fixture_dir/.devcontainer/initialize.sh"
@@ -49,7 +54,7 @@ rm -f "$merged_dockerfile"
 compose_config="$(cd "$fixture_dir/.devcontainer" && docker compose -f docker-compose.yml -f compose.local.gen.yml -f ../.codegeist/compose.local.yml config)"
 [[ "$compose_config" == *"Dockerfile.merged.gen"* ]] || fail "compose config does not build from the merged Dockerfile"
 
-cp "$fixture_dir/.devcontainer/Dockerfile" "$fixture_dir/Dockerfile"
+cp "$kit_dockerfile" "$fixture_dir/Dockerfile"
 "$fixture_dir/.devcontainer/initialize.sh"
 [[ "$(<"$merged_dockerfile")" != *"Local project Dockerfile extension"* ]] || fail "root Dockerfile was treated as a local extension"
 

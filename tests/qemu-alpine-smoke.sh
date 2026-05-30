@@ -9,7 +9,7 @@
 #   depending on arbitrary /tmp bind-mount visibility from the Docker daemon.
 #
 # Related files:
-# - ../Dockerfile
+# - ../Dockerfile.base
 # - ../Taskfile.yaml
 # - ./run.sh
 

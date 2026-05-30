@@ -13,7 +13,7 @@
 # - CONTAINER_GROUP controls the dockerd socket group.
 #
 # Related files:
-# - Dockerfile
+# - Dockerfile.base
 # - Taskfile.yaml
 
 set -euo pipefail

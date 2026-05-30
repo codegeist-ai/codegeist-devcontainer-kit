@@ -76,6 +76,9 @@ diff -u "$expected_files" "$actual_files" \
 diff -u "$release_repo/README_release.md" <(git -C "$release_repo" show "$release_branch:README.md") \
   || fail "release branch README.md does not match README_release.md"
 
+diff -u "$release_repo/Dockerfile.base" <(git -C "$release_repo" show "$release_branch:Dockerfile") \
+  || fail "release branch Dockerfile does not match Dockerfile.base"
+
 [[ "$(git -C "$release_repo" log -1 --format=%s "$release_branch")" = "chore(release): update devcontainer runtime branch" ]] \
   || fail "release branch commit subject is wrong"
 

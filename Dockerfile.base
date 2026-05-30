@@ -1,4 +1,4 @@
-# Dockerfile - devcontainer image for codegeist.ai
+# Devcontainer image for codegeist.ai
 #
 # Why this exists:
 # - Matches the planner devcontainer toolchain for product work.
@@ -10,8 +10,11 @@
 # - Includes Hugo, Kubernetes, Terraform, Ansible, QEMU/KVM, YAML, network, and
 #   FTP tools so the shared workspace can handle site, infrastructure,
 #   virtualization, and deployment tasks.
-# - `initialize.sh` copies this file into `Dockerfile.merged.gen` and appends an
-#   optional consuming-project root `Dockerfile` fragment before Compose builds.
+# - `scripts/release-build.sh` copies this source file to release `Dockerfile` so
+#   consuming repositories still receive the standard Dev Containers filename.
+# - `initialize.sh` copies the released `Dockerfile` into `Dockerfile.merged.gen`
+#   and appends an optional `.codegeist/Dockerfile` fragment before Compose
+#   builds.
 #
 # Inputs:
 # - CONTAINER_USER and CONTAINER_GROUP select the login user created in the image.
@@ -19,10 +22,11 @@
 #   devcontainer runtime.
 #
 # Related files:
-# - .devcontainer/docker-compose.yml
-# - .devcontainer/devcontainer.json
-# - .devcontainer/entrypoint.sh
-# - .devcontainer/initialize.sh
+# - docker-compose.yml
+# - devcontainer.json
+# - entrypoint.sh
+# - initialize.sh
+# - scripts/release-build.sh
 FROM debian:bookworm-slim
 
 ARG CONTAINER_USER=vscode

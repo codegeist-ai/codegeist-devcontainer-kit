@@ -3,7 +3,7 @@
 #
 # Related files:
 # - ../Taskfile.yaml
-# - ../Dockerfile
+# - ../Dockerfile.base
 
 set -euo pipefail
 

@@ -7,9 +7,9 @@
 # - Provides a system Maven installation so the app does not need a wrapper.
 # - Adds the Nix package manager for later package migration work without
 #   switching the devcontainer setup to flakes yet.
-# - Includes Hugo, Kubernetes, Terraform, Ansible, QEMU/KVM, YAML, network, and
-#   FTP tools so the shared workspace can handle site, infrastructure,
-#   virtualization, and deployment tasks.
+# - Includes Hugo, Kubernetes, Terraform, Ansible, QEMU/KVM, password-store,
+#   YAML, network, and FTP tools so the shared workspace can handle site,
+#   infrastructure, virtualization, and deployment tasks.
 # - `scripts/release-build.sh` copies this source file to release `Dockerfile` so
 #   consuming repositories still receive the standard Dev Containers filename.
 # - `initialize.sh` copies the released `Dockerfile` into `Dockerfile.merged.gen`
@@ -123,6 +123,7 @@ RUN apt-get update \
       maven \
       nodejs \
       nushell \
+      pass \
       pwgen \
       python3 \
       python3-dev \

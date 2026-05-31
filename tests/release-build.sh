@@ -58,6 +58,7 @@ cat >"$expected_files" <<'EOF'
 .gitignore
 .local.env.example
 .oc_local.gitignore.example
+.oc_local.opencode.json.example
 Dockerfile
 README.md
 compose.local.yml.example

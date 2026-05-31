@@ -107,6 +107,19 @@ The first start creates local generated files when missing:
 - root `.worktrees/`; `.worktrees/<branch>` as a worktree or current-branch
   symlink alias when `BRANCH` is set
 
+The kit also ships `.oc_local.opencode.json.example` as an inactive template for
+`.oc_local/opencode.json`. When consumed as `.devcontainer/`, copy
+`.devcontainer/.oc_local.opencode.json.example` to `.oc_local/opencode.json`
+only when the consuming project wants a tracked local OpenCode overlay. The
+template loads `README.md` first, then local rule files with the `rules/**/*.md`
+instruction pattern; in the runtime release, that `README.md` is generated from
+`README_release.md`.
+
+The initializer creates writable `.oc_local/` and `.oc_local/.gitignore`, but it
+never copies the template or overwrites `.oc_local/opencode.json`. If a consuming
+repository tracks `.oc_local/`, remove or narrow generated ignores and keep
+secrets out of tracked local overlay files.
+
 When upgrading an older checkout, `initialize.sh` copies legacy root `.local.env`
 or `compose.local.yml` into the matching `.codegeist/` path only when the new
 file does not exist. It does not delete the legacy files and does not migrate a
@@ -289,7 +302,9 @@ The release branch tree contains only:
 .gitignore
 .local.env.example
 .oc_local.gitignore.example
+.oc_local.opencode.json.example
 Dockerfile
+README.md
 compose.local.yml.example
 devcontainer.json
 docker-compose.yml
@@ -656,6 +671,11 @@ Roles:
 - `.local.env.example` documents `.codegeist/.local.env` values.
 - `.oc_local.gitignore.example` seeds root `.oc_local/.gitignore` when the
   consuming repository has no tracked `.oc_local/` overlay.
+- `.oc_local.opencode.json.example` is an inactive template for a tracked
+  `.oc_local/opencode.json` that loads `README.md` and project-local
+  `rules/**/*.md` guidance. Consuming repositories copy it from
+  `.devcontainer/.oc_local.opencode.json.example` only when they intentionally
+  track a local OpenCode overlay.
 - `compose.local.yml.example` is copied to `.codegeist/compose.local.yml`.
 - `.env` exposes generated runtime values to Compose and the container.
 - `Dockerfile.merged.gen` is the generated Docker build input used by Compose.

@@ -75,6 +75,41 @@ own OpenCode configuration, commands, rules, or skills. In that case, do not
 ignore `/.oc_local/`; keep generated local files out with narrower ignore rules
 instead.
 
+The release kit includes `.oc_local.opencode.json.example` as an inactive
+starting point for `.oc_local/opencode.json`. In a consuming repository that
+uses this kit as `.devcontainer/`, the template lives at
+`.devcontainer/.oc_local.opencode.json.example`. Copy it into `.oc_local/` only
+when the consuming project wants tracked local OpenCode configuration:
+
+```bash
+mkdir -p .oc_local
+cp .devcontainer/.oc_local.opencode.json.example .oc_local/opencode.json
+```
+
+The template loads `README.md` first, then project-local rules with the
+`rules/**/*.md` instruction pattern. This makes the release README the first
+agent-facing explanation of how the devcontainer kit and local overlay work. In
+the release branch, `README.md` is generated from this source
+`README_release.md` file.
+
+Important local overlay constraints:
+
+- `initialize.sh` creates writable `.oc_local/` and `.oc_local/.gitignore` when
+  needed, but it never copies `.oc_local.opencode.json.example` or overwrites an
+  existing `.oc_local/opencode.json`.
+- The generated `.oc_local/.gitignore` ignores everything in `.oc_local/` for a
+  purely local overlay. If the consuming repository tracks `.oc_local/`, remove
+  or narrow the generated ignore file and do not ignore `/.oc_local/` at the repo
+  level.
+- Keep product-specific commands, rules, skills, and OpenCode config in
+  `.oc_local/`. Keep shared behavior in the separate `.opencode/` agent-kit
+  submodule or upstream it to that shared kit.
+- Restart OpenCode after changing `.oc_local/opencode.json`, local rules,
+  commands, skills, or `.opencode/` config; running sessions keep the config they
+  loaded at startup.
+- Do not put secrets, credentials, or machine-local paths in tracked
+  `.oc_local/` files.
+
 Recommended layout for a consuming project that uses both shared and local
 OpenCode guidance:
 

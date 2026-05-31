@@ -31,6 +31,7 @@ runtime_files=(
   ".gitignore"
   ".local.env.example"
   ".oc_local.gitignore.example"
+  ".oc_local.opencode.json.example"
   "compose.local.yml.example"
   "devcontainer.json"
   "docker-compose.yml"

@@ -103,6 +103,15 @@
   `/.oc_local/.gitignore` when no tracked project overlay exists.
 - The runtime kit creates writable `.oc_local/` when no tracked overlay exists,
   but does not ship this repository's development-only `.opencode/` checkout.
+- The runtime kit ships `.oc_local.opencode.json.example` as an inactive template
+  for a tracked `.oc_local/opencode.json`; it loads `README.md` plus
+  project-local rules with the `rules/**/*.md` instruction pattern and is not
+  copied automatically by `initialize.sh`.
+- The release README now documents the local OpenCode overlay contract for
+  consuming repos and coding agents: copy the template from
+  `.devcontainer/.oc_local.opencode.json.example` only when tracking
+  `.oc_local/`, narrow generated ignores before tracking the overlay, restart
+  OpenCode after config changes, and keep secrets out of tracked overlay files.
 - Consuming repositories that want shared OpenCode commands, rules, and skills
   should add `https://github.com/codegeist-ai/codegeist-agent-kit` as a separate
   `.opencode` submodule.

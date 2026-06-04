@@ -10,9 +10,10 @@ repositories at `.devcontainer/`, either as a Git subtree or as a Git submodule.
 The source `Dockerfile.base` intentionally carries the full
 Codegeist/planner-style toolchain, including Docker CE, Node 24, VS Code,
 GitHub CLI, Maven, GraalVM, Hugo, Nix, OpenCode tooling, Repomix, Kubernetes and
-infrastructure CLIs, QEMU/KVM virtualization tools, network diagnostics,
-password-store tooling through `pass`, and related CLI tools. The release build
-publishes this file as `.devcontainer/Dockerfile` for consuming repositories.
+infrastructure CLIs, QEMU/KVM virtualization tools, `espeak-ng`, network
+diagnostics, password-store tooling through `pass`, and related CLI tools. The
+release build publishes this file as `.devcontainer/Dockerfile` for consuming
+repositories.
 
 The consuming project should use the standard VS Code flow:
 

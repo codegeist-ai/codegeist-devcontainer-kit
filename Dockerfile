@@ -8,7 +8,7 @@
 # - Adds the Nix package manager for later package migration work without
 #   switching the devcontainer setup to flakes yet.
 # - Includes Hugo, Kubernetes, Terraform, Ansible, QEMU/KVM, password-store,
-#   YAML, network, and FTP tools so the shared workspace can handle site,
+#   speech, YAML, network, and FTP tools so the shared workspace can handle site,
 #   infrastructure, virtualization, and deployment tasks.
 # - `scripts/release-build.sh` copies this source file to release `Dockerfile` so
 #   consuming repositories still receive the standard Dev Containers filename.
@@ -104,6 +104,7 @@ RUN apt-get update \
       docker-ce \
       docker-ce-cli \
       docker-compose-plugin \
+      espeak-ng \
       ftp \
       gh \
       git \

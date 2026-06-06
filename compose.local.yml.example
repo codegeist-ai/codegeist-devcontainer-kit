@@ -1,14 +1,14 @@
-# compose.local.yml - local compose overrides for the devcontainer
+# compose.local.yml - repository-visible compose overrides for the devcontainer
 #
 # Why this exists:
-# - Provides a checked-in template for machine-local compose customizations.
+# - Provides a checked-in template for root compose customizations.
 # - `initialize.sh` copies it to `.codegeist/compose.local.yml` when the local
 #   override is missing so `devcontainer.json` can always include the override
 #   file.
-# - The generated `.codegeist/compose.local.yml` is intentionally ignored and may
-#   be edited by each consuming checkout or worktree.
+# - The generated `.codegeist/compose.local.yml` is intentionally visible to Git
+#   so repositories can decide whether to commit their overrides.
 # - Shared defaults live in docker-compose.yml; keep this template empty until a
-#   real local override is needed.
+#   real repository override is needed.
 #
 # Related files:
 # - devcontainer.json

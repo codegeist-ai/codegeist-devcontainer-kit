@@ -37,6 +37,8 @@
 # Related files:
 # - devcontainer.json
 # - Dockerfile
+# - Dockerfile.base
+# - ../.codegeist/Dockerfile
 # - Dockerfile.merged.gen
 # - entrypoint.sh
 # - initialize.sh

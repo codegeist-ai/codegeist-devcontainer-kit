@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
-# dockerfile-merge.sh - verify local Dockerfile fragments extend the kit image
+# dockerfile-merge.sh - verify the root .codegeist Dockerfile extension
 #
 # Why this exists:
-# - consuming repositories may keep project-local coding-agent tools in
-#   `.codegeist/Dockerfile` while the reusable kit lives in a `.devcontainer`
-#   submodule
-# - the generated Dockerfile must stay ignored by the submodule and must reject
-#   `FROM` so local fragments cannot accidentally replace the kit image stage
+# - Consuming repositories keep the visible devcontainer extension at root
+#   `.codegeist/Dockerfile`, next to `.codegeist/compose.local.yml`.
+# - The generated Dockerfile must append that extension to the kit base image,
+#   reject `FROM`, and stay ignored by the kit submodule.
 #
 # Related files:
 # - ../initialize.sh
@@ -32,35 +31,35 @@ fi
 
 fixture_dir="$suite_tmp_dir/dockerfile-merge-fixture"
 merged_dockerfile=""
-merge_error_file="$suite_tmp_dir/dockerfile-merge-error.log"
 merged_contents=""
 compose_config=""
-kit_dockerfile=""
+root_dockerfile=""
+merge_error_file="$suite_tmp_dir/dockerfile-merge-error.log"
 
 create_git_fixture_repo "$fixture_dir"
 merged_dockerfile="$fixture_dir/.devcontainer/Dockerfile.merged.gen"
-kit_dockerfile="$fixture_dir/.devcontainer/Dockerfile"
-if [ ! -f "$kit_dockerfile" ]; then
-  kit_dockerfile="$fixture_dir/.devcontainer/Dockerfile.base"
-fi
+root_dockerfile="$fixture_dir/.codegeist/Dockerfile"
 
-rm -f "$merged_dockerfile"
+rm -f "$merged_dockerfile" "$root_dockerfile"
 "$fixture_dir/.devcontainer/initialize.sh"
 
+[[ -f "$root_dockerfile" ]] || fail "root .codegeist/Dockerfile was not created"
+assert_not_ignored "$fixture_dir" ".codegeist/Dockerfile"
+[[ -n "$(git -C "$fixture_dir" status --porcelain -- .codegeist/Dockerfile)" ]] || fail ".codegeist/Dockerfile is not visible to git status"
 [[ -f "$merged_dockerfile" ]] || fail "merged Dockerfile was not generated"
 [[ "$(<"$merged_dockerfile")" == *"FROM debian:bookworm-slim"* ]] || fail "merged Dockerfile does not include the kit Dockerfile"
-[[ "$(<"$merged_dockerfile")" != *"Local project Dockerfile extension"* ]] || fail "merged Dockerfile added a local extension when no root Dockerfile exists"
+[[ "$(<"$root_dockerfile")" != *"FROM"* ]] || fail "default .codegeist/Dockerfile extension contains FROM"
+[[ "$(<"$merged_dockerfile")" == *"Local project Dockerfile extension from ../.codegeist/Dockerfile"* ]] || fail "merged Dockerfile does not include the default extension marker"
 [[ -z "$(git -C "$fixture_dir" status --porcelain -- .devcontainer/Dockerfile.merged.gen)" ]] || fail "merged Dockerfile is not ignored"
 compose_config="$(cd "$fixture_dir/.devcontainer" && docker compose -f docker-compose.yml -f compose.local.gen.yml -f ../.codegeist/compose.local.yml config)"
 [[ "$compose_config" == *"Dockerfile.merged.gen"* ]] || fail "compose config does not build from the merged Dockerfile"
 
-cp "$kit_dockerfile" "$fixture_dir/Dockerfile"
+cp "$root_dockerfile" "$fixture_dir/Dockerfile"
 "$fixture_dir/.devcontainer/initialize.sh"
-[[ "$(<"$merged_dockerfile")" != *"Local project Dockerfile extension"* ]] || fail "root Dockerfile was treated as a local extension"
+[[ "$(<"$merged_dockerfile")" == *"Local project Dockerfile extension from ../.codegeist/Dockerfile"* ]] || fail "root Dockerfile was treated as the devcontainer extension"
 
-mkdir -p "$fixture_dir/.codegeist"
 cat >"$fixture_dir/.codegeist/Dockerfile" <<'EOF'
-# Dockerfile - local devcontainer extension for the fixture
+# Dockerfile - fixture devcontainer extension
 
 ENV LOCAL_AGENT_PATTERN=enabled
 RUN test "$LOCAL_AGENT_PATTERN" = enabled
@@ -79,9 +78,9 @@ RUN true
 EOF
 
 if "$fixture_dir/.devcontainer/initialize.sh" 2>"$merge_error_file"; then
-  fail "initialize accepted a local Dockerfile fragment with FROM"
+  fail "initialize accepted a local Dockerfile extension with FROM"
 fi
 
 [[ "$(<"$merge_error_file")" == *"must not contain FROM"* ]] || fail "invalid local Dockerfile error did not explain the FROM restriction"
 
-pass "initialize generates a merged Dockerfile with .codegeist/Dockerfile extension support"
+pass "initialize appends root .codegeist/Dockerfile extension without allowing FROM"

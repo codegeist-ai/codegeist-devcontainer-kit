@@ -1,0 +1,13 @@
+# compose.local.yml - repository-visible compose overrides for the devcontainer
+#
+# Why this exists:
+# - Provides the default root compose override included by devcontainer.json.
+# - Remains intentionally small because shared defaults live in docker-compose.yml;
+#   add repository-specific overrides here when needed.
+# - This file is intentionally not ignored, so new overrides are visible in Git.
+#
+# Related files:
+# - devcontainer.json
+# - docker-compose.yml
+# - initialize.sh
+services: {}

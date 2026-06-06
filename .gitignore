@@ -3,7 +3,8 @@
 /.env
 /.devcontainer/.env
 /.codegeist/.local.env
-/.codegeist/compose.local.yml
+/.oc_local/
+/.worktrees/
 /.local.env
 /compose.local.yml
 /.worktrees/**/.codegeist/.local.env

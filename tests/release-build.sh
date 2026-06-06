@@ -60,6 +60,7 @@ cat >"$expected_files" <<'EOF'
 .oc_local.gitignore.example
 .oc_local.opencode.json.example
 Dockerfile
+Dockerfile.example
 README.md
 compose.local.yml.example
 devcontainer.json
@@ -79,6 +80,14 @@ diff -u "$release_repo/README_release.md" <(git -C "$release_repo" show "$releas
 
 diff -u "$release_repo/Dockerfile.base" <(git -C "$release_repo" show "$release_branch:Dockerfile") \
   || fail "release branch Dockerfile does not match Dockerfile.base"
+
+if git -C "$release_repo" show "$release_branch:Dockerfile.example" | grep -Eiq '^[[:space:]]*FROM([[:space:]]|$)'; then
+  fail "release branch Dockerfile.example must not contain FROM"
+fi
+
+if git -C "$release_repo" show "$release_branch:initialize.sh" | grep -q 'rev-parse --git-path info/exclude\|ensure_git_exclude_pattern'; then
+  fail "release branch initializer still writes .git/info/exclude"
+fi
 
 [[ "$(git -C "$release_repo" log -1 --format=%s "$release_branch")" = "chore(release): update devcontainer runtime branch" ]] \
   || fail "release branch commit subject is wrong"

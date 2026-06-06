@@ -21,6 +21,12 @@ script_dir="$(dirname "$(readlink -f "$0")")"
 # shellcheck source=./helpers.sh
 source "$script_dir/helpers.sh"
 
+local_suite=0
+if [ -z "${suite_tmp_dir:-}" ]; then
+  setup_suite
+  local_suite=1
+fi
+
 kit_repo_dir="$suite_tmp_dir/devcontainer-kit-submodule-repo"
 p1_dir="$suite_tmp_dir/p1"
 branch_name="dev0"
@@ -37,7 +43,14 @@ cleanup_devcontainer() {
     docker rm -f "$container_id" >/dev/null 2>&1 || true
   fi
 }
-trap cleanup_devcontainer EXIT
+
+cleanup_test() {
+  cleanup_devcontainer
+  if [ "$local_suite" -eq 1 ]; then
+    cleanup_suite
+  fi
+}
+trap cleanup_test EXIT
 
 create_kit_submodule_repo "$kit_repo_dir"
 create_git_repo "$p1_dir"
@@ -45,7 +58,8 @@ create_git_repo "$p1_dir"
 printf '# p1\n' >"$p1_dir/README.md"
 cat >"$p1_dir/.gitignore" <<'EOF'
 /.codegeist/.local.env
-/.codegeist/compose.local.yml
+/.oc_local/
+/.oc_local/.gitignore
 /.worktrees/
 EOF
 
@@ -64,9 +78,26 @@ expected_remote_workspace_folder="$(expected_remote_workspace_folder "$worktree_
 [[ -f "$worktree_path/.git" ]] || fail "selected worktree does not have a Git file"
 [[ -f "$p1_dir/.codegeist/.local.env" ]] || fail ".codegeist/.local.env was not created"
 [[ -f "$p1_dir/.codegeist/compose.local.yml" ]] || fail ".codegeist/compose.local.yml was not created"
+[[ -f "$p1_dir/.codegeist/Dockerfile" ]] || fail ".codegeist/Dockerfile was not created"
 [[ -f "$p1_dir/.devcontainer/.env" ]] || fail ".devcontainer/.env was not created"
 [[ -z "$(git -C "$p1_dir/.devcontainer" status --porcelain -- .env)" ]] || fail ".devcontainer/.env is not ignored by the submodule"
 [[ -f "$p1_dir/.devcontainer/compose.local.gen.yml" ]] || fail ".devcontainer/compose.local.gen.yml was not created"
+assert_not_ignored "$p1_dir" ".codegeist/compose.local.yml"
+[[ -n "$(git -C "$p1_dir" status --porcelain -- .codegeist/compose.local.yml)" ]] || fail ".codegeist/compose.local.yml is not visible to git status"
+assert_not_ignored "$p1_dir" ".codegeist/Dockerfile"
+[[ -n "$(git -C "$p1_dir" status --porcelain -- .codegeist/Dockerfile)" ]] || fail ".codegeist/Dockerfile is not visible to git status"
+! grep -Eiq '^[[:space:]]*FROM([[:space:]]|$)' "$p1_dir/.codegeist/Dockerfile" || fail ".codegeist/Dockerfile extension contains FROM"
+assert_ignored_by_root_gitignore "$p1_dir" ".codegeist/.local.env"
+assert_ignored_by_root_gitignore "$p1_dir" ".oc_local/.gitignore"
+assert_ignored_by_root_gitignore "$p1_dir" ".worktrees/$branch_name/.codegeist/.local.env"
+assert_info_exclude_lacks_patterns \
+  "$p1_dir" \
+  "/.oc_local/" \
+  "/.oc_local/.gitignore" \
+  "/.worktrees/" \
+  "/.codegeist/.local.env" \
+  "/.codegeist/Dockerfile" \
+  "/.codegeist/compose.local.yml"
 [[ "$(<"$p1_dir/.devcontainer/.env")" == *"DEVCONTAINER_WORKSPACE_FOLDER=$expected_workspace_folder"* ]] || fail "generated env does not set submodule workspace folder"
 [[ -L "$worktree_path/.codegeist/.local.env" ]] || fail "worktree .codegeist/.local.env is not a symlink"
 [[ -f "$worktree_path/.devcontainer/devcontainer.json" ]] || fail "submodule devcontainer is missing in worktree"

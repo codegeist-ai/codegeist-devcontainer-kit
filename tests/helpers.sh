@@ -267,6 +267,49 @@ expected_remote_workspace_folder() {
   printf '%s/.worktrees/..\n' "$local_workspace_folder"
 }
 
+assert_ignored_by_root_gitignore() {
+  local repo_dir="$1"
+  local path="$2"
+  local source=""
+
+  source="$(git -C "$repo_dir" check-ignore -v -- "$path" 2>/dev/null || true)"
+  case "$source" in
+    .gitignore:*)
+      return 0
+      ;;
+  esac
+
+  fail "$path is not ignored by root .gitignore: ${source:-not ignored}"
+}
+
+assert_not_ignored() {
+  local repo_dir="$1"
+  local path="$2"
+  local source=""
+
+  source="$(git -C "$repo_dir" check-ignore -v -- "$path" 2>/dev/null || true)"
+  [ -z "$source" ] || fail "$path is ignored: $source"
+}
+
+assert_info_exclude_lacks_patterns() {
+  local repo_dir="$1"
+  local exclude_file=""
+  local line=""
+  local pattern=""
+  shift
+
+  exclude_file="$(git -C "$repo_dir" rev-parse --path-format=absolute --git-path info/exclude 2>/dev/null || true)"
+  if [ -z "$exclude_file" ] || [ ! -f "$exclude_file" ]; then
+    return 0
+  fi
+
+  while IFS= read -r line; do
+    for pattern in "$@"; do
+      [ "$line" != "$pattern" ] || fail ".git/info/exclude contains managed pattern: $pattern"
+    done
+  done <"$exclude_file"
+}
+
 copy_project_files() {
   local target_dir="$1"
 
@@ -284,6 +327,7 @@ copy_project_files() {
     --exclude='compose.local.yml' \
     --exclude='.codegeist/.local.env' \
     --exclude='.codegeist/compose.local.yml' \
+    --exclude='.codegeist/Dockerfile' \
     --exclude='Dockerfile.merged.gen' \
     -C "$project_root" \
     -cf - . \

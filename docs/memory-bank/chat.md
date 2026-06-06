@@ -6,11 +6,13 @@
   consuming projects that want the normal VS Code Dev Containers workflow with
   the current Codegeist/planner-style toolchain.
 - The kit now groups consuming-repository devcontainer extension files under
-  `.codegeist/`: `.codegeist/.local.env`, `.codegeist/compose.local.yml`, and an
-  optional `.codegeist/Dockerfile` image extension fragment. `initialize.sh`
-  generates `.devcontainer/Dockerfile.merged.gen` from the kit Dockerfile and
-  appends the `.codegeist/Dockerfile` fragment when present; fragments must not
-  contain `FROM`.
+  `.codegeist/`: ignored `.codegeist/.local.env`, visible
+  `.codegeist/compose.local.yml`, and visible `.codegeist/Dockerfile` image
+  extension fragment. `initialize.sh` generates
+  `.devcontainer/Dockerfile.merged.gen` from the release kit base plus root
+  `.codegeist/Dockerfile`; the root Dockerfile is created from
+  `Dockerfile.example` when missing, remains visible to Git, and must not contain
+  `FROM`.
 - Browser support task `docs/tasks/T001_add_browser_support_to_devcontainer/task.md`
   is finalized. The kit includes the shared `chrome` launcher, headless CDP
   smoke coverage, visible Chrome support through the container display, and no
@@ -43,7 +45,8 @@
   devcontainer extension. Image extension fragments belong in
   `.codegeist/Dockerfile`, leaving root `Dockerfile` available for application
   images. `scripts/release-build.sh` copies source `Dockerfile.base` into the
-  runtime-only release branch as `Dockerfile`.
+  runtime-only release branch as `Dockerfile` and ships `Dockerfile.example` for
+  root `.codegeist/Dockerfile`.
 - The BRANCH sticky-start bug is fixed in source: `initialize.sh` no longer
   writes `BRANCH=` into `.devcontainer/.env` or reads branch selection back from
   generated env files, and `scripts/code-open.sh` no longer persists branch
@@ -58,8 +61,9 @@
   it duplicates layers and can exhaust disk during full image builds.
 - `.codegeist/compose.local.yml` and `compose.local.yml.example` are intentionally
   minimal override files with `services: {}`. Shared defaults belong in
-  `docker-compose.yml`; local or consuming-repo overrides can be added only when
-  needed.
+  `docker-compose.yml`; `.codegeist/compose.local.yml` and
+  `.codegeist/Dockerfile` stay visible to Git so repository overrides are not
+  hidden accidentally.
 - The parent repository may still see this directory as an untracked nested Git
   repo; treat this repository as the source of truth for kit work.
 
@@ -92,16 +96,18 @@
 - `task code-open-test -- <branch>` runs the real `code-open` path and then
   starts the fixture through Dev Containers CLI, so terminal cwd failures after
   container startup are caught by the test.
-- Generated runtime files such as `.codegeist/.local.env`,
-  `.codegeist/compose.local.yml`, `.devcontainer/.env`,
+- Generated runtime files such as `.codegeist/.local.env`, `.devcontainer/.env`,
   `.devcontainer/Dockerfile.merged.gen`, `.devcontainer/compose.local.gen.yml`,
   `.oc_local/`, and `.worktrees/` should stay untracked unless a consuming
-  repository explicitly owns an overlay. `.codegeist/Dockerfile` is optional and
-  may be tracked when the consuming repository owns a devcontainer image
-  extension.
+  repository explicitly owns an overlay. `.codegeist/compose.local.yml` is
+  visible to Git and should be committed only for intentional repository
+  overrides. Root `.codegeist/Dockerfile` is visible to Git, must not contain
+  `FROM`, and should be committed only for intentional devcontainer image
+  extensions.
 - Generated `.oc_local/.gitignore` now ignores everything in the local OpenCode
-  overlay and the initializer excludes both `/.oc_local/` and
-  `/.oc_local/.gitignore` when no tracked project overlay exists.
+  overlay. The initializer writes missing generated-file ignore patterns to the
+  repository root `.gitignore`, never to `.git/info/exclude`; review and commit
+  intentional `.gitignore` changes like normal repository state.
 - The runtime kit creates writable `.oc_local/` when no tracked overlay exists,
   but does not ship this repository's development-only `.opencode/` checkout.
 - The runtime kit ships `.oc_local.opencode.json.example` as an inactive template
@@ -173,9 +179,11 @@
   exits before a real X11 Chrome window appears for the current temporary profile.
 - The release workflow must rerun `task tests-run` after save and the
   clean-worktree check before publishing.
-- Latest BRANCH startup-only verification passed with targeted script checks,
-  `tests/release-build.sh`, `git --no-pager diff --check`, and the full
-  `task tests-run` suite.
+- Latest `.codegeist` root-extension verification passed with targeted shell
+  syntax checks, `tests/code-open-args.sh`, `tests/release-build.sh`,
+  `tests/dockerfile-merge.sh`, `tests/initialize.sh`,
+  `tests/submodule-workflow.sh`, `tests/devcontainer-current-branch-up.sh`,
+  `git --no-pager diff --check`, and the full `task tests-run` suite.
 - The suite covers initialization, Compose config resolution, branch worktree
   setup, local Docker image build, QEMU Alpine `3.20.3` ISO boot via KVM
   acceleration until `localhost login:`, TTY `docker-run`, browser smoke

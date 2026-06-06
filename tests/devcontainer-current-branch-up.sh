@@ -21,6 +21,12 @@ script_dir="$(dirname "$(readlink -f "$0")")"
 # shellcheck source=./helpers.sh
 source "$script_dir/helpers.sh"
 
+local_suite=0
+if [ -z "${suite_tmp_dir:-}" ]; then
+  setup_suite
+  local_suite=1
+fi
+
 repo_dir="$suite_tmp_dir/current-branch-devcontainer-repo"
 branch_name="main"
 container_id=""
@@ -38,7 +44,14 @@ cleanup_devcontainer() {
     docker rm -f "$container_id" >/dev/null 2>&1 || true
   fi
 }
-trap cleanup_devcontainer EXIT
+
+cleanup_test() {
+  cleanup_devcontainer
+  if [ "$local_suite" -eq 1 ]; then
+    cleanup_suite
+  fi
+}
+trap cleanup_test EXIT
 
 create_git_fixture_repo "$repo_dir"
 git -C "$repo_dir" branch -M "$branch_name"
@@ -55,6 +68,15 @@ container_id="$(extract_container_id_from_log "$log_file" || true)"
 
 [[ -L "$alias_path" ]] || fail "current branch alias is not a symlink: $alias_path"
 [[ "$(readlink -f "$alias_path")" = "$repo_dir" ]] || fail "current branch alias does not resolve to repository root"
+assert_ignored_by_root_gitignore "$repo_dir" ".worktrees/main"
+assert_info_exclude_lacks_patterns \
+  "$repo_dir" \
+  "/.oc_local/" \
+  "/.oc_local/.gitignore" \
+  "/.worktrees/" \
+  "/.codegeist/.local.env" \
+  "/.codegeist/Dockerfile" \
+  "/.codegeist/compose.local.yml"
 [[ -z "$(git -C "$repo_dir" status --porcelain -- .worktrees/main)" ]] || fail "current branch alias is not ignored"
 [[ -f "$repo_dir/.devcontainer/.env" ]] || fail "initializeCommand did not create .devcontainer/.env"
 generated_env="$(<"$repo_dir/.devcontainer/.env")"

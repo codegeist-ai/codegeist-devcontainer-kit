@@ -19,6 +19,12 @@ script_dir="$(dirname "$(readlink -f "$0")")"
 # shellcheck source=./helpers.sh
 source "$script_dir/helpers.sh"
 
+local_suite=0
+if [ -z "${suite_tmp_dir:-}" ]; then
+  setup_suite
+  local_suite=1
+fi
+
 fixture_dir="$suite_tmp_dir/initialize-fixture"
 container_id=""
 log_file="$suite_tmp_dir/initialize-devcontainer.log"
@@ -37,7 +43,14 @@ cleanup_devcontainer() {
     docker rm -f "$container_id" >/dev/null 2>&1 || true
   fi
 }
-trap cleanup_devcontainer EXIT
+
+cleanup_test() {
+  cleanup_devcontainer
+  if [ "$local_suite" -eq 1 ]; then
+    cleanup_suite
+  fi
+}
+trap cleanup_test EXIT
 
 rm -rf "$fixture_dir/.codegeist"
 printf '# legacy compose marker\n' >"$fixture_dir/compose.local.yml"
@@ -49,6 +62,7 @@ BRANCH=feature/initialize-test "$fixture_dir/.devcontainer/initialize.sh"
 expected_hostname="$(expected_generated_hostname "$fixture_dir" "feature/initialize-test")"
 
 [[ -f "$fixture_dir/.codegeist/compose.local.yml" ]] || fail ".codegeist/compose.local.yml was not created"
+[[ -f "$fixture_dir/.codegeist/Dockerfile" ]] || fail ".codegeist/Dockerfile was not created"
 [[ -f "$fixture_dir/.codegeist/.local.env" ]] || fail ".codegeist/.local.env was not created"
 [[ "$(<"$fixture_dir/.codegeist/compose.local.yml")" == *"# legacy compose marker"* ]] || fail "legacy compose.local.yml was not migrated"
 [[ "$(<"$fixture_dir/.codegeist/.local.env")" = "LEGACY_ENV=1" ]] || fail "legacy .local.env was not migrated"
@@ -58,9 +72,26 @@ expected_hostname="$(expected_generated_hostname "$fixture_dir" "feature/initial
 [[ -f "$fixture_dir/.devcontainer/.local.env.example" ]] || fail ".local.env.example is missing from the kit directory"
 [[ -f "$fixture_dir/.devcontainer/.env" ]] || fail ".devcontainer/.env was not created"
 [[ -f "$fixture_dir/.devcontainer/compose.local.gen.yml" ]] || fail ".devcontainer/compose.local.gen.yml was not created"
+[[ -f "$fixture_dir/.gitignore" ]] || fail ".gitignore was not created"
 [[ -d "$fixture_dir/.oc_local" ]] || fail ".oc_local was not created in repository root"
 [[ -f "$fixture_dir/.oc_local/.gitignore" ]] || fail ".oc_local/.gitignore was not created"
 [[ "$(<"$fixture_dir/.oc_local/.gitignore")" == *"*"* ]] || fail ".oc_local/.gitignore does not ignore local OpenCode files"
+assert_not_ignored "$fixture_dir" ".codegeist/compose.local.yml"
+[[ -n "$(git -C "$fixture_dir" status --porcelain -- .codegeist/compose.local.yml)" ]] || fail ".codegeist/compose.local.yml is not visible to git status"
+assert_not_ignored "$fixture_dir" ".codegeist/Dockerfile"
+[[ -n "$(git -C "$fixture_dir" status --porcelain -- .codegeist/Dockerfile)" ]] || fail ".codegeist/Dockerfile is not visible to git status"
+! grep -Eiq '^[[:space:]]*FROM([[:space:]]|$)' "$fixture_dir/.codegeist/Dockerfile" || fail ".codegeist/Dockerfile extension contains FROM"
+assert_ignored_by_root_gitignore "$fixture_dir" ".codegeist/.local.env"
+assert_ignored_by_root_gitignore "$fixture_dir" ".oc_local/.gitignore"
+assert_ignored_by_root_gitignore "$fixture_dir" ".worktrees/feature/initialize-test/.codegeist/.local.env"
+assert_info_exclude_lacks_patterns \
+  "$fixture_dir" \
+  "/.oc_local/" \
+  "/.oc_local/.gitignore" \
+  "/.worktrees/" \
+  "/.codegeist/.local.env" \
+  "/.codegeist/Dockerfile" \
+  "/.codegeist/compose.local.yml"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_HOSTNAME=$expected_hostname"* ]] || fail ".env does not contain generated hostname"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_USER=$expected_user_name"* ]] || fail ".env does not contain generated user"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_UID=$(id -u)"* ]] || fail ".env does not contain generated UID"
@@ -81,9 +112,11 @@ BRANCH=feature/initialize-test "$fixture_dir/.devcontainer/initialize.sh"
 [[ -f "$worktree_local_env" ]] || fail "existing worktree .codegeist/.local.env file was removed"
 [[ ! -L "$worktree_local_env" ]] || fail "existing worktree .codegeist/.local.env file was replaced with a symlink"
 [[ "$(<"$worktree_local_env")" = "WORKTREE_LOCAL_ENV=1" ]] || fail "existing worktree .codegeist/.local.env file was overwritten"
+assert_ignored_by_root_gitignore "$fixture_dir" ".worktrees/feature/initialize-test/.codegeist/.local.env"
 [[ -z "$(git -C "$fixture_dir" status --porcelain -- .worktrees/feature/initialize-test/.codegeist/.local.env)" ]] || fail "worktree .codegeist/.local.env is not ignored"
 [[ "$(<"$fixture_dir/.codegeist/compose.local.yml")" != *"/workspace"* ]] || fail ".codegeist/compose.local.yml should not mount the workspace"
 [[ "$(<"$fixture_dir/.codegeist/compose.local.yml")" != *".worktrees"* ]] || fail ".codegeist/compose.local.yml should not mount selected worktrees"
+assert_ignored_by_root_gitignore "$fixture_dir" ".oc_local/.gitignore"
 [[ -z "$(git -C "$fixture_dir" status --porcelain -- .oc_local)" ]] || fail ".oc_local is not ignored"
 
 cp "$fixture_dir/.codegeist/compose.local.yml" "$fixture_dir/.codegeist/compose.local.yml.before"

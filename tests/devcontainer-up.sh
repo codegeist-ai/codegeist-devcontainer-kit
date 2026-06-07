@@ -49,6 +49,7 @@ expected_hostname="$(expected_generated_hostname "$fixture_dir" "")"
 expected_workspace_folder="$(expected_workspace_folder "$fixture_dir")"
 expected_remote_workspace_folder="$(expected_remote_workspace_folder "$fixture_dir")"
 [[ "$(<"$fixture_dir/.devcontainer/compose.local.gen.yml")" == *"hostname: $expected_hostname"* ]] || fail "generated compose file does not set expected hostname"
+[[ "$(<"$fixture_dir/.devcontainer/compose.local.gen.yml")" == *"\"$expected_hostname:127.0.0.1\""* ]] || fail "generated compose file does not resolve expected hostname"
 [[ "$(<"$fixture_dir/.devcontainer/compose.local.gen.yml")" == *"CONTAINER_USER: $expected_user_name"* ]] || fail "generated compose file does not set expected build user"
 [[ "$(<"$fixture_dir/.devcontainer/compose.local.gen.yml")" == *"user: \"$expected_user\""* ]] || fail "generated compose file does not set expected user"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_WORKSPACE_FOLDER=$expected_workspace_folder"* ]] || fail "generated env does not set expected workspace folder"
@@ -58,7 +59,7 @@ container_id="$(extract_container_id_from_log "$log_file" || true)"
 [[ "$(extract_remote_workspace_folder_from_log "$log_file" || true)" = "$expected_remote_workspace_folder" ]] || fail "devcontainer up did not report expected remote workspace folder"
 
 for _ in 1 2 3 4 5 6 7 8 9 10; do
-  if docker exec -u "$expected_user_name" "$container_id" bash -lc 'test "$(id -un)" = "'"$expected_user_name"'" && test "$(hostname)" = "'"$expected_hostname"'" && test "$DEVCONTAINER_HOSTNAME" = "'"$expected_hostname"'" && test "$DEVCONTAINER_USER" = "'"$expected_user_name"'" && test "$DEVCONTAINER_UID:$DEVCONTAINER_GID" = "'"$expected_user"'" && docker ps >/dev/null'; then
+  if docker exec -u "$expected_user_name" "$container_id" bash -lc 'test "$(id -un)" = "'"$expected_user_name"'" && test "$(hostname)" = "'"$expected_hostname"'" && getent hosts "$(hostname)" >/dev/null && test "$DEVCONTAINER_HOSTNAME" = "'"$expected_hostname"'" && test "$DEVCONTAINER_USER" = "'"$expected_user_name"'" && test "$DEVCONTAINER_UID:$DEVCONTAINER_GID" = "'"$expected_user"'" && docker ps >/dev/null'; then
     workspace_ready=1
     break
   fi

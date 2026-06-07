@@ -183,6 +183,10 @@ The first start creates local runtime files when missing:
 - `.devcontainer/Dockerfile.merged.gen`
 - `.devcontainer/compose.local.gen.yml`
 
+The generated Compose override sets the container hostname and maps that same
+name to `127.0.0.1` through `extra_hosts`, so tools such as `sudo` can resolve
+the active container hostname.
+
 When upgrading an older checkout, `initialize.sh` copies legacy root `.local.env`
 or `compose.local.yml` into the matching `.codegeist/` path only when the new
 file does not exist. It does not delete the legacy files and does not migrate a

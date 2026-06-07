@@ -99,6 +99,7 @@ assert_info_exclude_lacks_patterns \
 [[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_KVM_GID=$expected_kvm_gid"* ]] || fail ".env does not contain generated KVM GID"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" != *"BRANCH="* ]] || fail ".env persisted BRANCH input"
 [[ "$(<"$fixture_dir/.devcontainer/compose.local.gen.yml")" == *"hostname: $expected_hostname"* ]] || fail "generated compose file does not set generated hostname"
+[[ "$(<"$fixture_dir/.devcontainer/compose.local.gen.yml")" == *"\"$expected_hostname:127.0.0.1\""* ]] || fail "generated compose file does not resolve generated hostname"
 [[ "$(<"$fixture_dir/.devcontainer/compose.local.gen.yml")" == *"CONTAINER_USER: $expected_user_name"* ]] || fail "generated compose file does not set generated build user"
 [[ "$(<"$fixture_dir/.devcontainer/compose.local.gen.yml")" == *"user: \"$expected_user\""* ]] || fail "generated compose file does not set generated user"
 [[ "$(<"$fixture_dir/.devcontainer/compose.local.gen.yml")" != *"group_add:"* ]] || fail "generated compose file should not own KVM group_add"
@@ -154,5 +155,6 @@ expected_hostname="$(expected_generated_hostname "$worktree_path" "feature/initi
 [[ "$(<"$fixture_dir/.codegeist/compose.local.yml")" == *"# local compose marker"* ]] || fail ".codegeist/compose.local.yml was overwritten when BRANCH was unset"
 [[ "$(<"$fixture_dir/.codegeist/.local.env")" = "CUSTOM_ENV=1" ]] || fail ".codegeist/.local.env was overwritten when BRANCH was unset"
 [[ "$(<"$worktree_path/.devcontainer/compose.local.gen.yml")" == *"hostname: $expected_hostname"* ]] || fail "generated compose hostname was not refreshed for worktree start"
+[[ "$(<"$worktree_path/.devcontainer/compose.local.gen.yml")" == *"\"$expected_hostname:127.0.0.1\""* ]] || fail "generated compose hostname resolution was not refreshed for worktree start"
 
 pass "initialize creates .codegeist local files and selected BRANCH worktrees without owning compose mounts"

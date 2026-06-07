@@ -513,7 +513,7 @@ It may:
 - create root `.oc_local/` for workspace-local OpenCode config
 - write `.devcontainer/.env`, `.devcontainer/Dockerfile.merged.gen`, and
   `.devcontainer/compose.local.gen.yml` generated runtime values such as the
-  container hostname and numeric runtime user
+  container hostname, hostname loopback resolution, and numeric runtime user
 - update generated local env values when their content changed
 - compute host UID
 - compute a stable project name
@@ -699,7 +699,9 @@ Roles:
   result is visible to Git and must not contain `FROM`.
 - `.env` exposes generated runtime values to Compose and the container.
 - `Dockerfile.merged.gen` is the generated Docker build input used by Compose.
-- `compose.local.gen.yml` sets generated Compose-only values such as hostname.
+- `compose.local.gen.yml` sets generated Compose-only values such as hostname,
+  hostname loopback resolution for tools like `sudo`, build args, and runtime
+  user.
 - `tests/` verifies host initialization and container configuration contracts.
 
 The root `.codegeist` files intentionally live one directory above

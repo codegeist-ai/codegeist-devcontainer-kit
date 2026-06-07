@@ -14,7 +14,8 @@
 #   to the current checkout so `workspaceFolder` still resolves.
 # - `.env` and `compose.local.gen.yml` are generated kit-owned files under
 #   `.devcontainer/`; users should edit `.codegeist/.local.env` and
-#   `.codegeist/compose.local.yml` instead.
+#   `.codegeist/compose.local.yml` instead. The generated Compose file also maps
+#   the container hostname back to loopback so tools such as sudo can resolve it.
 # - `Dockerfile.merged.gen` is generated from the kit Dockerfile plus the
 #   repository-root `.codegeist/Dockerfile` extension, which is created from the
 #   example when missing and remains visible to Git like
@@ -305,6 +306,8 @@ services:
         CONTAINER_UID: "$uid"
         CONTAINER_GID: "$uid"
     hostname: $container_hostname
+    extra_hosts:
+      - "$container_hostname:127.0.0.1"
     user: "$uid:$uid"
 EOF
 }

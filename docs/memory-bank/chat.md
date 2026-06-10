@@ -142,7 +142,9 @@
   DevTools Protocol driver invoked by `tests/browser-smoke.sh`; tests launch
   Chrome through `chrome --headless`, while users can run visible Chrome by
   typing `chrome` when the devcontainer has access to `DISPLAY` or
-  `WAYLAND_DISPLAY`.
+  `WAYLAND_DISPLAY`. The visible launcher now normalizes SSH X11 forwarding by
+  copying the current Xauthority file to a temporary file and adding localhost
+  aliases for `/unix:<display>` cookies.
 - After code, script, or workflow changes, run the complete `task tests-run`
   suite before handoff when the environment allows it. If the environment blocks
   the full suite, report the blocker and list targeted checks that passed.
@@ -187,6 +189,11 @@
   `tests/dockerfile-merge.sh`, `tests/initialize.sh`, a suite-context
   `tests/devcontainer-up.sh` run that asserts `getent hosts "$(hostname)"`,
   `git --no-pager diff --check`, and the full `task tests-run` suite.
+- Latest SSH X11 Chrome launcher verification passed with `bash -n
+  scripts/chrome.sh tests/browser-open-test.sh`, `scripts/chrome.sh --headless
+  --dump-dom 'data:text/html,chrome-headless-ok'`, a timeout-based visible
+  `scripts/chrome.sh` run, refreshed `/usr/local/bin/chrome` in the current
+  container, a timeout-based visible `chrome` run, and `tests/browser-smoke.sh`.
 - The suite covers initialization, Compose config resolution, branch worktree
   setup, local Docker image build, QEMU Alpine `3.20.3` ISO boot via KVM
   acceleration until `localhost login:`, TTY `docker-run`, browser smoke

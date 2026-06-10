@@ -212,10 +212,12 @@ chrome https://example.test
 
 The visible command does not start VNC or noVNC. It expects `DISPLAY` or
 `WAYLAND_DISPLAY` to be available inside the container through the user's
-devcontainer/host display setup. Chrome stores its normal profile data in the
-container user's home directory by default, so cookies and browser state stay in
-the devcontainer rather than in a host browser profile. In this repository, the
-same command can be exercised from the kit image:
+devcontainer/host display setup. For SSH X11 forwarding, the launcher copies the
+current Xauthority file to a temporary file and adds localhost aliases when the
+cookie is stored under the forwarded `/unix:<display>` name. Chrome stores its
+normal profile data in the container user's home directory by default, so cookies
+and browser state stay in the devcontainer rather than in a host browser profile.
+In this repository, the same command can be exercised from the kit image:
 
 ```bash
 task browser-open-test

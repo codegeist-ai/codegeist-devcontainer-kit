@@ -140,33 +140,7 @@ timeout 15s docker exec -u "$expected_user_name" \
   "$container_id" bash -lc '
     set -euo pipefail
 
-    normalize_ssh_xauthority() {
-      case "${DISPLAY:-}" in
-        localhost:[0-9]*|127.0.0.1:[0-9]*) ;;
-        *) return 0 ;;
-      esac
-
-      [ -n "${XAUTHORITY:-}" ] || return 0
-      [ -f "$XAUTHORITY" ] || return 0
-      command -v xauth >/dev/null 2>&1 || return 0
-
-      display_number="${DISPLAY#*:}"
-      display_number="${display_number%%.*}"
-      cookie="$(xauth list 2>/dev/null \
-        | awk -v suffix="/unix:${display_number}" "\$1 ~ suffix\"$\" { print \$NF; exit }")"
-
-      [ -n "$cookie" ] || return 0
-
-      normalized_xauthority="/tmp/browser-open-test.xauthority"
-      cp "$XAUTHORITY" "$normalized_xauthority"
-      chmod 600 "$normalized_xauthority"
-      export XAUTHORITY="$normalized_xauthority"
-      xauth add "localhost:${display_number}" MIT-MAGIC-COOKIE-1 "$cookie" >/dev/null 2>&1 || true
-      xauth add "localhost:${display_number}.0" MIT-MAGIC-COOKIE-1 "$cookie" >/dev/null 2>&1 || true
-    }
-
     rm -f "$CHROME_LOG_FILE"
-    normalize_ssh_xauthority
     exec chrome \
       --new-window \
       --window-position=40,40 \
@@ -186,33 +160,6 @@ for _ in $(seq 1 300); do
     "$container_id" bash -lc '
       set -euo pipefail
       matched="false"
-
-      normalize_ssh_xauthority() {
-        case "${DISPLAY:-}" in
-          localhost:[0-9]*|127.0.0.1:[0-9]*) ;;
-          *) return 0 ;;
-        esac
-
-        [ -n "${XAUTHORITY:-}" ] || return 0
-        [ -f "$XAUTHORITY" ] || return 0
-        command -v xauth >/dev/null 2>&1 || return 0
-
-        display_number="${DISPLAY#*:}"
-        display_number="${display_number%%.*}"
-        cookie="$(xauth list 2>/dev/null \
-          | awk -v suffix="/unix:${display_number}" "\$1 ~ suffix\"$\" { print \$NF; exit }")"
-
-        [ -n "$cookie" ] || return 0
-
-        normalized_xauthority="/tmp/browser-open-test.xauthority"
-        cp "$XAUTHORITY" "$normalized_xauthority"
-        chmod 600 "$normalized_xauthority"
-        export XAUTHORITY="$normalized_xauthority"
-        xauth add "localhost:${display_number}" MIT-MAGIC-COOKIE-1 "$cookie" >/dev/null 2>&1 || true
-        xauth add "localhost:${display_number}.0" MIT-MAGIC-COOKIE-1 "$cookie" >/dev/null 2>&1 || true
-      }
-
-      normalize_ssh_xauthority
 
       if [ -n "${DISPLAY:-}" ] && command -v xwininfo >/dev/null 2>&1; then
         window_tree="$(DISPLAY="$DISPLAY" xwininfo -root -tree 2>/dev/null || true)"

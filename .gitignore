@@ -1,4 +1,5 @@
 /compose.local.gen.yml
+/compose.user.gen.yml
 /Dockerfile.merged.gen
 /.env
 /.devcontainer/.env

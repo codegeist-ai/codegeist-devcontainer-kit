@@ -45,18 +45,18 @@ kit:
 
 Do not ignore `/.oc_local/` if the consuming repository intentionally tracks a
 project-local OpenCode overlay there. Do not ignore `.codegeist/compose.local.yml`
-or `.codegeist/Dockerfile`; they are visible root extension files created from
-`.devcontainer/compose.local.yml.example` and `.devcontainer/Dockerfile.example`
-when missing.
+or `.codegeist/Dockerfile` if the repository creates them for intentional Compose
+or image overrides; they should stay visible to Git.
 
 If these patterns are missing, `initialize.sh` adds them to the consuming
 repository's root `.gitignore`. It never writes generated-file ignores to
 `.git/info/exclude`, so review and commit intentional `.gitignore` changes like
 normal repository state.
 
-The generated `.devcontainer/.env`, `.devcontainer/Dockerfile.merged.gen`, and
-`.devcontainer/compose.local.gen.yml` files are written inside the submodule
-checkout and are ignored by the release kit itself.
+The generated `.devcontainer/.env`, `.devcontainer/Dockerfile.merged.gen`,
+`.devcontainer/compose.local.gen.yml`, and `.devcontainer/compose.user.gen.yml`
+files are written inside the submodule checkout and are ignored by the release
+kit itself.
 
 ## OpenCode Agent Setup
 
@@ -172,16 +172,14 @@ code .worktrees/develop0
 The first start creates local runtime files when missing:
 
 - `.codegeist/.local.env`
-- `.codegeist/compose.local.yml`, visible to Git for intentional repository
-  overrides
-- `.codegeist/Dockerfile`, visible to Git for intentional image-extension
-  overrides
 - root `.oc_local/` when no tracked project overlay exists
 - root `.worktrees/`; `.worktrees/<branch>` as a worktree or current-branch
   symlink alias when `BRANCH` is set
 - `.devcontainer/.env`
 - `.devcontainer/Dockerfile.merged.gen`
 - `.devcontainer/compose.local.gen.yml`
+- `.devcontainer/compose.user.gen.yml`, an ignored bridge to optional
+  `.codegeist/compose.local.yml` overrides
 
 The generated Compose override sets the container hostname and maps that same
 name to `127.0.0.1` through `extra_hosts`, so tools such as `sudo` can resolve
@@ -195,7 +193,8 @@ manually if needed.
 
 Do not edit generated `.devcontainer` files directly. Put environment overrides in
 `.codegeist/.local.env`, Compose overrides in `.codegeist/compose.local.yml`,
-and devcontainer image extensions in `.codegeist/Dockerfile`. Commit
+and devcontainer image extensions in `.codegeist/Dockerfile`. Create the Compose
+and Dockerfile override files only when the repository needs them. Commit
 `.codegeist/compose.local.yml` and `.codegeist/Dockerfile` only when their
 overrides are intentional repository state.
 
@@ -206,11 +205,18 @@ checkout.
 
 ## Local Dockerfile Extensions
 
-Consuming projects can extend the shared image by adding
-`.codegeist/Dockerfile` next to the local `.codegeist` env and Compose files.
-During `initializeCommand`, the kit writes `.devcontainer/Dockerfile.merged.gen`
-from the release kit base at `.devcontainer/Dockerfile` and then appends root
-`.codegeist/Dockerfile` as a project-local fragment.
+Consuming projects can extend the shared image by adding `.codegeist/Dockerfile`
+only when they need repository-specific image changes. During
+`initializeCommand`, the kit writes `.devcontainer/Dockerfile.merged.gen` from
+the release kit base at `.devcontainer/Dockerfile` and then appends root
+`.codegeist/Dockerfile` as a project-local fragment when that file exists.
+
+Create the extension from the template on demand:
+
+```bash
+mkdir -p .codegeist
+cp .devcontainer/Dockerfile.example .codegeist/Dockerfile
+```
 
 Use `.codegeist/Dockerfile` only as an extension fragment for this pattern:
 
@@ -228,10 +234,24 @@ would start another stage and can replace the prepared kit image, so
 resolved from the consuming repository root because the Docker build context
 remains the project root.
 
-The kit creates root `.codegeist/Dockerfile` from
-`.devcontainer/Dockerfile.example` when missing. A root `Dockerfile` remains
-available for application images and is not treated as a devcontainer extension.
-Do not commit `.devcontainer/Dockerfile.merged.gen`.
+A root `Dockerfile` remains available for application images and is not treated
+as a devcontainer extension. Do not commit
+`.devcontainer/Dockerfile.merged.gen`.
+
+## Local Compose Overrides
+
+Consuming projects can override Compose settings by creating
+`.codegeist/compose.local.yml` only when they need repository-specific Compose
+changes:
+
+```bash
+mkdir -p .codegeist
+cp .devcontainer/compose.local.yml.example .codegeist/compose.local.yml
+```
+
+`initialize.sh` writes `.devcontainer/compose.user.gen.yml` on every start. The
+generated bridge is an empty `services: {}` file by default, or a copy of
+`.codegeist/compose.local.yml` when that on-demand override exists.
 
 ## Browser Support
 
@@ -335,10 +355,11 @@ not as ordinary project source.
 - Do not edit files inside `.devcontainer/` directly to customize one consuming
   project.
 - Do not commit `.devcontainer/.env`, `.devcontainer/Dockerfile.merged.gen`,
-  `.devcontainer/compose.local.gen.yml`, `.codegeist/.local.env`, or generated
-  `.worktrees/` files. Keep `.codegeist/compose.local.yml` visible to Git and
-  keep `.codegeist/Dockerfile` visible to Git without `FROM`; commit either only
-  when its overrides are intentional repository state.
+  `.devcontainer/compose.local.gen.yml`, `.devcontainer/compose.user.gen.yml`,
+  `.codegeist/.local.env`, or generated `.worktrees/` files. Keep
+  `.codegeist/compose.local.yml` visible to Git and keep `.codegeist/Dockerfile`
+  visible to Git without `FROM`; commit either only when its overrides are
+  intentional repository state.
 - Do not pin consumers to this kit's `main` branch unless a human explicitly asks
   for development-branch testing.
 - Do not replace the submodule with copied files unless the consuming project is

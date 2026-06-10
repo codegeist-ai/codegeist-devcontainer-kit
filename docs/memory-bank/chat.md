@@ -5,14 +5,13 @@
 - This repository maintains the reusable `codegeist-devcontainer-kit` for
   consuming projects that want the normal VS Code Dev Containers workflow with
   the current Codegeist/planner-style toolchain.
-- The kit now groups consuming-repository devcontainer extension files under
-  `.codegeist/`: ignored `.codegeist/.local.env`, visible
-  `.codegeist/compose.local.yml`, and visible `.codegeist/Dockerfile` image
-  extension fragment. `initialize.sh` generates
-  `.devcontainer/Dockerfile.merged.gen` from the release kit base plus root
-  `.codegeist/Dockerfile`; the root Dockerfile is created from
-  `Dockerfile.example` when missing, remains visible to Git, and must not contain
-  `FROM`.
+- The kit groups consuming-repository devcontainer extension files under
+  `.codegeist/`: ignored `.codegeist/.local.env`, optional visible
+  `.codegeist/compose.local.yml`, and optional visible `.codegeist/Dockerfile`
+  image extension fragment. `initialize.sh` no longer creates the Compose or
+  Dockerfile override files by default; users copy the examples on demand.
+  `.devcontainer/compose.user.gen.yml` is the generated bridge that is empty by
+  default or copies `.codegeist/compose.local.yml` when it exists.
 - Browser support task `docs/tasks/T001_add_browser_support_to_devcontainer/task.md`
   is finalized. The kit includes the shared `chrome` launcher, headless CDP
   smoke coverage, visible Chrome support through the container display, and no
@@ -62,11 +61,10 @@
 - `entrypoint.sh` starts nested `dockerd` without forcing a storage driver so
   Docker can use `overlay2` when available. Do not reintroduce `vfs` by default;
   it duplicates layers and can exhaust disk during full image builds.
-- `.codegeist/compose.local.yml` and `compose.local.yml.example` are intentionally
-  minimal override files with `services: {}`. Shared defaults belong in
-  `docker-compose.yml`; `.codegeist/compose.local.yml` and
-  `.codegeist/Dockerfile` stay visible to Git so repository overrides are not
-  hidden accidentally.
+- `.codegeist/compose.local.yml` and `.codegeist/Dockerfile` are on-demand
+  visible override files. Shared defaults belong in `docker-compose.yml`; the
+  generated `.devcontainer/compose.user.gen.yml` keeps the Dev Containers Compose
+  file list stable when no user override exists.
 - The parent repository may still see this directory as an untracked nested Git
   repo; treat this repository as the source of truth for kit work.
 
@@ -101,12 +99,11 @@
   container startup are caught by the test.
 - Generated runtime files such as `.codegeist/.local.env`, `.devcontainer/.env`,
   `.devcontainer/Dockerfile.merged.gen`, `.devcontainer/compose.local.gen.yml`,
-  `.oc_local/`, and `.worktrees/` should stay untracked unless a consuming
-  repository explicitly owns an overlay. `.codegeist/compose.local.yml` is
+  `.devcontainer/compose.user.gen.yml`, `.oc_local/`, and `.worktrees/` should
+  stay untracked unless a consuming repository explicitly owns an overlay.
+  Optional `.codegeist/compose.local.yml` and `.codegeist/Dockerfile` files stay
   visible to Git and should be committed only for intentional repository
-  overrides. Root `.codegeist/Dockerfile` is visible to Git, must not contain
-  `FROM`, and should be committed only for intentional devcontainer image
-  extensions.
+  overrides; `.codegeist/Dockerfile` must not contain `FROM`.
 - Generated `.oc_local/.gitignore` now ignores everything in the local OpenCode
   overlay. The initializer writes missing generated-file ignore patterns to the
   repository root `.gitignore`, never to `.git/info/exclude`; review and commit
@@ -182,11 +179,10 @@
   exits before a real X11 Chrome window appears for the current temporary profile.
 - The release workflow must rerun `task tests-run` after save and the
   clean-worktree check before publishing.
-- Latest `.codegeist` root-extension verification passed with targeted shell
-  syntax checks, `tests/code-open-args.sh`, `tests/release-build.sh`,
-  `tests/dockerfile-merge.sh`, `tests/initialize.sh`,
-  `tests/submodule-workflow.sh`, `tests/devcontainer-current-branch-up.sh`,
-  `git --no-pager diff --check`, and the full `task tests-run` suite.
+- Latest on-demand `.codegeist` override verification passed with
+  `task tests-run` after the Chrome CDP driver gained retrying profile cleanup
+  for transient `ENOTEMPTY` races, plus `node --check tests/browser-ui-cdp.mjs`
+  and `git --no-pager diff --check`.
 - Latest generated-hostname resolution verification passed with
   `tests/dockerfile-merge.sh`, `tests/initialize.sh`, a suite-context
   `tests/devcontainer-up.sh` run that asserts `getent hosts "$(hostname)"`,

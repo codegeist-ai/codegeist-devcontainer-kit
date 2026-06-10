@@ -325,6 +325,7 @@ copy_project_files() {
     --exclude='.browser-smoke-tmp' \
     --exclude='.local.env' \
     --exclude='compose.local.yml' \
+    --exclude='compose.user.gen.yml' \
     --exclude='.codegeist/.local.env' \
     --exclude='.codegeist/compose.local.yml' \
     --exclude='.codegeist/Dockerfile' \

@@ -76,7 +76,7 @@ try {
     chrome.kill('SIGTERM');
     await waitForExit(chrome);
   }
-  await rm(userDataDir, { recursive: true, force: true });
+  await rm(userDataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 }
 
 function parseArgs(rawArgs) {

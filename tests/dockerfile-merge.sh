@@ -2,8 +2,8 @@
 # dockerfile-merge.sh - verify the root .codegeist Dockerfile extension
 #
 # Why this exists:
-# - Consuming repositories keep the visible devcontainer extension at root
-#   `.codegeist/Dockerfile`, next to `.codegeist/compose.local.yml`.
+# - Consuming repositories can add a visible devcontainer extension at root
+#   `.codegeist/Dockerfile` when they need repository-specific image changes.
 # - The generated Dockerfile must append that extension to the kit base image,
 #   reject `FROM`, and stay ignored by the kit submodule.
 #
@@ -43,22 +43,21 @@ root_dockerfile="$fixture_dir/.codegeist/Dockerfile"
 rm -f "$merged_dockerfile" "$root_dockerfile"
 "$fixture_dir/.devcontainer/initialize.sh"
 
-[[ -f "$root_dockerfile" ]] || fail "root .codegeist/Dockerfile was not created"
-assert_not_ignored "$fixture_dir" ".codegeist/Dockerfile"
-[[ -n "$(git -C "$fixture_dir" status --porcelain -- .codegeist/Dockerfile)" ]] || fail ".codegeist/Dockerfile is not visible to git status"
+[[ ! -e "$root_dockerfile" ]] || fail "root .codegeist/Dockerfile was created without an on-demand extension"
 [[ -f "$merged_dockerfile" ]] || fail "merged Dockerfile was not generated"
 [[ "$(<"$merged_dockerfile")" == *"FROM debian:bookworm-slim"* ]] || fail "merged Dockerfile does not include the kit Dockerfile"
-[[ "$(<"$root_dockerfile")" != *"FROM"* ]] || fail "default .codegeist/Dockerfile extension contains FROM"
-[[ "$(<"$merged_dockerfile")" == *"Local project Dockerfile extension from ../.codegeist/Dockerfile"* ]] || fail "merged Dockerfile does not include the default extension marker"
+[[ "$(<"$merged_dockerfile")" != *"Local project Dockerfile extension from ../.codegeist/Dockerfile"* ]] || fail "merged Dockerfile includes a local extension marker without an extension file"
 [[ -z "$(git -C "$fixture_dir" status --porcelain -- .devcontainer/Dockerfile.merged.gen)" ]] || fail "merged Dockerfile is not ignored"
-compose_config="$(cd "$fixture_dir/.devcontainer" && docker compose -f docker-compose.yml -f compose.local.gen.yml -f ../.codegeist/compose.local.yml config)"
+compose_config="$(cd "$fixture_dir/.devcontainer" && docker compose -f docker-compose.yml -f compose.local.gen.yml -f compose.user.gen.yml config)"
 [[ "$compose_config" == *"Dockerfile.merged.gen"* ]] || fail "compose config does not build from the merged Dockerfile"
 [[ "$compose_config" == *"host.docker.internal"* ]] || fail "compose config lost host.docker.internal extra host"
 [[ "$compose_config" == *"$(expected_generated_hostname "$fixture_dir" "")"* ]] || fail "compose config does not resolve generated hostname"
 
-cp "$root_dockerfile" "$fixture_dir/Dockerfile"
+cat >"$fixture_dir/Dockerfile" <<'EOF'
+FROM scratch
+EOF
 "$fixture_dir/.devcontainer/initialize.sh"
-[[ "$(<"$merged_dockerfile")" == *"Local project Dockerfile extension from ../.codegeist/Dockerfile"* ]] || fail "root Dockerfile was treated as the devcontainer extension"
+[[ "$(<"$merged_dockerfile")" != *"Local project Dockerfile extension from ../.codegeist/Dockerfile"* ]] || fail "root Dockerfile was treated as the devcontainer extension"
 
 cat >"$fixture_dir/.codegeist/Dockerfile" <<'EOF'
 # Dockerfile - fixture devcontainer extension
@@ -70,6 +69,8 @@ EOF
 "$fixture_dir/.devcontainer/initialize.sh"
 merged_contents="$(<"$merged_dockerfile")"
 
+assert_not_ignored "$fixture_dir" ".codegeist/Dockerfile"
+[[ -n "$(git -C "$fixture_dir" status --porcelain -- .codegeist/Dockerfile)" ]] || fail ".codegeist/Dockerfile is not visible to git status"
 [[ "$merged_contents" == *"Local project Dockerfile extension from ../.codegeist/Dockerfile"* ]] || fail "merged Dockerfile does not include the local extension marker"
 [[ "$merged_contents" == *"ENV LOCAL_AGENT_PATTERN=enabled"* ]] || fail "merged Dockerfile does not include the local extension"
 [[ "$merged_contents" == *"ENV LOCAL_AGENT_PATTERN=enabled"*'USER ${CONTAINER_USER}'* ]] || fail "merged Dockerfile does not restore the container user after the local extension"

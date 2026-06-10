@@ -2,7 +2,7 @@
 # initialize.sh - verify local devcontainer runtime files are bootstrapped
 #
 # Why this exists:
-# - proves initializeCommand creates required `.codegeist` compose/env files
+# - proves initializeCommand creates required local env and generated Compose files
 # - protects user-edited local files from being overwritten across devcontainer up
 # - proves root-side worktree preparation and later Dev Containers lifecycle
 #   initialization preserve user-owned local files
@@ -57,12 +57,13 @@ printf '# legacy compose marker\n' >"$fixture_dir/compose.local.yml"
 printf 'LEGACY_ENV=1\n' >"$fixture_dir/.local.env"
 rm -f "$fixture_dir/.devcontainer/.env"
 rm -f "$fixture_dir/.devcontainer/compose.local.gen.yml"
+rm -f "$fixture_dir/.devcontainer/compose.user.gen.yml"
 
 BRANCH=feature/initialize-test "$fixture_dir/.devcontainer/initialize.sh"
 expected_hostname="$(expected_generated_hostname "$fixture_dir" "feature/initialize-test")"
 
 [[ -f "$fixture_dir/.codegeist/compose.local.yml" ]] || fail ".codegeist/compose.local.yml was not created"
-[[ -f "$fixture_dir/.codegeist/Dockerfile" ]] || fail ".codegeist/Dockerfile was not created"
+[[ ! -e "$fixture_dir/.codegeist/Dockerfile" ]] || fail ".codegeist/Dockerfile was created without an on-demand extension"
 [[ -f "$fixture_dir/.codegeist/.local.env" ]] || fail ".codegeist/.local.env was not created"
 [[ "$(<"$fixture_dir/.codegeist/compose.local.yml")" == *"# legacy compose marker"* ]] || fail "legacy compose.local.yml was not migrated"
 [[ "$(<"$fixture_dir/.codegeist/.local.env")" = "LEGACY_ENV=1" ]] || fail "legacy .local.env was not migrated"
@@ -72,6 +73,8 @@ expected_hostname="$(expected_generated_hostname "$fixture_dir" "feature/initial
 [[ -f "$fixture_dir/.devcontainer/.local.env.example" ]] || fail ".local.env.example is missing from the kit directory"
 [[ -f "$fixture_dir/.devcontainer/.env" ]] || fail ".devcontainer/.env was not created"
 [[ -f "$fixture_dir/.devcontainer/compose.local.gen.yml" ]] || fail ".devcontainer/compose.local.gen.yml was not created"
+[[ -f "$fixture_dir/.devcontainer/compose.user.gen.yml" ]] || fail ".devcontainer/compose.user.gen.yml was not created"
+[[ "$(<"$fixture_dir/.devcontainer/compose.user.gen.yml")" == *"# legacy compose marker"* ]] || fail "user compose bridge did not copy legacy compose override"
 [[ -f "$fixture_dir/.gitignore" ]] || fail ".gitignore was not created"
 [[ -d "$fixture_dir/.oc_local" ]] || fail ".oc_local was not created in repository root"
 [[ -f "$fixture_dir/.oc_local/.gitignore" ]] || fail ".oc_local/.gitignore was not created"
@@ -79,8 +82,6 @@ expected_hostname="$(expected_generated_hostname "$fixture_dir" "feature/initial
 assert_not_ignored "$fixture_dir" ".codegeist/compose.local.yml"
 [[ -n "$(git -C "$fixture_dir" status --porcelain -- .codegeist/compose.local.yml)" ]] || fail ".codegeist/compose.local.yml is not visible to git status"
 assert_not_ignored "$fixture_dir" ".codegeist/Dockerfile"
-[[ -n "$(git -C "$fixture_dir" status --porcelain -- .codegeist/Dockerfile)" ]] || fail ".codegeist/Dockerfile is not visible to git status"
-! grep -Eiq '^[[:space:]]*FROM([[:space:]]|$)' "$fixture_dir/.codegeist/Dockerfile" || fail ".codegeist/Dockerfile extension contains FROM"
 assert_ignored_by_root_gitignore "$fixture_dir" ".codegeist/.local.env"
 assert_ignored_by_root_gitignore "$fixture_dir" ".oc_local/.gitignore"
 assert_ignored_by_root_gitignore "$fixture_dir" ".worktrees/feature/initialize-test/.codegeist/.local.env"
@@ -103,6 +104,7 @@ assert_info_exclude_lacks_patterns \
 [[ "$(<"$fixture_dir/.devcontainer/compose.local.gen.yml")" == *"CONTAINER_USER: $expected_user_name"* ]] || fail "generated compose file does not set generated build user"
 [[ "$(<"$fixture_dir/.devcontainer/compose.local.gen.yml")" == *"user: \"$expected_user\""* ]] || fail "generated compose file does not set generated user"
 [[ "$(<"$fixture_dir/.devcontainer/compose.local.gen.yml")" != *"group_add:"* ]] || fail "generated compose file should not own KVM group_add"
+[[ -z "$(git -C "$fixture_dir" status --porcelain -- .devcontainer/compose.user.gen.yml)" ]] || fail "user compose bridge is not ignored"
 worktree_path="$fixture_dir/.worktrees/feature/initialize-test"
 [[ -d "$worktree_path" ]] || fail "root initializer did not create the requested worktree"
 worktree_local_env="$worktree_path/.codegeist/.local.env"
@@ -128,6 +130,7 @@ printf 'CUSTOM_ENV=1\n' >"$fixture_dir/.codegeist/.local.env"
 BRANCH=feature/initialize-test "$fixture_dir/.devcontainer/initialize.sh"
 
 [[ "$(<"$fixture_dir/.codegeist/compose.local.yml")" == *"# local compose marker"* ]] || fail ".codegeist/compose.local.yml was overwritten"
+[[ "$(<"$fixture_dir/.devcontainer/compose.user.gen.yml")" == *"# local compose marker"* ]] || fail "user compose bridge did not refresh local compose marker"
 [[ "$(<"$fixture_dir/.codegeist/.local.env")" = "CUSTOM_ENV=1" ]] || fail ".codegeist/.local.env was overwritten"
 
 env -u BRANCH "$fixture_dir/.devcontainer/initialize.sh"

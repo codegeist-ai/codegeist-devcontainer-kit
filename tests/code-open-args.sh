@@ -63,6 +63,7 @@ expected_workspace_folder="$(expected_workspace_folder "$fixture_dir" "$branch_n
 [[ ! -e "$fixture_dir/.devcontainer/compose.local.yml" ]] || fail "code-open-test copied .codegeist/compose.local.yml into the kit directory"
 [[ -f "$fixture_dir/.devcontainer/.local.env.example" ]] || fail "code-open-test did not keep .local.env.example in the kit directory"
 [[ -f "$fixture_dir/.devcontainer/compose.local.yml.example" ]] || fail "code-open-test did not keep compose.local.yml.example in the kit directory"
+[[ -f "$fixture_dir/.devcontainer/compose.user.gen.yml" ]] || fail "code-open-test did not generate compose.user.gen.yml"
 
 env -u BRANCH "$fixture_dir/.devcontainer/initialize.sh"
 [[ -d "$fixture_dir/.worktrees/$branch_name" ]] || fail "prepared worktree disappeared after root initialize without BRANCH"
@@ -78,7 +79,7 @@ compose_config="$(cd "$fixture_dir" && env \
   docker compose \
   -f ".devcontainer/docker-compose.yml" \
   -f ".devcontainer/compose.local.gen.yml" \
-  -f ".codegeist/compose.local.yml" \
+  -f ".devcontainer/compose.user.gen.yml" \
   --profile '*' \
   config)"
 [[ "$compose_config" == *"source: $fixture_dir"* ]] || fail "Compose did not reset to repository root without BRANCH"

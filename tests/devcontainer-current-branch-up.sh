@@ -79,6 +79,7 @@ assert_info_exclude_lacks_patterns \
   "/.codegeist/compose.local.yml"
 [[ -z "$(git -C "$repo_dir" status --porcelain -- .worktrees/main)" ]] || fail "current branch alias is not ignored"
 [[ -f "$repo_dir/.devcontainer/.env" ]] || fail "initializeCommand did not create .devcontainer/.env"
+[[ -f "$repo_dir/.devcontainer/compose.user.gen.yml" ]] || fail "initializeCommand did not create .devcontainer/compose.user.gen.yml"
 generated_env="$(<"$repo_dir/.devcontainer/.env")"
 [[ "$generated_env" == *"DEVCONTAINER_WORKSPACE_FOLDER=$expected_workspace_folder"* ]] || fail "generated env does not keep current branch workspace at repository root"
 [[ "$generated_env" != *"BRANCH="* ]] || fail "generated env persisted explicit current branch"

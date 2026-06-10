@@ -1,9 +1,10 @@
 # Dockerfile - repository-visible devcontainer image extension
 #
 # Why this exists:
-# - `initialize.sh` copies this file to `.codegeist/Dockerfile` when missing.
+# - Copy this file to `.codegeist/Dockerfile` only when a consuming repository
+#   needs devcontainer image extensions.
 # - The root `.codegeist/Dockerfile` is appended to the kit base Dockerfile when
-#   `.devcontainer/Dockerfile.merged.gen` is generated.
+#   `.devcontainer/Dockerfile.merged.gen` is generated and the file exists.
 # - This is an extension fragment, not a full Dockerfile; do not add a base image
 #   instruction.
 #

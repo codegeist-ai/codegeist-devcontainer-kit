@@ -31,7 +31,8 @@ HOME="$fixture_dir" devcontainer_cli up --workspace-folder "$fixture_dir" | tee 
 container_id="$(extract_container_id_from_log "$log_file" || true)"
 [[ -n "$container_id" ]] || fail "could not extract workspace container id from devcontainer output"
 
-[[ -f "$fixture_dir/.codegeist/compose.local.yml" ]] || fail "initializeCommand did not create .codegeist/compose.local.yml"
+[[ ! -e "$fixture_dir/.codegeist/compose.local.yml" ]] || fail "initializeCommand created .codegeist/compose.local.yml without an on-demand override"
+[[ -f "$fixture_dir/.devcontainer/compose.user.gen.yml" ]] || fail "initializeCommand did not create .devcontainer/compose.user.gen.yml"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_KVM_GID=$kvm_gid"* ]] || fail "initializeCommand did not write KVM GID"
 
 container_config="$(docker inspect "$container_id")"
@@ -40,4 +41,4 @@ container_config="$(docker inspect "$container_id")"
 [[ "$container_config" == *'"GroupAdd": ['* ]] || fail "workspace container did not include supplemental groups"
 [[ "$container_config" == *'"'"$kvm_gid"'"'* ]] || fail "workspace container did not add KVM group"
 
-pass "compose config resolves through Dev Containers CLI with generated local overlay"
+pass "compose config resolves through Dev Containers CLI with generated compose bridge"

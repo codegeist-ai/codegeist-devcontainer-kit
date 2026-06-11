@@ -16,6 +16,10 @@
   is finalized. The kit includes the shared `chrome` launcher, headless CDP
   smoke coverage, visible Chrome support through the container display, and no
   VNC/noVNC layer.
+- Open task
+  `docs/tasks/T001_add_browser_support_to_devcontainer/tasks/T001_03_support_parallel_worktree_display_state.md`
+  tracks follow-up work for parallel visible-browser sessions across multiple
+  worktree devcontainers on the same host.
 - OpenCode work should continue from this repository root in the current
   maintenance checkout.
 
@@ -142,9 +146,12 @@
   DevTools Protocol driver invoked by `tests/browser-smoke.sh`; tests launch
   Chrome through `chrome --headless`, while users can run visible Chrome by
   typing `chrome` when the devcontainer has access to `DISPLAY` or
-  `WAYLAND_DISPLAY`. The visible launcher now normalizes SSH X11 forwarding by
-  copying the current Xauthority file to a temporary file and adding localhost
-  aliases for `/unix:<display>` cookies.
+  `WAYLAND_DISPLAY`. `initialize.sh` captures the host-side `DISPLAY` visible to
+  `initializeCommand` as `DEVCONTAINER_DISPLAY`, and `docker-compose.yml` passes
+  that generated value into the container as `DISPLAY`, avoiding stale display
+  inheritance from later VS Code or Docker Compose processes. The visible
+  launcher normalizes SSH X11 forwarding by copying the current Xauthority file
+  to a temporary file and adding localhost aliases for `/unix:<display>` cookies.
 - After code, script, or workflow changes, run the complete `task tests-run`
   suite before handoff when the environment allows it. If the environment blocks
   the full suite, report the blocker and list targeted checks that passed.
@@ -194,6 +201,9 @@
   --dump-dom 'data:text/html,chrome-headless-ok'`, a timeout-based visible
   `scripts/chrome.sh` run, refreshed `/usr/local/bin/chrome` in the current
   container, a timeout-based visible `chrome` run, and `tests/browser-smoke.sh`.
+- Latest initialize-time display propagation verification passed with the full
+  `task tests-run` suite after `DEVCONTAINER_DISPLAY` was added to generated
+  `.devcontainer/.env` and used by Compose as the container `DISPLAY` value.
 - The suite covers initialization, Compose config resolution, branch worktree
   setup, local Docker image build, QEMU Alpine `3.20.3` ISO boot via KVM
   acceleration until `localhost login:`, TTY `docker-run`, browser smoke

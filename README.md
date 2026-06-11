@@ -212,12 +212,19 @@ chrome https://example.test
 
 The visible command does not start VNC or noVNC. It expects `DISPLAY` or
 `WAYLAND_DISPLAY` to be available inside the container through the user's
-devcontainer/host display setup. For SSH X11 forwarding, the launcher copies the
-current Xauthority file to a temporary file and adds localhost aliases when the
-cookie is stored under the forwarded `/unix:<display>` name. Chrome stores its
-normal profile data in the container user's home directory by default, so cookies
-and browser state stay in the devcontainer rather than in a host browser profile.
-In this repository, the same command can be exercised from the kit image:
+devcontainer/host display setup. `initialize.sh` writes the host-side `DISPLAY`
+visible to `initializeCommand` into `.devcontainer/.env` as
+`DEVCONTAINER_DISPLAY`, and Compose passes that generated value into the
+container. This keeps each VS Code or Dev Containers CLI start tied to the X11
+forwarding endpoint it was opened with instead of inheriting a stale display from
+a later long-lived process. If SSH X11 forwarding moves from one display number
+to another, reopen or rebuild the devcontainer so `initializeCommand` refreshes
+the generated value. For SSH X11 forwarding, the launcher copies the current
+Xauthority file to a temporary file and adds localhost aliases when the cookie is
+stored under the forwarded `/unix:<display>` name. Chrome stores its normal
+profile data in the container user's home directory by default, so cookies and
+browser state stay in the devcontainer rather than in a host browser profile. In
+this repository, the same command can be exercised from the kit image:
 
 ```bash
 task browser-open-test
@@ -555,7 +562,8 @@ Preferred pattern:
 1. `initialize.sh` writes `.codegeist/.local.env`.
 2. `initialize.sh` migrates a legacy root `compose.local.yml` into
    `.codegeist/compose.local.yml` only when that legacy file exists.
-3. `initialize.sh` writes `.devcontainer/.env`.
+3. `initialize.sh` writes `.devcontainer/.env`, including the host-side
+   `DISPLAY` value as `DEVCONTAINER_DISPLAY` when one is present.
 4. `initialize.sh` writes `.devcontainer/Dockerfile.merged.gen`.
 5. `initialize.sh` writes `.devcontainer/compose.local.gen.yml`.
 6. `initialize.sh` writes `.devcontainer/compose.user.gen.yml`, either empty or
@@ -567,7 +575,9 @@ Preferred pattern:
 9. `.devcontainer/docker-compose.yml` owns the workspace and parent Git mounts.
 10. `devcontainer.json` uses `${localEnv:USER}` for `remoteUser` and
    `containerUser`.
-11. Container-side tools read normal environment variables from Compose.
+11. `docker-compose.yml` passes `DEVCONTAINER_DISPLAY` into the container as
+    `DISPLAY` so SSH X11 forwarding follows the initialize-time environment.
+12. Container-side tools read normal environment variables from Compose.
 
 Example Compose shape:
 

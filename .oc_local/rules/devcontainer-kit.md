@@ -38,6 +38,18 @@ local override templates in this repository.
   `release` branches in `.gitmodules` so the shared update workflow can refresh
   both gitlinks non-interactively.
 
+## Display Forwarding
+
+- Do not reserve, increment, or guess SSH X11 forwarding ports in
+  `initialize.sh`; SSH and VS Code own forwarding listener allocation.
+- Preserve the host-side `DISPLAY` visible to `initializeCommand` by writing it
+  to generated `.devcontainer/.env` as `DEVCONTAINER_DISPLAY`, then pass that
+  value into the container as `DISPLAY` from `docker-compose.yml`.
+- For parallel visible-browser work, prefer opening the selected worktree path
+  directly so generated display state is isolated per worktree. Treat multiple
+  root-opened sessions with different `BRANCH` values as unsafe unless
+  branch-scoped generated files are implemented.
+
 ## Runtime Release Workflow
 
 - Keep `README_release.md` consumer-facing. It becomes `README.md` on the

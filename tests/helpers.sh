@@ -118,6 +118,7 @@ devcontainer_cli() {
       -u DEVCONTAINER_UID \
       -u DEVCONTAINER_GID \
       -u DEVCONTAINER_KVM_GID \
+      -u DEVCONTAINER_DISPLAY \
       npx --yes @devcontainers/cli "$@")
     return
   fi
@@ -136,6 +137,7 @@ devcontainer_cli() {
     -u DEVCONTAINER_UID \
     -u DEVCONTAINER_GID \
     -u DEVCONTAINER_KVM_GID \
+    -u DEVCONTAINER_DISPLAY \
     npx --yes @devcontainers/cli "$@"
 }
 

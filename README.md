@@ -266,10 +266,17 @@ chrome https://example.test
 
 The visible command does not start VNC or noVNC. It expects `DISPLAY` or
 `WAYLAND_DISPLAY` to be available inside the container through the user's
-devcontainer/host display setup. For SSH X11 forwarding, the launcher copies the
-current Xauthority file to a temporary file and adds localhost aliases when the
-cookie is stored under the forwarded `/unix:<display>` name. Chrome stores its
-normal profile data in the container user's home directory by default.
+devcontainer/host display setup. `initialize.sh` writes the host-side `DISPLAY`
+visible to `initializeCommand` into `.devcontainer/.env` as
+`DEVCONTAINER_DISPLAY`, and Compose passes that generated value into the
+container. This keeps each VS Code or Dev Containers CLI start tied to the X11
+forwarding endpoint it was opened with instead of inheriting a stale display from
+a later long-lived process. If SSH X11 forwarding moves from one display number
+to another, reopen or rebuild the devcontainer so `initializeCommand` refreshes
+the generated value. For SSH X11 forwarding, the launcher copies the current
+Xauthority file to a temporary file and adds localhost aliases when the cookie is
+stored under the forwarded `/unix:<display>` name. Chrome stores its normal
+profile data in the container user's home directory by default.
 Non-interactive automation can use the same launcher without a visible session:
 
 ```bash

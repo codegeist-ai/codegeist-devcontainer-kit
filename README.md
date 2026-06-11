@@ -199,8 +199,9 @@ The devcontainer image includes Google Chrome for browser checks and visible
 browser sessions that must run from inside the container's network, DNS, and
 certificate trust context. The shared kit installs a `chrome` launcher for direct
 visible browser startup when the devcontainer has access to a host display, and
-the same launcher supports deterministic headless automation for tests. It does
-not add VNC, noVNC, browser profiles, bookmarks, credentials, or
+the same launcher supports deterministic headless automation for tests. The image
+also includes `Xvfb` for tools that need a virtual X11 display without a host UI.
+It does not add VNC, noVNC, browser profiles, bookmarks, credentials, or
 project-specific service URLs.
 
 Run visible Chrome from a terminal inside the devcontainer when you need to load
@@ -238,6 +239,9 @@ For non-interactive tests and automation, use the same launcher in headless mode
 ```bash
 chrome --headless --dump-dom https://example.test
 ```
+
+Use `xvfb-run` when a browser or UI tool requires an X server but should not use
+the host display.
 
 The workspace service sets `shm_size: '1gb'` because Chrome and other browser
 processes can fail with Docker's small default `/dev/shm`. Chrome hardware

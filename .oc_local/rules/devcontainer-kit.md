@@ -24,6 +24,10 @@ local override templates in this repository.
   `iptables`, `dnsmasq`, `cpio`, `sshpass`, `pwgen`, `expect`, and
   `tigervnc-viewer`. Verify QEMU with the Alpine ISO smoke test and keep that
   test KVM-only so the suite proves `/dev/kvm` works inside the container.
+- Keep browser and X11 utility tools in the default image: Google Chrome,
+  `x11-apps`, `x11-utils`, `xauth`, and `xvfb`. Document `xvfb-run` for UI tools
+  that need a virtual X server without using the host display, but do not imply
+  that the kit provides VNC or noVNC.
 - When changing default image tools, update the matching documentation and smoke
   coverage if the tool is part of the documented development contract.
 

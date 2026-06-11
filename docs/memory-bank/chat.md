@@ -14,8 +14,8 @@
   default or copies `.codegeist/compose.local.yml` when it exists.
 - Browser support task `docs/tasks/T001_add_browser_support_to_devcontainer/task.md`
   is finalized. The kit includes the shared `chrome` launcher, headless CDP
-  smoke coverage, visible Chrome support through the container display, and no
-  VNC/noVNC layer.
+  smoke coverage, visible Chrome support through the container display, `Xvfb`
+  for virtual X11 sessions, and no VNC/noVNC layer.
 - Open task
   `docs/tasks/T001_add_browser_support_to_devcontainer/tasks/T001_03_support_parallel_worktree_display_state.md`
   tracks follow-up work for parallel visible-browser sessions across multiple
@@ -36,8 +36,9 @@
   Farah `yq`, `espeak-ng`, network diagnostics, password-store tooling through
   `pass`, QEMU/KVM virtualization tools, Kubernetes administration CLIs
   (`kubectl`, `helm`, `k9s`, `talosctl`), and infrastructure tools
-  (`terraform`, `ansible`) in the default toolchain. It also installs
-  `python3-dev` so
+  (`terraform`, `ansible`) in the default toolchain. Browser/UI tooling includes
+  Google Chrome, X11 helpers, and `Xvfb` so tools can use a virtual X server
+  without host display access. It also installs `python3-dev` so
   unpinned pip tools with native Python extensions, such as current `graphifyy`
   dependencies, can build against `Python.h`.
 - `docker-compose.yml` builds from `.devcontainer/Dockerfile.merged.gen`, which
@@ -62,6 +63,10 @@
   generated env files on the current host.
 - `.gitmodules` configures both `.devcontainer` and `.opencode` to track their
   `release` branches so the shared submodule update workflow can refresh them.
+- `.opencode` has been refreshed to the shared agent-kit release that provides a
+  Playwright MCP config file using `/usr/local/bin/chrome`, a `1280x900`
+  viewport, and suppression of Playwright's unsupported
+  `--disable-blink-features=AutomationControlled` default arg.
 - `entrypoint.sh` starts nested `dockerd` without forcing a storage driver so
   Docker can use `overlay2` when available. Do not reintroduce `vfs` by default;
   it duplicates layers and can exhaust disk during full image builds.
@@ -152,6 +157,9 @@
   inheritance from later VS Code or Docker Compose processes. The visible
   launcher normalizes SSH X11 forwarding by copying the current Xauthority file
   to a temporary file and adding localhost aliases for `/unix:<display>` cookies.
+- Use `xvfb-run` when a browser or UI tool needs an X server but should not use
+  the host display. Keep this separate from VNC/noVNC support, which the kit does
+  not provide.
 - After code, script, or workflow changes, run the complete `task tests-run`
   suite before handoff when the environment allows it. If the environment blocks
   the full suite, report the blocker and list targeted checks that passed.
@@ -204,6 +212,9 @@
 - Latest initialize-time display propagation verification passed with the full
   `task tests-run` suite after `DEVCONTAINER_DISPLAY` was added to generated
   `.devcontainer/.env` and used by Compose as the container `DISPLAY` value.
+- Latest `Xvfb` toolchain update verification passed with `git --no-pager diff
+  --check`, `sudo apt-get update >/dev/null && apt-cache show xvfb >/dev/null`,
+  and the full `task tests-run` suite.
 - The suite covers initialization, Compose config resolution, branch worktree
   setup, local Docker image build, QEMU Alpine `3.20.3` ISO boot via KVM
   acceleration until `localhost login:`, TTY `docker-run`, browser smoke

@@ -257,8 +257,9 @@ generated bridge is an empty `services: {}` file by default, or a copy of
 
 The release kit includes Google Chrome for visible, headless, and automated UI
 browser checks that must use the devcontainer's DNS, networking, and installed
-certificates. Start visible Chrome from inside the container when a resource is
-only reachable from that runtime context:
+certificates. It also includes `Xvfb` for tools that need a virtual X11 display
+without a host UI. Start visible Chrome from inside the container when a resource
+is only reachable from that runtime context:
 
 ```bash
 chrome https://example.test
@@ -282,6 +283,9 @@ Non-interactive automation can use the same launcher without a visible session:
 ```bash
 chrome --headless --dump-dom https://example.test
 ```
+
+Use `xvfb-run` when a browser or UI tool requires an X server but should not use
+the host display.
 
 The workspace service sets `shm_size: '1gb'` for browser stability, and Chrome
 hardware acceleration is disabled through the managed policy file at

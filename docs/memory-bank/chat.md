@@ -160,6 +160,12 @@
 - Use `xvfb-run` when a browser or UI tool needs an X server but should not use
   the host display. Keep this separate from VNC/noVNC support, which the kit does
   not provide.
+- For interactive account sign-in, use a manually launched visible `chrome`
+  session. Do not use the OpenCode/Playwright MCP browser for login flows;
+  providers such as Google can reject CDP-controlled browser sessions as
+  insecure. Manual Google sign-in succeeded after launching
+  `chrome https://accounts.google.com` from the terminal with the updated
+  launcher.
 - After code, script, or workflow changes, run the complete `task tests-run`
   suite before handoff when the environment allows it. If the environment blocks
   the full suite, report the blocker and list targeted checks that passed.
@@ -215,6 +221,11 @@
 - Latest `Xvfb` toolchain update verification passed with `git --no-pager diff
   --check`, `sudo apt-get update >/dev/null && apt-cache show xvfb >/dev/null`,
   and the full `task tests-run` suite.
+- Latest account sign-in launcher verification passed with `bash -n
+  scripts/chrome.sh`, `scripts/chrome.sh --help`, `scripts/chrome.sh --headless
+  --dump-dom 'data:text/html,chrome-signin-check'`, `git --no-pager diff
+  --check`, and `cmp -s scripts/chrome.sh /usr/local/bin/chrome` after installing
+  the updated launcher in the current devcontainer session.
 - The suite covers initialization, Compose config resolution, branch worktree
   setup, local Docker image build, QEMU Alpine `3.20.3` ISO boot via KVM
   acceleration until `localhost login:`, TTY `docker-run`, browser smoke

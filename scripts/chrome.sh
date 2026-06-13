@@ -38,6 +38,10 @@ Modes:
 Visible mode environment:
   DISPLAY or WAYLAND_DISPLAY must be available for visible Chrome.
   CHROME_OPEN_USER_DATA_DIR optionally overrides Chrome's profile directory.
+
+Account sign-in:
+  Use visible Chrome directly from a terminal. Playwright/MCP browser sessions
+  are automation-controlled and may be rejected by account providers.
 EOF
       exit 0
       ;;
@@ -48,8 +52,14 @@ EOF
   shift
 done
 
-common_args=(--disable-gpu --no-first-run --no-default-browser-check)
-headless_args=(--no-sandbox)
+visible_args=(--no-first-run --no-default-browser-check)
+headless_args=(
+  --headless=new
+  --disable-gpu
+  --no-first-run
+  --no-default-browser-check
+  --no-sandbox
+)
 
 normalize_ssh_xauthority() {
   local display_number=""
@@ -93,7 +103,7 @@ normalize_ssh_xauthority() {
 }
 
 if [ "$mode" = "headless" ]; then
-  exec google-chrome --headless=new "${common_args[@]}" "${headless_args[@]}" "${chrome_args[@]}"
+  exec google-chrome "${headless_args[@]}" "${chrome_args[@]}"
 fi
 
 if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
@@ -107,13 +117,13 @@ fi
 
 if [ -n "${CHROME_OPEN_USER_DATA_DIR:-}" ]; then
   mkdir -p "$CHROME_OPEN_USER_DATA_DIR"
-  common_args+=(--user-data-dir="$CHROME_OPEN_USER_DATA_DIR")
+  visible_args+=(--user-data-dir="$CHROME_OPEN_USER_DATA_DIR")
 fi
 
 normalize_ssh_xauthority
 
 if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] && command -v dbus-run-session >/dev/null 2>&1; then
-  exec dbus-run-session -- google-chrome "${common_args[@]}" "${chrome_args[@]}"
+  exec dbus-run-session -- google-chrome "${visible_args[@]}" "${chrome_args[@]}"
 fi
 
-exec google-chrome "${common_args[@]}" "${chrome_args[@]}"
+exec google-chrome "${visible_args[@]}" "${chrome_args[@]}"

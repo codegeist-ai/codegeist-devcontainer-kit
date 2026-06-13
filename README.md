@@ -234,6 +234,11 @@ task browser-open-test
 Pass a URL after `--` when you want the visible test fixture to open a specific
 page instead of its local data URL default.
 
+For interactive account sign-in, start Chrome directly from a terminal with
+`chrome`. Do not use the OpenCode/Playwright MCP browser session for account
+login flows; it is automation-controlled through Chrome DevTools Protocol, and
+providers such as Google can reject it as an insecure browser or app.
+
 For non-interactive tests and automation, use the same launcher in headless mode:
 
 ```bash

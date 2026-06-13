@@ -53,6 +53,10 @@ local override templates in this repository.
   directly so generated display state is isolated per worktree. Treat multiple
   root-opened sessions with different `BRANCH` values as unsafe unless
   branch-scoped generated files are implemented.
+- For interactive account sign-in, use a manually launched visible `chrome`
+  session from a terminal. Do not route login flows through OpenCode/Playwright
+  MCP browser sessions because providers such as Google can reject
+  CDP-controlled browsers as insecure.
 
 ## Runtime Release Workflow
 

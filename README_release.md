@@ -278,6 +278,11 @@ the generated value. For SSH X11 forwarding, the launcher copies the current
 Xauthority file to a temporary file and adds localhost aliases when the cookie is
 stored under the forwarded `/unix:<display>` name. Chrome stores its normal
 profile data in the container user's home directory by default.
+For interactive account sign-in, start Chrome directly from a terminal with
+`chrome`. Do not use the OpenCode/Playwright MCP browser session for account
+login flows; it is automation-controlled through Chrome DevTools Protocol, and
+providers such as Google can reject it as an insecure browser or app.
+
 Non-interactive automation can use the same launcher without a visible session:
 
 ```bash

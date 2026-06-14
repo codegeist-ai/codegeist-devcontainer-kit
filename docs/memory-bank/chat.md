@@ -15,7 +15,8 @@
 - Browser support task `docs/tasks/T001_add_browser_support_to_devcontainer/task.md`
   is finalized. The kit includes the shared `chrome` launcher, headless CDP
   smoke coverage, visible Chrome support through the container display, `Xvfb`
-  for virtual X11 sessions, and no VNC/noVNC layer.
+  for virtual X11 sessions, a shared Chrome CDP profile mount for Playwright MCP,
+  and no VNC/noVNC layer.
 - Open task
   `docs/tasks/T001_add_browser_support_to_devcontainer/tasks/T001_03_support_parallel_worktree_display_state.md`
   tracks follow-up work for parallel visible-browser sessions across multiple
@@ -67,6 +68,13 @@
   Playwright MCP config file using `/usr/local/bin/chrome`, a `1280x900`
   viewport, and suppression of Playwright's unsupported
   `--disable-blink-features=AutomationControlled` default arg.
+- The kit now creates `${CODEGEIST_CHROME_CDP_PROFILE_DIR:-$HOME/.config/codegeist-chrome-cdp}`
+  on the host during initialization and mounts it into every workspace container
+  at `/mnt/codegeist/chrome-cdp-profile`. This profile is the supported shared
+  Playwright/CDP login state across Codegeist devcontainer instances; do not use
+  Chrome's default profile or a symlink to it for remote debugging. Inside the
+  container, use only `CHROME_CDP_PROFILE_DIR` as the launcher-facing profile
+  variable; the old repo-local `CHROME_OPEN_USER_DATA_DIR` override was removed.
 - `entrypoint.sh` starts nested `dockerd` without forcing a storage driver so
   Docker can use `overlay2` when available. Do not reintroduce `vfs` by default;
   it duplicates layers and can exhaust disk during full image builds.
@@ -167,7 +175,9 @@
   providers such as Google can reject CDP-controlled browser sessions as
   insecure. Manual Google sign-in succeeded after launching
   `chrome https://accounts.google.com` from the terminal with the updated
-  launcher.
+  launcher. Plain `chrome` now uses `CHROME_CDP_PROFILE_DIR` by default, so run
+  `chrome`, sign in, close Chrome, and restart OpenCode before using the
+  Playwright MCP browser.
 - After code, script, or workflow changes, run the complete `task tests-run`
   suite before handoff when the environment allows it. If the environment blocks
   the full suite, report the blocker and list targeted checks that passed.
@@ -225,6 +235,16 @@
   --dump-dom 'data:text/html,chrome-signin-check'`, `git --no-pager diff
   --check`, and `cmp -s scripts/chrome.sh /usr/local/bin/chrome` after installing
   the updated launcher in the current devcontainer session.
+- Latest shared Chrome CDP profile update verification passed with `bash -n
+  initialize.sh scripts/chrome.sh tests/initialize.sh tests/opencode-mounts.sh
+  tests/helpers.sh`, `git --no-pager diff --check`, a static initializer plus
+  `docker compose config` check for `/mnt/codegeist/chrome-cdp-profile`,
+  `tests/release-build.sh`, `bash -n scripts/chrome.sh tests/chrome-launcher.sh`,
+  `bash -n scripts/chrome.sh tests/chrome-launcher.sh tests/browser-open-test.sh`,
+  `tests/chrome-launcher.sh`, and `scripts/chrome.sh --help`. Docker-backed
+  `tests/initialize.sh` and `tests/opencode-mounts.sh` reached the image build
+  path but were blocked by a transient `files.pythonhosted.org` pip timeout while
+  downloading dependencies.
 - The suite covers initialization, Compose config resolution, branch worktree
   setup, local Docker image build, QEMU Alpine `3.20.3` ISO boot via KVM
   acceleration until `localhost login:`, TTY `docker-run`, browser smoke

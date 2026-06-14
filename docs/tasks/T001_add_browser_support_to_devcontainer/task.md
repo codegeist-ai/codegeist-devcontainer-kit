@@ -115,8 +115,9 @@ documentation for consumers that pin the runtime-only `release` branch.
   a root launcher or have kit scripts open VS Code automatically.
 - Keep generated and machine-local state out of the runtime release tree.
 - Preserve this repository's linked-worktree and stable workspace path behavior.
-- Keep browser profiles, credentials, bookmarks, service URLs, and project-local
-  overrides outside the shared kit.
+- Keep project-specific browser profiles, credentials, bookmarks, service URLs,
+  and project-local overrides outside the shared kit. The shared Chrome CDP
+  profile mount is the only generic browser state owned by the kit.
 
 ## Open Questions
 

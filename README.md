@@ -201,8 +201,9 @@ certificate trust context. The shared kit installs a `chrome` launcher for direc
 visible browser startup when the devcontainer has access to a host display, and
 the same launcher supports deterministic headless automation for tests. The image
 also includes `Xvfb` for tools that need a virtual X11 display without a host UI.
-It does not add VNC, noVNC, browser profiles, bookmarks, credentials, or
-project-specific service URLs.
+It does not add VNC, noVNC, bookmarks, credentials, or project-specific service
+URLs; the only shared browser state it owns is the Chrome CDP profile mount
+described below.
 
 Run visible Chrome from a terminal inside the devcontainer when you need to load
 a URL with container-side DNS and certificates:
@@ -223,9 +224,15 @@ from one display number to another, reopen the devcontainer so
 `initializeCommand` refreshes the generated value; rebuild only when the
 container mount itself changed. For SSH X11 forwarding, the launcher copies the
 current Xauthority file to a temporary file and adds localhost aliases when the
-cookie is stored under the forwarded `/unix:<display>` name. Chrome stores its
-normal profile data in the container user's home directory by default, so cookies
-and browser state stay in the devcontainer rather than in a host browser profile.
+cookie is stored under the forwarded `/unix:<display>` name. Plain visible
+`chrome` uses the shared Playwright/CDP profile when the devcontainer provides
+`CHROME_CDP_PROFILE_DIR`.
+For Playwright/CDP automation that should share login state across Codegeist
+devcontainer instances, `initialize.sh` creates the host profile directory
+`${CODEGEIST_CHROME_CDP_PROFILE_DIR:-$HOME/.config/codegeist-chrome-cdp}` and
+Compose mounts it at `/mnt/codegeist/chrome-cdp-profile` inside every workspace
+container. Override `CODEGEIST_CHROME_CDP_PROFILE_DIR` before the devcontainer
+starts when a machine needs a different shared host path.
 In this repository, the same command can be exercised from the kit image:
 
 ```bash
@@ -236,9 +243,21 @@ Pass a URL after `--` when you want the visible test fixture to open a specific
 page instead of its local data URL default.
 
 For interactive account sign-in, start Chrome directly from a terminal with
-`chrome`. Do not use the OpenCode/Playwright MCP browser session for account
+`chrome`. It uses the shared Playwright/CDP profile by default in Codegeist
+devcontainers. Do not use the OpenCode/Playwright MCP browser session for account
 login flows; it is automation-controlled through Chrome DevTools Protocol, and
-providers such as Google can reject it as an insecure browser or app.
+providers such as Google can reject it as an insecure browser or app. To seed the
+shared Playwright/CDP profile once, run visible Chrome, sign in, close Chrome,
+and restart OpenCode before using the MCP browser:
+
+```bash
+chrome
+```
+
+Do not point Playwright/CDP at Chrome's default profile such as
+`~/.config/google-chrome`; Chrome blocks remote debugging for the default data
+directory, and symlinks to that directory are still detected as the default
+profile.
 
 For non-interactive tests and automation, use the same launcher in headless mode:
 
@@ -885,6 +904,8 @@ Typical examples:
 - `.devcontainer/Dockerfile.merged.gen`
 - `.devcontainer/compose.local.gen.yml`
 - `.devcontainer/compose.user.gen.yml`
+- `$HOME/.config/codegeist-chrome-cdp` unless `CODEGEIST_CHROME_CDP_PROFILE_DIR`
+  overrides the shared Chrome CDP profile host path
 - `.oc_local/` when it is only generated OpenCode local state
 - generated runtime metadata
 - editor state

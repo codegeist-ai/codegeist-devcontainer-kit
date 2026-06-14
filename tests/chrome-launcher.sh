@@ -6,7 +6,7 @@
 #   mounted `.devcontainer/.env` but an existing container keeps old environment
 #   variables.
 # - avoids needing a real X server by replacing `google-chrome` with a tiny fake
-#   command that records the DISPLAY value it received.
+#   command that records the DISPLAY value and Chrome args it received.
 #
 # Related files:
 # - ../scripts/chrome.sh
@@ -32,6 +32,8 @@ fi
 fixture_dir="$suite_tmp_dir/chrome-launcher-fixture"
 fake_bin="$suite_tmp_dir/chrome-launcher-bin"
 capture_file="$suite_tmp_dir/chrome-launcher-display.txt"
+args_capture_file="$suite_tmp_dir/chrome-launcher-args.txt"
+profile_dir="$suite_tmp_dir/chrome-cdp-profile"
 
 mkdir -p "$fixture_dir/.devcontainer" "$fake_bin"
 
@@ -43,20 +45,27 @@ EOF
 cat >"$fake_bin/google-chrome" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "${DISPLAY:-}" >"$CHROME_LAUNCHER_CAPTURE"
+printf '%s\n' "$@" >"$CHROME_LAUNCHER_ARGS_CAPTURE"
 EOF
 chmod +x "$fake_bin/google-chrome"
 
 PATH="$fake_bin:$PATH" \
   DEVCONTAINER_WORKSPACE_FOLDER="$fixture_dir" \
+  CHROME_CDP_PROFILE_DIR="$profile_dir" \
   CHROME_LAUNCHER_CAPTURE="$capture_file" \
+  CHROME_LAUNCHER_ARGS_CAPTURE="$args_capture_file" \
   "$project_root/scripts/chrome.sh" about:blank
 
 [[ "$(<"$capture_file")" = "localhost:77.0" ]] \
   || fail "chrome launcher did not refresh DISPLAY from generated workspace env"
+grep -Fx -- "--user-data-dir=$profile_dir" "$args_capture_file" >/dev/null \
+  || fail "chrome launcher did not use CHROME_CDP_PROFILE_DIR as visible profile"
 
 PATH="$fake_bin:$PATH" \
   DEVCONTAINER_WORKSPACE_FOLDER="$fixture_dir" \
+  CHROME_CDP_PROFILE_DIR="$profile_dir" \
   CHROME_LAUNCHER_CAPTURE="$capture_file" \
+  CHROME_LAUNCHER_ARGS_CAPTURE="$args_capture_file" \
   DISPLAY=localhost:1.0 \
   "$project_root/scripts/chrome.sh" about:blank
 

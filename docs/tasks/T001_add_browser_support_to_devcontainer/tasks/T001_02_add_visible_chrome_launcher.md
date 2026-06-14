@@ -33,7 +33,7 @@ In scope:
 
 Out of scope:
 
-- Browser profiles, bookmarks, credentials, and project-specific service URLs.
+- Project-specific browser profiles, bookmarks, credentials, and service URLs.
 - Replacing the normal VS Code Dev Containers lifecycle.
 - Managing host X11 or Wayland setup inside this shared kit.
 

@@ -750,8 +750,11 @@ Roles:
   keep the same content as `Dockerfile.base`. Root `.codegeist/Dockerfile` can
   extend it through the generated `Dockerfile.merged.gen` file.
 - `entrypoint.sh` runs inside the container.
-- `scripts/chrome.sh` is installed as `/usr/local/bin/chrome`; it starts visible
-  Chrome on the current container display or headless Chrome for automation.
+- `entrypoint.sh` links `/usr/local/bin/chrome` to the mounted
+  `.devcontainer/scripts/chrome.sh` in the selected workspace and prepends
+  `$DEVCONTAINER_WORKSPACE_FOLDER/.devcontainer/scripts` to `PATH`; the launcher
+  starts visible Chrome on the current container display or headless Chrome for
+  automation.
 - `.local.env.example` documents `.codegeist/.local.env` values.
 - `.oc_local.gitignore.example` seeds root `.oc_local/.gitignore` when the
   consuming repository has no tracked `.oc_local/` overlay.

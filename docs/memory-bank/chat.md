@@ -75,6 +75,12 @@
   Chrome's default profile or a symlink to it for remote debugging. Inside the
   container, use only `CHROME_CDP_PROFILE_DIR` as the launcher-facing profile
   variable; the old repo-local `CHROME_OPEN_USER_DATA_DIR` override was removed.
+- `entrypoint.sh` exposes `/usr/local/bin/chrome` as a symlink to the mounted
+  `$DEVCONTAINER_WORKSPACE_FOLDER/.devcontainer/scripts/chrome.sh`, so launcher
+  edits in the workspace take effect without rebuilding the image. The image also
+  installs `/etc/profile.d/codegeist-workspace-scripts.sh`, and the entrypoint
+  prepends `$DEVCONTAINER_WORKSPACE_FOLDER/.devcontainer/scripts` to `PATH` for
+  runtime commands.
 - `entrypoint.sh` starts nested `dockerd` without forcing a storage driver so
   Docker can use `overlay2` when available. Do not reintroduce `vfs` by default;
   it duplicates layers and can exhaust disk during full image builds.
@@ -232,9 +238,9 @@
   and the full `task tests-run` suite.
 - Latest account sign-in launcher verification passed with `bash -n
   scripts/chrome.sh`, `scripts/chrome.sh --help`, `scripts/chrome.sh --headless
-  --dump-dom 'data:text/html,chrome-signin-check'`, `git --no-pager diff
-  --check`, and `cmp -s scripts/chrome.sh /usr/local/bin/chrome` after installing
-  the updated launcher in the current devcontainer session.
+  --dump-dom 'data:text/html,chrome-signin-check'`, and `git --no-pager diff
+  --check` after installing the updated launcher in the current devcontainer
+  session.
 - Latest shared Chrome CDP profile update verification passed with `bash -n
   initialize.sh scripts/chrome.sh tests/initialize.sh tests/opencode-mounts.sh
   tests/helpers.sh`, `git --no-pager diff --check`, a static initializer plus

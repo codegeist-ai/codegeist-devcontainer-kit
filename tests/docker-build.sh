@@ -14,4 +14,6 @@ source "$script_dir/helpers.sh"
 
 task_project docker-build
 docker run --rm --entrypoint pass codegeist-devcontainer-kit:local --version >/dev/null
+docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc \
+  'test ! -e /usr/local/bin/chrome && grep -F "ln -sf \"\$launcher\" /usr/local/bin/chrome" /usr/local/bin/devcontainer-entrypoint >/dev/null && grep -F "PATH=\"\$DEVCONTAINER_WORKSPACE_FOLDER/.devcontainer/scripts:\$PATH\"" /etc/profile.d/codegeist-workspace-scripts.sh >/dev/null'
 pass "docker image builds through Taskfile with pass available"

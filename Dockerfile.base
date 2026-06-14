@@ -262,10 +262,17 @@ RUN printf '%s\n' \
       'fi' \
       > /etc/profile.d/nix.sh
 
-COPY .devcontainer/entrypoint.sh /usr/local/bin/devcontainer-entrypoint
-COPY .devcontainer/scripts/chrome.sh /usr/local/bin/chrome
+# Make workspace-owned devcontainer scripts directly callable in interactive
+# shells. `DEVCONTAINER_WORKSPACE_FOLDER` is runtime state, so this cannot be a
+# plain Dockerfile `ENV PATH=...` expansion.
+RUN printf '%s\n' \
+      'PATH="$DEVCONTAINER_WORKSPACE_FOLDER/.devcontainer/scripts:$PATH"' \
+      'export PATH' \
+      > /etc/profile.d/codegeist-workspace-scripts.sh
 
-RUN chmod +x /usr/local/bin/devcontainer-entrypoint /usr/local/bin/chrome
+COPY .devcontainer/entrypoint.sh /usr/local/bin/devcontainer-entrypoint
+
+RUN chmod +x /usr/local/bin/devcontainer-entrypoint
 
 ENV USER=${CONTAINER_USER}
 ENV HOME=/home/${CONTAINER_USER}

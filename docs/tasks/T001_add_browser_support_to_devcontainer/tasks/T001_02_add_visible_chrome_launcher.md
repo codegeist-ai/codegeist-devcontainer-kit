@@ -39,7 +39,8 @@ Out of scope:
 
 ## Implementation Notes
 
-- Added `scripts/chrome.sh`, installed as `/usr/local/bin/chrome` in the image.
+- Added `scripts/chrome.sh`, exposed as `/usr/local/bin/chrome` at container
+  startup through a symlink to the mounted workspace script.
 - Visible mode starts Chrome directly on the container's current display and
   fails with a clear message when neither `DISPLAY` nor `WAYLAND_DISPLAY` is
   available.
@@ -91,7 +92,7 @@ Out of scope:
 - Direct correction: User rejected VNC/noVNC and clarified that typing `chrome`
   in the terminal should open visible Chrome, with browser state stored in the
   container. Removed VNC/noVNC behavior and extra virtual-display packages,
-  installed the launcher only as `/usr/local/bin/chrome`, and kept tests on
+  exposed the launcher only as `/usr/local/bin/chrome`, and kept tests on
   `chrome --headless`. Result: solved correction. Next recommended phase:
   `/finalize-task T001_02`.
 - `/finalize-task`: Reviewed parent task `T001`, sibling task `T001_01`, README

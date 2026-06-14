@@ -5,6 +5,8 @@
 # - The devcontainer needs Docker tooling available inside the workspace.
 # - Visible Chrome expects a system DBus socket even when browser traffic and UI
 #   rendering are otherwise handled directly inside the container.
+# - The `chrome` command points at the mounted workspace launcher so changes to
+#   `.devcontainer/scripts/chrome.sh` do not require an image rebuild.
 # - The Dockerfile sets USER to the workspace user, so dockerd is started through
 #   passwordless sudo configured during image build.
 #
@@ -21,6 +23,21 @@ set -euo pipefail
 dockerd_log_file="/tmp/dockerd.log"
 dockerd_pid_file="/var/run/docker.pid"
 dbus_socket_file="/run/dbus/system_bus_socket"
+
+ensure_chrome_launcher() {
+  local launcher=""
+
+  [ -n "${DEVCONTAINER_WORKSPACE_FOLDER:-}" ] || return 0
+  launcher="$DEVCONTAINER_WORKSPACE_FOLDER/.devcontainer/scripts/chrome.sh"
+  [ -f "$launcher" ] || return 0
+
+  chmod +x "$launcher"
+  sudo -n ln -sf "$launcher" /usr/local/bin/chrome
+}
+
+prepend_workspace_scripts_path() {
+  export PATH="$DEVCONTAINER_WORKSPACE_FOLDER/.devcontainer/scripts:$PATH"
+}
 
 ensure_system_dbus() {
   if [ -S "$dbus_socket_file" ]; then
@@ -95,6 +112,8 @@ ensure_docker_daemon() {
 }
 
 ensure_system_dbus
+prepend_workspace_scripts_path
+ensure_chrome_launcher
 ensure_docker_daemon
 
 if [ "$#" -eq 0 ]; then

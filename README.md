@@ -277,12 +277,31 @@ from one display number to another, reopen the devcontainer so
 `initializeCommand` refreshes the generated value; rebuild only when the
 container mount itself changed. For SSH X11 forwarding, the launcher copies the
 current Xauthority file to a temporary file and adds localhost aliases when the
-cookie is stored under the forwarded `/unix:<display>` name. Chrome stores its
-normal profile data in the container user's home directory by default.
+cookie is stored under the forwarded `/unix:<display>` name. Plain visible
+`chrome` uses the shared Playwright/CDP profile when the devcontainer provides
+`CHROME_CDP_PROFILE_DIR`. For
+Playwright/CDP automation that should share login state across Codegeist
+devcontainer instances, `initialize.sh` creates the host profile directory
+`${CODEGEIST_CHROME_CDP_PROFILE_DIR:-$HOME/.config/codegeist-chrome-cdp}` and
+Compose mounts it at `/mnt/codegeist/chrome-cdp-profile` inside every workspace
+container. Override `CODEGEIST_CHROME_CDP_PROFILE_DIR` before the devcontainer
+starts when a machine needs a different shared host path.
 For interactive account sign-in, start Chrome directly from a terminal with
-`chrome`. Do not use the OpenCode/Playwright MCP browser session for account
+`chrome`. It uses the shared Playwright/CDP profile by default in Codegeist
+devcontainers. Do not use the OpenCode/Playwright MCP browser session for account
 login flows; it is automation-controlled through Chrome DevTools Protocol, and
-providers such as Google can reject it as an insecure browser or app.
+providers such as Google can reject it as an insecure browser or app. To seed the
+shared Playwright/CDP profile once, run visible Chrome, sign in, close Chrome,
+and restart OpenCode before using the MCP browser:
+
+```bash
+chrome
+```
+
+Do not point Playwright/CDP at Chrome's default profile such as
+`~/.config/google-chrome`; Chrome blocks remote debugging for the default data
+directory, and symlinks to that directory are still detected as the default
+profile.
 
 Non-interactive automation can use the same launcher without a visible session:
 
@@ -297,8 +316,8 @@ The workspace service sets `shm_size: '1gb'` for browser stability, and Chrome
 hardware acceleration is disabled through the managed policy file at
 `/etc/opt/chrome/policies/managed/disable-hardware-accel.json`.
 
-Browser profiles, bookmarks, credentials, and project-specific service URLs
-belong in consuming-repository overrides or future focused kit work.
+Bookmarks, credentials outside the shared CDP profile, and project-specific
+service URLs belong in consuming-repository overrides or future focused kit work.
 
 ## QEMU Support
 

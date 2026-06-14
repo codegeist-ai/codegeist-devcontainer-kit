@@ -60,7 +60,7 @@ rm -f "$fixture_dir/.devcontainer/.env"
 rm -f "$fixture_dir/.devcontainer/compose.local.gen.yml"
 rm -f "$fixture_dir/.devcontainer/compose.user.gen.yml"
 
-HOME="$fixture_dir" DISPLAY=localhost:42.0 BRANCH=feature/initialize-test "$fixture_dir/.devcontainer/initialize.sh"
+env -u CODEGEIST_CHROME_CDP_PROFILE_DIR HOME="$fixture_dir" DISPLAY=localhost:42.0 BRANCH=feature/initialize-test "$fixture_dir/.devcontainer/initialize.sh"
 expected_hostname="$(expected_generated_hostname "$fixture_dir" "feature/initialize-test")"
 
 [[ -f "$fixture_dir/.codegeist/compose.local.yml" ]] || fail ".codegeist/compose.local.yml was not created"
@@ -115,7 +115,7 @@ worktree_local_env="$worktree_path/.codegeist/.local.env"
 [[ -L "$worktree_local_env" ]] || fail "worktree .codegeist/.local.env is not a symlink"
 rm -f "$worktree_local_env"
 printf 'WORKTREE_LOCAL_ENV=1\n' >"$worktree_local_env"
-HOME="$fixture_dir" BRANCH=feature/initialize-test "$fixture_dir/.devcontainer/initialize.sh"
+env -u CODEGEIST_CHROME_CDP_PROFILE_DIR HOME="$fixture_dir" BRANCH=feature/initialize-test "$fixture_dir/.devcontainer/initialize.sh"
 [[ -f "$worktree_local_env" ]] || fail "existing worktree .codegeist/.local.env file was removed"
 [[ ! -L "$worktree_local_env" ]] || fail "existing worktree .codegeist/.local.env file was replaced with a symlink"
 [[ "$(<"$worktree_local_env")" = "WORKTREE_LOCAL_ENV=1" ]] || fail "existing worktree .codegeist/.local.env file was overwritten"
@@ -131,13 +131,13 @@ cp "$fixture_dir/.codegeist/.local.env" "$fixture_dir/.codegeist/.local.env.befo
 printf '\n# local compose marker\n' >>"$fixture_dir/.codegeist/compose.local.yml"
 printf 'CUSTOM_ENV=1\n' >"$fixture_dir/.codegeist/.local.env"
 
-HOME="$fixture_dir" BRANCH=feature/initialize-test "$fixture_dir/.devcontainer/initialize.sh"
+env -u CODEGEIST_CHROME_CDP_PROFILE_DIR HOME="$fixture_dir" BRANCH=feature/initialize-test "$fixture_dir/.devcontainer/initialize.sh"
 
 [[ "$(<"$fixture_dir/.codegeist/compose.local.yml")" == *"# local compose marker"* ]] || fail ".codegeist/compose.local.yml was overwritten"
 [[ "$(<"$fixture_dir/.devcontainer/compose.user.gen.yml")" == *"# local compose marker"* ]] || fail "user compose bridge did not refresh local compose marker"
 [[ "$(<"$fixture_dir/.codegeist/.local.env")" = "CUSTOM_ENV=1" ]] || fail ".codegeist/.local.env was overwritten"
 
-env -u BRANCH -u DISPLAY HOME="$fixture_dir" "$fixture_dir/.devcontainer/initialize.sh"
+env -u BRANCH -u DISPLAY -u CODEGEIST_CHROME_CDP_PROFILE_DIR HOME="$fixture_dir" "$fixture_dir/.devcontainer/initialize.sh"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" != *"BRANCH="* ]] || fail "generated .env kept stale BRANCH after unset start"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" != *"DEVCONTAINER_BRANCH_NAME=feature-initialize-test"* ]] || fail "generated .env reused stale branch after unset start"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_WORKSPACE_FOLDER=$fixture_dir"* ]] || fail "generated .env did not reset workspace when BRANCH was unset"
@@ -146,11 +146,11 @@ env -u BRANCH -u DISPLAY HOME="$fixture_dir" "$fixture_dir/.devcontainer/initial
 
 current_branch="$(git -C "$fixture_dir" rev-parse --abbrev-ref HEAD)"
 current_branch_alias="$fixture_dir/.worktrees/$current_branch"
-HOME="$fixture_dir" BRANCH="$current_branch" "$fixture_dir/.devcontainer/initialize.sh"
+env -u CODEGEIST_CHROME_CDP_PROFILE_DIR HOME="$fixture_dir" BRANCH="$current_branch" "$fixture_dir/.devcontainer/initialize.sh"
 [[ -L "$current_branch_alias" ]] || fail "current branch did not create a worktree alias"
 [[ "$(readlink -f "$current_branch_alias")" = "$fixture_dir" ]] || fail "current branch alias does not resolve to repository root"
 git -C "$fixture_dir" switch -c replacement-root >/dev/null
-HOME="$fixture_dir" BRANCH="$current_branch" "$fixture_dir/.devcontainer/initialize.sh"
+env -u CODEGEIST_CHROME_CDP_PROFILE_DIR HOME="$fixture_dir" BRANCH="$current_branch" "$fixture_dir/.devcontainer/initialize.sh"
 [[ -d "$current_branch_alias" ]] || fail "stale current branch alias was not replaced with a worktree"
 [[ ! -L "$current_branch_alias" ]] || fail "stale current branch alias is still a symlink"
 [[ "$(git -C "$current_branch_alias" rev-parse --abbrev-ref HEAD)" = "$current_branch" ]] || fail "replaced current branch alias is not on the original branch"

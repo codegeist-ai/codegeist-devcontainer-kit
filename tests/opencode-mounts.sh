@@ -46,7 +46,7 @@ compose_base_env=(
 )
 
 create_git_fixture_repo "$fixture_dir"
-HOME="$fixture_dir" "$fixture_dir/.devcontainer/initialize.sh"
+env -u CODEGEIST_CHROME_CDP_PROFILE_DIR HOME="$fixture_dir" "$fixture_dir/.devcontainer/initialize.sh"
 prepare_devcontainer_home "$fixture_dir"
 mkdir -p "$config_dir" "$share_dir" "$state_dir"
 mkdir -p "$chrome_cdp_profile_dir"

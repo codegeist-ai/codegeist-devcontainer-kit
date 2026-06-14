@@ -153,10 +153,12 @@
   typing `chrome` when the devcontainer has access to `DISPLAY` or
   `WAYLAND_DISPLAY`. `initialize.sh` captures the host-side `DISPLAY` visible to
   `initializeCommand` as `DEVCONTAINER_DISPLAY`, and `docker-compose.yml` passes
-  that generated value into the container as `DISPLAY`, avoiding stale display
-  inheritance from later VS Code or Docker Compose processes. The visible
-  launcher normalizes SSH X11 forwarding by copying the current Xauthority file
-  to a temporary file and adding localhost aliases for `/unix:<display>` cookies.
+  that generated value into the container as `DISPLAY` on create. The visible
+  launcher rereads the mounted `.devcontainer/.env` before starting Chrome, so a
+  VS Code reopen can refresh SSH X11 display state even when the existing
+  container is reused. The launcher also normalizes SSH X11 forwarding by copying
+  the current Xauthority file to a temporary file and adding localhost aliases
+  for `/unix:<display>` cookies.
 - Use `xvfb-run` when a browser or UI tool needs an X server but should not use
   the host display. Keep this separate from VNC/noVNC support, which the kit does
   not provide.
@@ -189,13 +191,10 @@
 - Latest `espeak-ng` image update verification passed: `git --no-pager diff
   --check`, `tests/release-build.sh`, `tests/docker-build.sh`, and `docker run
   --rm --entrypoint espeak-ng codegeist-devcontainer-kit:local --version`.
-- Latest browser-support verification passed: `bash -n
-  scripts/chrome.sh tests/browser-smoke.sh tests/run.sh
-  tests/release-build.sh scripts/release-build.sh`, `node --check
-  tests/browser-ui-cdp.mjs`, `git --no-pager diff --check`,
-  `tests/release-build.sh`, `tests/browser-smoke.sh`, `task browser-open-test --
-  --help`, `docker run --rm --entrypoint bash codegeist-devcontainer-kit:local
-  -lc 'command -v chrome && ! command -v chrome-open'`, and `task tests-run`.
+- Latest browser-support verification passed after the VS Code reopen display
+  refresh fix: `task tests-run` completed successfully, including Docker image
+  build, Dev Containers CLI workspace starts, browser smoke, worktree, QEMU, and
+  submodule workflow checks. `git --no-pager diff --check` also passed.
 - Direct visible verification passed with `DISPLAY=localhost:10.0
   XAUTHORITY=/home/test/.Xauthority task browser-open-test`.
   `tests/browser-open-test.sh` now fails loudly and prints Chrome logs when Chrome

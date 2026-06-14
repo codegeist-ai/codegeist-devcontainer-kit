@@ -16,8 +16,8 @@
 #   also maps the container hostname back to loopback so tools such as sudo can
 #   resolve it.
 # - The host `DISPLAY` seen during initializeCommand is copied into the generated
-#   `.env` so the container keeps the same SSH X11 forwarding endpoint even when
-#   a later VS Code or Docker Compose process has stale display variables.
+#   `.env`. Compose injects it on container creation, and the Chrome launcher can
+#   reread the mounted file after a VS Code reopen when the container is reused.
 # - `Dockerfile.merged.gen` is generated from the kit Dockerfile plus the
 #   repository-root `.codegeist/Dockerfile` extension when that extension exists.
 # - OpenCode keys session state by directory path, so the container workspace

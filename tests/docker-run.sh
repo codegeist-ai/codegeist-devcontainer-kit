@@ -22,7 +22,9 @@ docker run --rm --privileged --user root --entrypoint bash codegeist-devcontaine
   set -euo pipefail
 
   install -o root -g root -m 0600 /dev/null /tmp/dockerd.log
-  sudo -Eu "$CONTAINER_USER" /usr/local/bin/devcontainer-entrypoint true
+  sudo -Eu "$CONTAINER_USER" \
+    DEVCONTAINER_WORKSPACE_FOLDER=/tmp \
+    /usr/local/bin/devcontainer-entrypoint true
 '
 
 pass "docker-run starts nested Docker and runs as the container user"

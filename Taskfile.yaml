@@ -5,7 +5,8 @@
 # - provides a stable entrypoint for tests without adding root-level wrappers
 #
 # Inputs:
-# - WORKSPACE selects the host path mounted into docker-run, defaulting to $PWD.
+# - WORKSPACE selects the host path mounted into docker-run, defaulting to $PWD,
+#   and is passed as DEVCONTAINER_WORKSPACE_FOLDER for entrypoint setup.
 # - COMMAND selects the docker-run command, defaulting to devcontainer up.
 # - CONTAINER_* values can align the image user with the caller.
 #
@@ -65,6 +66,7 @@ tasks:
         docker run --rm -it
         --privileged
         --network host
+        -e DEVCONTAINER_WORKSPACE_FOLDER={{.WORKSPACE}}
         -v {{.WORKSPACE}}:{{.WORKSPACE}}
         -w {{.WORKSPACE}}
         {{.IMAGE}}

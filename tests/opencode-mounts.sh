@@ -63,7 +63,7 @@ cleanup_compose() {
 }
 trap cleanup_compose EXIT
 
-default_config="$(cd "$fixture_dir" && env -u OPENCODE_DIR_CONFIG -u OPENCODE_DIR_SHARE -u OPENCODE_DIR_STATE "${compose_base_env[@]}" docker compose \
+default_config="$(cd "$fixture_dir" && env -u OPENCODE_DIR_CONFIG -u OPENCODE_DIR_SHARE -u OPENCODE_DIR_STATE -u CODEGEIST_CHROME_CDP_PROFILE_DIR "${compose_base_env[@]}" docker compose \
   -f ".devcontainer/docker-compose.yml" \
   config)"
 

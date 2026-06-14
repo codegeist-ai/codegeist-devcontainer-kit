@@ -9,6 +9,9 @@
 # Inputs:
 # - `--headless` starts Chrome without a display and forwards remaining args.
 # - `CHROME_OPEN_USER_DATA_DIR` optionally selects a custom profile directory.
+# - `DEVCONTAINER_WORKSPACE_FOLDER` points at the mounted workspace whose
+#   `.devcontainer/.env` may contain a refreshed `DEVCONTAINER_DISPLAY` after a
+#   VS Code reopen.
 #
 # Related files:
 # - Dockerfile.base
@@ -37,7 +40,13 @@ Modes:
 
 Visible mode environment:
   DISPLAY or WAYLAND_DISPLAY must be available for visible Chrome.
+  DISPLAY is refreshed from .devcontainer/.env when the workspace provides a
+  generated DEVCONTAINER_DISPLAY value.
   CHROME_OPEN_USER_DATA_DIR optionally overrides Chrome's profile directory.
+
+Account sign-in:
+  Use visible Chrome directly from a terminal. Playwright/MCP browser sessions
+  are automation-controlled and may be rejected by account providers.
 EOF
       exit 0
       ;;
@@ -48,8 +57,14 @@ EOF
   shift
 done
 
-common_args=(--disable-gpu --no-first-run --no-default-browser-check)
-headless_args=(--no-sandbox)
+visible_args=(--no-first-run --no-default-browser-check)
+headless_args=(
+  --headless=new
+  --disable-gpu
+  --no-first-run
+  --no-default-browser-check
+  --no-sandbox
+)
 
 normalize_ssh_xauthority() {
   local display_number=""
@@ -92,9 +107,32 @@ normalize_ssh_xauthority() {
   xauth add "127.0.0.1:${display_number}.0" MIT-MAGIC-COOKIE-1 "$cookie" >/dev/null 2>&1 || true
 }
 
+refresh_display_from_workspace_env() {
+  local generated_env=""
+  local line=""
+  local display_value=""
+
+  [ -n "${DEVCONTAINER_WORKSPACE_FOLDER:-}" ] || return 0
+  generated_env="$DEVCONTAINER_WORKSPACE_FOLDER/.devcontainer/.env"
+  [ -f "$generated_env" ] || return 0
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      DEVCONTAINER_DISPLAY=*)
+        display_value="${line#DEVCONTAINER_DISPLAY=}"
+        ;;
+    esac
+  done <"$generated_env"
+
+  [ -n "$display_value" ] || return 0
+  export DISPLAY="$display_value"
+}
+
 if [ "$mode" = "headless" ]; then
-  exec google-chrome --headless=new "${common_args[@]}" "${headless_args[@]}" "${chrome_args[@]}"
+  exec google-chrome "${headless_args[@]}" "${chrome_args[@]}"
 fi
+
+refresh_display_from_workspace_env
 
 if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
   cat >&2 <<'EOF'
@@ -107,13 +145,13 @@ fi
 
 if [ -n "${CHROME_OPEN_USER_DATA_DIR:-}" ]; then
   mkdir -p "$CHROME_OPEN_USER_DATA_DIR"
-  common_args+=(--user-data-dir="$CHROME_OPEN_USER_DATA_DIR")
+  visible_args+=(--user-data-dir="$CHROME_OPEN_USER_DATA_DIR")
 fi
 
 normalize_ssh_xauthority
 
 if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] && command -v dbus-run-session >/dev/null 2>&1; then
-  exec dbus-run-session -- google-chrome "${common_args[@]}" "${chrome_args[@]}"
+  exec dbus-run-session -- google-chrome "${visible_args[@]}" "${chrome_args[@]}"
 fi
 
-exec google-chrome "${common_args[@]}" "${chrome_args[@]}"
+exec google-chrome "${visible_args[@]}" "${chrome_args[@]}"

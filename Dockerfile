@@ -144,6 +144,7 @@ RUN apt-get update \
       x11-apps \
       x11-utils \
       xauth \
+      xvfb \
       xz-utils \
       zlib1g-dev \
   && rm -rf /var/lib/apt/lists/*

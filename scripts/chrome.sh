@@ -8,8 +8,9 @@
 #
 # Inputs:
 # - `--headless` starts Chrome without a display and forwards remaining args.
-# - Visible Chrome defaults to `CHROME_CDP_PROFILE_DIR` when the devcontainer
-#   provides it, so normal `chrome` starts use the shared Playwright/CDP profile.
+# - Visible Chrome defaults to `CHROME_CDP_PROFILE_DIR` when no explicit
+#   `--user-data-dir` is provided, so normal `chrome` starts use the shared
+#   Playwright/CDP profile without overriding automation callers.
 # - `DEVCONTAINER_WORKSPACE_FOLDER` points at the mounted workspace whose
 #   `.devcontainer/.env` may contain a refreshed `DEVCONTAINER_DISPLAY` after a
 #   VS Code reopen.
@@ -23,6 +24,7 @@ set -euo pipefail
 
 mode="visible"
 chrome_args=()
+has_explicit_user_data_dir=0
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -43,7 +45,8 @@ Visible mode environment:
   DISPLAY or WAYLAND_DISPLAY must be available for visible Chrome.
   DISPLAY is refreshed from .devcontainer/.env when the workspace provides a
   generated DEVCONTAINER_DISPLAY value.
-  Plain `chrome` uses CHROME_CDP_PROFILE_DIR when the devcontainer provides it.
+  Plain `chrome` uses CHROME_CDP_PROFILE_DIR when the devcontainer provides it
+  and the caller does not pass an explicit --user-data-dir.
   In Codegeist devcontainers this is /mnt/codegeist/chrome-cdp-profile.
 
 Account sign-in:
@@ -53,6 +56,11 @@ EOF
       exit 0
       ;;
     *)
+      case "$1" in
+        --user-data-dir|--user-data-dir=*)
+          has_explicit_user_data_dir=1
+          ;;
+      esac
       chrome_args+=("$1")
       ;;
   esac
@@ -145,7 +153,7 @@ EOF
   exit 1
 fi
 
-if [ -n "${CHROME_CDP_PROFILE_DIR:-}" ]; then
+if [ -n "${CHROME_CDP_PROFILE_DIR:-}" ] && [ "$has_explicit_user_data_dir" -eq 0 ]; then
   mkdir -p "$CHROME_CDP_PROFILE_DIR"
   visible_args+=(--user-data-dir="$CHROME_CDP_PROFILE_DIR")
 fi

@@ -34,6 +34,7 @@ fake_bin="$suite_tmp_dir/chrome-launcher-bin"
 capture_file="$suite_tmp_dir/chrome-launcher-display.txt"
 args_capture_file="$suite_tmp_dir/chrome-launcher-args.txt"
 profile_dir="$suite_tmp_dir/chrome-cdp-profile"
+explicit_profile_dir="$suite_tmp_dir/playwright-mcp-profile"
 
 mkdir -p "$fixture_dir/.devcontainer" "$fake_bin"
 
@@ -72,4 +73,20 @@ PATH="$fake_bin:$PATH" \
 [[ "$(<"$capture_file")" = "localhost:77.0" ]] \
   || fail "chrome launcher did not replace stale DISPLAY from generated workspace env"
 
-pass "chrome launcher refreshes visible DISPLAY from generated workspace env"
+PATH="$fake_bin:$PATH" \
+  DEVCONTAINER_WORKSPACE_FOLDER="$fixture_dir" \
+  CHROME_CDP_PROFILE_DIR="$profile_dir" \
+  CHROME_LAUNCHER_CAPTURE="$capture_file" \
+  CHROME_LAUNCHER_ARGS_CAPTURE="$args_capture_file" \
+  DISPLAY=localhost:1.0 \
+  "$project_root/scripts/chrome.sh" --user-data-dir="$explicit_profile_dir" about:blank
+
+grep -Fx -- "--user-data-dir=$explicit_profile_dir" "$args_capture_file" >/dev/null \
+  || fail "chrome launcher did not forward explicit caller profile"
+if grep -Fx -- "--user-data-dir=$profile_dir" "$args_capture_file" >/dev/null; then
+  fail "chrome launcher added CHROME_CDP_PROFILE_DIR despite explicit caller profile"
+fi
+[[ "$(grep -c '^--user-data-dir' "$args_capture_file")" = "1" ]] \
+  || fail "chrome launcher passed more than one user data directory"
+
+pass "chrome launcher refreshes DISPLAY and preserves explicit profile args"

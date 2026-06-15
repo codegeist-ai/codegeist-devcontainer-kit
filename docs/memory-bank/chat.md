@@ -81,6 +81,12 @@
   installs `/etc/profile.d/codegeist-workspace-scripts.sh`, and the entrypoint
   prepends `$DEVCONTAINER_WORKSPACE_FOLDER/.devcontainer/scripts` to `PATH` for
   runtime commands.
+- The Chrome launcher only adds `CHROME_CDP_PROFILE_DIR` as `--user-data-dir`
+  when the caller did not already pass an explicit profile. OpenCode Playwright
+  MCP can share the same profile by setting
+  `PLAYWRIGHT_MCP_USER_DATA_DIR=/mnt/codegeist/chrome-cdp-profile` in the local
+  MCP server environment; do not rely on JSON env interpolation in the MCP config
+  file.
 - `entrypoint.sh` starts nested `dockerd` without forcing a storage driver so
   Docker can use `overlay2` when available. Do not reintroduce `vfs` by default;
   it duplicates layers and can exhaust disk during full image builds.

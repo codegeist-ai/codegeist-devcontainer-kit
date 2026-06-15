@@ -226,13 +226,18 @@ container mount itself changed. For SSH X11 forwarding, the launcher copies the
 current Xauthority file to a temporary file and adds localhost aliases when the
 cookie is stored under the forwarded `/unix:<display>` name. Plain visible
 `chrome` uses the shared Playwright/CDP profile when the devcontainer provides
-`CHROME_CDP_PROFILE_DIR`.
+`CHROME_CDP_PROFILE_DIR`, unless the caller passes an explicit
+`--user-data-dir`.
 For Playwright/CDP automation that should share login state across Codegeist
 devcontainer instances, `initialize.sh` creates the host profile directory
 `${CODEGEIST_CHROME_CDP_PROFILE_DIR:-$HOME/.config/codegeist-chrome-cdp}` and
 Compose mounts it at `/mnt/codegeist/chrome-cdp-profile` inside every workspace
 container. Override `CODEGEIST_CHROME_CDP_PROFILE_DIR` before the devcontainer
 starts when a machine needs a different shared host path.
+OpenCode Playwright MCP configurations that should use the same profile can set
+`PLAYWRIGHT_MCP_USER_DATA_DIR=/mnt/codegeist/chrome-cdp-profile` in the local MCP
+server environment; do not rely on JSON environment-variable interpolation in
+the Playwright MCP config file.
 In this repository, the same command can be exercised from the kit image:
 
 ```bash

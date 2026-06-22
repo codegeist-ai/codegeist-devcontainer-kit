@@ -13,7 +13,9 @@ projects should pin `.devcontainer` to the `release` branch.
 
 The `release` branch is a runtime-only tree. It contains the files needed by the
 Dev Containers extension and excludes this repository's development-only files,
-tests, and local AI workflow support.
+tests, and local AI workflow support. The image toolchain includes PowerShell as
+`pwsh` for cross-platform shell and automation work inside consuming
+devcontainers.
 
 ## Consumer Setup
 

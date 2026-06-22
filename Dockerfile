@@ -7,9 +7,9 @@
 # - Provides a system Maven installation so the app does not need a wrapper.
 # - Adds the Nix package manager for later package migration work without
 #   switching the devcontainer setup to flakes yet.
-# - Includes Hugo, Kubernetes, Terraform, Ansible, QEMU/KVM, password-store,
-#   speech, YAML, network, and FTP tools so the shared workspace can handle site,
-#   infrastructure, virtualization, and deployment tasks.
+# - Includes Hugo, Kubernetes, Terraform, Ansible, PowerShell, QEMU/KVM,
+#   password-store, speech, YAML, network, and FTP tools so the shared workspace
+#   can handle site, infrastructure, virtualization, and deployment tasks.
 # - `scripts/release-build.sh` copies this source file to release `Dockerfile` so
 #   consuming repositories still receive the standard Dev Containers filename.
 # - `initialize.sh` copies the released `Dockerfile` into `Dockerfile.merged.gen`
@@ -78,6 +78,8 @@ RUN install -m 0755 -d /etc/apt/keyrings \
  && chmod a+r /etc/apt/keyrings/microsoft.gpg \
  && printf 'Types: deb\nURIs: https://packages.microsoft.com/repos/code\nSuites: stable\nComponents: main\nSigned-By: /etc/apt/keyrings/microsoft.gpg\n' \
       > /etc/apt/sources.list.d/vscode.sources \
+ && printf 'Types: deb\nURIs: https://packages.microsoft.com/debian/12/prod\nSuites: bookworm\nComponents: main\nSigned-By: /etc/apt/keyrings/microsoft.gpg\n' \
+      > /etc/apt/sources.list.d/microsoft-prod.sources \
  && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
        -o /etc/apt/keyrings/githubcli-archive-keyring.gpg \
   && chmod a+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
@@ -125,6 +127,7 @@ RUN apt-get update \
       nodejs \
       nushell \
       pass \
+      powershell \
       pwgen \
       python3 \
       python3-dev \

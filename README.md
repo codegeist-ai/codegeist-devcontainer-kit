@@ -149,7 +149,10 @@ To start the container with a managed Git worktree mounted at its stable host
 path from VS Code Remote SSH, set `BRANCH` in the SSH environment and reopen the
 repository root in the container. If `BRANCH` names the already checked-out
 branch, such as `BRANCH=main` on `main`, `.worktrees/<branch>` is a symlink
-alias back to the repository root:
+alias back to the repository root. The Docker Compose project name is generated
+as `<branch-slug>-<repo-slug>`, so two SSH hosts with different `BRANCH` values
+run parallel containers such as `codegeist-cloud-server-myrepo-workspace-1` and
+`install-scripts-myrepo-workspace-1`:
 
 ```sshconfig
 Host project-dev0
@@ -183,9 +186,9 @@ The first start creates local runtime files when missing:
 - `.devcontainer/compose.user.gen.yml`, an ignored bridge to optional
   `.codegeist/compose.local.yml` overrides
 
-The generated Compose override sets the container hostname and maps that same
-name to `127.0.0.1` through `extra_hosts`, so tools such as `sudo` can resolve
-the active container hostname.
+The generated Compose override sets a branch-aware Compose project name, sets the
+container hostname, and maps that same name to `127.0.0.1` through `extra_hosts`,
+so tools such as `sudo` can resolve the active container hostname.
 
 When upgrading an older checkout, `initialize.sh` copies legacy root `.local.env`
 or `compose.local.yml` into the matching `.codegeist/` path only when the new

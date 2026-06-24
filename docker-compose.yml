@@ -22,7 +22,8 @@
 # - CONTAINER_USER, CONTAINER_GROUP, CONTAINER_UID, and CONTAINER_GID customize
 #   the workspace user created by the Dockerfile.
 # - UID selects the numeric runtime user and group for bind-mounted workspaces.
-# - compose.local.gen.yml sets the generated container hostname.
+# - compose.local.gen.yml sets the generated container hostname and Compose
+#   project name.
 # - compose.user.gen.yml carries the optional `.codegeist/compose.local.yml`
 #   override through a generated file that always exists for Dev Containers.
 # - BRANCH selects `../.worktrees/<branch>` as the workspace source when set.

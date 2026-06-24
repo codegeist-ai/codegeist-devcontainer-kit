@@ -22,11 +22,18 @@ script_dir="$(dirname "$(readlink -f "$0")")"
 # shellcheck source=./helpers.sh
 source "$script_dir/helpers.sh"
 
+local_suite=0
+if [ -z "${suite_tmp_dir:-}" ]; then
+  setup_suite
+  local_suite=1
+fi
+
 repo_dir="$suite_tmp_dir/worktree-devcontainer-repo"
 branch_name="feature/test-worktree"
 root_container_id=""
 log_file="$suite_tmp_dir/devcontainer-worktree-up.log"
 expected_hostname=""
+expected_project_name=""
 expected_workspace_folder=""
 expected_user="$(id -u):$(id -u)"
 expected_user_name="$(expected_container_user)"
@@ -37,7 +44,14 @@ cleanup_devcontainer() {
   fi
 
 }
-trap cleanup_devcontainer EXIT
+
+cleanup_test() {
+  cleanup_devcontainer
+  if [ "$local_suite" -eq 1 ]; then
+    cleanup_suite
+  fi
+}
+trap cleanup_test EXIT
 
 create_git_fixture_repo "$repo_dir"
 
@@ -65,9 +79,13 @@ root_container_id="$(extract_container_id_from_log "$log_file" || true)"
 [[ -L "$worktree_path/.codegeist/.local.env" ]] || fail "worktree .codegeist/.local.env stopped being a symlink"
 
 expected_hostname="$(expected_generated_hostname "$repo_dir" "$branch_name")"
+expected_project_name="$(expected_compose_project_name "$repo_dir" "$branch_name")"
+[[ "$(<"$repo_dir/.devcontainer/.env")" == *"DEVCONTAINER_COMPOSE_PROJECT_NAME=$expected_project_name"* ]] || fail "generated env does not set worktree Compose project name"
+[[ "$(<"$repo_dir/.devcontainer/compose.local.gen.yml")" == *"name: $expected_project_name"* ]] || fail "generated compose file does not set worktree project name"
 [[ "$(<"$repo_dir/.devcontainer/compose.local.gen.yml")" == *"hostname: $expected_hostname"* ]] || fail "generated compose file does not set worktree hostname"
 [[ "$(<"$repo_dir/.devcontainer/compose.local.gen.yml")" == *"CONTAINER_USER: $expected_user_name"* ]] || fail "generated compose file does not set worktree build user"
 [[ "$(<"$repo_dir/.devcontainer/compose.local.gen.yml")" == *"user: \"$expected_user\""* ]] || fail "generated compose file does not set worktree user"
+[[ "$(docker inspect --format '{{ index .Config.Labels "com.docker.compose.project" }}' "$root_container_id")" = "$expected_project_name" ]] || fail "worktree container has wrong Compose project label"
 
 for _ in 1 2 3 4 5 6 7 8 9 10; do
   if docker exec -w "$expected_workspace_folder" -u "$expected_user_name" "$root_container_id" bash -lc 'test "$(id -un)" = "'"$expected_user_name"'" && test "$(hostname)" = "'"$expected_hostname"'" && test "$DEVCONTAINER_HOSTNAME" = "'"$expected_hostname"'" && test "$DEVCONTAINER_USER" = "'"$expected_user_name"'" && test "$DEVCONTAINER_UID:$DEVCONTAINER_GID" = "'"$expected_user"'" && test "$DEVCONTAINER_WORKSPACE_FOLDER" = "'"$expected_workspace_folder"'" && test "$PWD" = "'"$expected_workspace_folder"'" && docker ps >/dev/null && git rev-parse --is-inside-work-tree >/dev/null && test "$(git rev-parse --abbrev-ref HEAD)" = "feature/test-worktree" && test -d "'"$repo_dir"'/.git"'; then

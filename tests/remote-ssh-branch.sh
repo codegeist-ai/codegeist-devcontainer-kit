@@ -21,6 +21,12 @@ script_dir="$(dirname "$(readlink -f "$0")")"
 # shellcheck source=./helpers.sh
 source "$script_dir/helpers.sh"
 
+local_suite=0
+if [ -z "${suite_tmp_dir:-}" ]; then
+  setup_suite
+  local_suite=1
+fi
+
 repo_dir="$suite_tmp_dir/remote-ssh-branch-repo"
 branch_name="develop0"
 host_name="devcontainer-remote-ssh-test"
@@ -37,6 +43,7 @@ ssh_port=""
 remote_log_file="$suite_tmp_dir/remote-ssh-devcontainer-up.log"
 remote_command_file=""
 expected_hostname=""
+expected_project_name=""
 expected_workspace_folder=""
 expected_user="$(id -u):$(id -u)"
 expected_remote_workspace_folder=""
@@ -54,6 +61,10 @@ cleanup_remote_ssh() {
   fi
 
   docker rmi "$ssh_image" >/dev/null 2>&1 || true
+
+  if [ "$local_suite" -eq 1 ]; then
+    cleanup_suite
+  fi
 }
 trap cleanup_remote_ssh EXIT
 
@@ -162,7 +173,11 @@ expected_remote_workspace_folder="$(expected_remote_workspace_folder "$repo_dir"
 [[ "$(<"$repo_dir/.devcontainer/.env")" == *"DEVCONTAINER_WORKSPACE_FOLDER=$expected_workspace_folder"* ]] || fail "remote SSH generated env does not select worktree workspace"
 
 expected_hostname="$(fit_hostname "$(slug_hostname_part "$remote_host_short")-$(slug_hostname_part "$(basename "$repo_dir")")-$(slug_hostname_part "$branch_name")")"
+expected_project_name="$(expected_compose_project_name "$repo_dir" "$branch_name")"
+[[ "$(<"$repo_dir/.devcontainer/.env")" == *"DEVCONTAINER_COMPOSE_PROJECT_NAME=$expected_project_name"* ]] || fail "remote SSH generated env does not set branch Compose project name"
+[[ "$(<"$repo_dir/.devcontainer/compose.local.gen.yml")" == *"name: $expected_project_name"* ]] || fail "remote SSH generated compose file does not set branch project name"
 [[ "$(<"$repo_dir/.devcontainer/compose.local.gen.yml")" == *"hostname: $expected_hostname"* ]] || fail "remote SSH generated compose file does not set branch hostname"
+[[ "$(docker inspect --format '{{ index .Config.Labels "com.docker.compose.project" }}' "$workspace_container_id")" = "$expected_project_name" ]] || fail "remote SSH container has wrong Compose project label"
 
 for _ in 1 2 3 4 5 6 7 8 9 10; do
   if docker exec -w "$expected_workspace_folder" -u "$expected_user_name" "$workspace_container_id" bash -lc 'test "$(id -un)" = "'"$expected_user_name"'" && test "$(hostname)" = "'"$expected_hostname"'" && test "$DEVCONTAINER_HOSTNAME" = "'"$expected_hostname"'" && test "$DEVCONTAINER_WORKSPACE_FOLDER" = "'"$expected_workspace_folder"'" && test "$DEVCONTAINER_UID:$DEVCONTAINER_GID" = "'"$expected_user"'" && test "$(git rev-parse --abbrev-ref HEAD)" = "develop0" && docker ps >/dev/null'; then

@@ -43,8 +43,11 @@ VS Code opens the container workspace at an absolute host-matching path. Without
 `initializeCommand` creates or reuses the matching Git worktree and
 `devcontainer.json` opens `.worktrees/<branch>` as the remote workspace while
 `docker-compose.yml` still mounts the repository root at its host path for
-linked-worktree Git metadata. Keeping stable per-checkout paths prevents
-OpenCode sessions from being mixed across projects or branches.
+linked-worktree Git metadata. The generated Compose project name is
+branch-first, for example `develop0-myrepo`, so multiple Remote SSH windows for
+different branches get separate `workspace` containers. Keeping stable
+per-checkout paths prevents OpenCode sessions from being mixed across projects or
+branches.
 
 ## Quick Start For Consuming Repos
 
@@ -80,7 +83,10 @@ SSH environment and reopen the repository root in the container. The Dev
 Containers lifecycle creates `.worktrees/<branch>` and opens that checkout as
 the remote workspace. If `BRANCH` names the already checked-out branch, such as
 `BRANCH=main` on `main`, `.worktrees/<branch>` is a symlink alias back to the
-repository root:
+repository root. The Docker Compose project name is generated as
+`<branch-slug>-<repo-slug>`, so two SSH hosts with different `BRANCH` values run
+parallel containers such as `codegeist-cloud-server-myrepo-workspace-1` and
+`install-scripts-myrepo-workspace-1`:
 
 ```sshconfig
 Host project-dev0
@@ -851,6 +857,11 @@ writes that checkout's
 `.devcontainer/.env`, `.devcontainer/Dockerfile.merged.gen`,
 `.devcontainer/compose.local.gen.yml`, and `.devcontainer/compose.user.gen.yml`
 without nesting another worktree for the same branch.
+
+For a `BRANCH` start, `.devcontainer/compose.local.gen.yml` sets the Compose
+project name to `<branch-slug>-<repo-slug>`. This keeps separate Remote SSH
+windows from reusing one `workspace` container when they open the same repository
+root with different branch selections.
 
 `BRANCH` is a startup input only. `initialize.sh` uses it to compute generated
 workspace values and prepare worktrees, but does not persist `BRANCH=` into

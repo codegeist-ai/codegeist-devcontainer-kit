@@ -41,6 +41,7 @@ run_timed "browser smoke" "$WARN_DEVCONTAINER_SECONDS" "$script_dir/browser-smok
 run_timed "devcontainer up" "$WARN_DEVCONTAINER_SECONDS" "$script_dir/devcontainer-up.sh"
 run_timed "devcontainer current branch up" "$WARN_DEVCONTAINER_SECONDS" "$script_dir/devcontainer-current-branch-up.sh"
 run_timed "devcontainer worktree up" "$WARN_DEVCONTAINER_SECONDS" "$script_dir/devcontainer-worktree-up.sh"
+run_timed "devcontainer parallel branches" "$WARN_DEVCONTAINER_SECONDS" "$script_dir/devcontainer-parallel-branches.sh"
 run_timed "submodule workflow" "$WARN_DEVCONTAINER_SECONDS" "$script_dir/submodule-workflow.sh"
 
 suite_duration="$(elapsed_seconds "$suite_start_epoch")"

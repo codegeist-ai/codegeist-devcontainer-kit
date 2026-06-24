@@ -242,6 +242,26 @@ expected_generated_hostname() {
   fit_hostname "$host_part-$repo_part-$branch_part"
 }
 
+expected_compose_project_name() {
+  local repo_dir="$1"
+  local branch_name="${2:-}"
+  local repo_part=""
+  local branch_part=""
+
+  repo_part="$(slug_hostname_part "$(basename "$repo_dir")")"
+
+  if [ -z "$branch_name" ]; then
+    branch_name="$(git -C "$repo_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+  fi
+
+  if [ -z "$branch_name" ] || [ "$branch_name" = "HEAD" ]; then
+    branch_name="detached"
+  fi
+
+  branch_part="$(slug_hostname_part "$branch_name")"
+  printf '%s-%s\n' "$branch_part" "$repo_part"
+}
+
 expected_container_user() {
   printf '%s\n' "${USER:-$(id -un)}"
 }

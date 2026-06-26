@@ -10,6 +10,8 @@
 # - Includes Hugo, Kubernetes, Terraform, Ansible, PowerShell, QEMU/KVM,
 #   password-store, speech, YAML, network, and FTP tools so the shared workspace
 #   can handle site, infrastructure, virtualization, and deployment tasks.
+# - Installs the Codegeist CLI through the upstream Linux installer from the
+#   codegeist repository's main branch.
 # - `scripts/release-build.sh` copies this source file to release `Dockerfile` so
 #   consuming repositories still receive the standard Dev Containers filename.
 # - `initialize.sh` copies the released `Dockerfile` into `Dockerfile.merged.gen`
@@ -184,6 +186,10 @@ RUN curl -fsSL "https://github.com/go-task/task/releases/latest/download/task_li
  && tar -xzf /tmp/task.tar.gz -C /usr/local/bin task \
  && chmod +x /usr/local/bin/task \
  && rm -f /tmp/task.tar.gz
+
+RUN curl -fsSL https://raw.githubusercontent.com/codegeist-ai/codegeist/main/scripts/install/codegeist-install-linux.sh \
+      | env CODEGEIST_INSTALL_DIR=/opt/codegeist CODEGEIST_BIN_DIR=/usr/local/bin bash \
+ && codegeist --version
 
 RUN curl -fsSL "https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64" \
       -o /usr/local/bin/yq \

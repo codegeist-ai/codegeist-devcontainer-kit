@@ -157,6 +157,7 @@ RUN curl -LsSf https://astral.sh/uv/install.sh \
 
 RUN npm install -g --prefix /usr/local opencode-ai repomix @ast-grep/cli @devcontainers/cli @mermaid-js/mermaid-cli tiktoken-cli \
  && rm -f /usr/local/bin/sg \
+ && rm -rf /tmp/opencode \
  && npm cache clean --force
 
 RUN python3 -m pip install --break-system-packages --no-cache-dir \

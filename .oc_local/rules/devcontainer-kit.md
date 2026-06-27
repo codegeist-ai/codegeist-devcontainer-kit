@@ -15,6 +15,9 @@ local override templates in this repository.
   image toolchain. They support YAML/config editing, network diagnostics,
   socket debugging, and `.envrc`-based project workflows without per-project
   installation. Do not add shell hooks for `direnv` by default.
+- Keep JBang in the default image toolchain. Install it under `/opt/jbang` with
+  a `/usr/local/bin/jbang` symlink so Java script workflows are available without
+  a user-home-bound installation.
 - Keep Kubernetes and infrastructure administration tools in the default image:
   `kubectl`, `helm`, `k9s`, `talosctl`, `terraform`, and `ansible`. Install the
   CLI tools from their latest upstream channels unless the repository later

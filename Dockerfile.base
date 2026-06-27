@@ -7,9 +7,10 @@
 # - Provides a system Maven installation so the app does not need a wrapper.
 # - Adds the Nix package manager for later package migration work without
 #   switching the devcontainer setup to flakes yet.
-# - Includes Hugo, Kubernetes, Terraform, Ansible, PowerShell, QEMU/KVM,
+# - Includes JBang, Hugo, Kubernetes, Terraform, Ansible, PowerShell, QEMU/KVM,
 #   password-store, speech, YAML, network, and FTP tools so the shared workspace
-#   can handle site, infrastructure, virtualization, and deployment tasks.
+#   can handle Java scripting, site, infrastructure, virtualization, and
+#   deployment tasks.
 # - Installs the Codegeist CLI through the upstream Linux installer from the
 #   codegeist repository's main branch.
 # - `scripts/release-build.sh` copies this source file to release `Dockerfile` so
@@ -241,6 +242,11 @@ RUN curl -fsSL "https://github.com/graalvm/graalvm-ce-builds/releases/download/j
  && /opt/graalvm/bin/java -version \
  && /opt/graalvm/bin/native-image --version \
  && rm -f /tmp/graalvm.tar.gz
+
+RUN curl -Ls https://sh.jbang.dev \
+      | env JBANG_DIR=/opt/jbang bash -s - app setup \
+ && ln -sf /opt/jbang/bin/jbang /usr/local/bin/jbang \
+ && jbang --version
 
 RUN groupadd --gid "$CONTAINER_GID" "$CONTAINER_GROUP" \
  && useradd --uid "$CONTAINER_UID" --gid "$CONTAINER_GID" --create-home --shell /bin/bash "$CONTAINER_USER" \

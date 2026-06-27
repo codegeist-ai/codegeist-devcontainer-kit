@@ -36,9 +36,10 @@
 - `Dockerfile.base` is the source image file and installs the Codegeist CLI
   through the upstream Linux installer from the `codegeist` repository's `main`
   branch, with the release archive under `/opt/codegeist` and the wrapper at
-  `/usr/local/bin/codegeist`. It also installs `tiktoken-cli`, Mike Farah `yq`,
-  PowerShell as `pwsh`, `espeak-ng`, network diagnostics, password-store tooling
-  through `pass`, QEMU/KVM virtualization tools, Kubernetes administration CLIs
+  `/usr/local/bin/codegeist`. It also installs JBang under `/opt/jbang` with a
+  `/usr/local/bin/jbang` symlink, `tiktoken-cli`, Mike Farah `yq`, PowerShell as
+  `pwsh`, `espeak-ng`, network diagnostics, password-store tooling through
+  `pass`, QEMU/KVM virtualization tools, Kubernetes administration CLIs
   (`kubectl`, `helm`, `k9s`, `talosctl`), and infrastructure tools (`terraform`,
   `ansible`) in the default toolchain. Browser/UI tooling includes Google Chrome,
   X11 helpers, and `Xvfb` so tools can use a virtual X server without host

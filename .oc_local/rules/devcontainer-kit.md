@@ -63,6 +63,10 @@ local override templates in this repository.
 - Do not mount a hostwide shared Chrome profile by default. Use explicit
   `--user-data-dir` only when overriding the default workspace-local `.chrome`
   profile, so parallel projects do not contend on one locked Chrome profile.
+- Keep visible Chrome launcher defaults lean for container and SSH X11 use:
+  disable background networking, component updates, extensions, sync,
+  translation, notifications, audio, and GPU acceleration unless a concrete task
+  needs one of those services.
 
 ## Runtime Release Workflow
 

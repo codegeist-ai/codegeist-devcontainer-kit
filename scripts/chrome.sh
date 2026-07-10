@@ -9,7 +9,8 @@
 # Inputs:
 # - `--headless` starts Chrome without a display and forwards remaining args.
 # - Visible Chrome defaults to `$DEVCONTAINER_WORKSPACE_FOLDER/.chrome` unless
-#   the caller passes `--user-data-dir`.
+#   the caller passes `--user-data-dir`, and disables container-expensive
+#   browser services that are not needed for normal interactive checks.
 # - `DEVCONTAINER_WORKSPACE_FOLDER` points at the mounted workspace whose
 #   `.devcontainer/.env` may contain a refreshed `DEVCONTAINER_DISPLAY` after a
 #   VS Code reopen.
@@ -65,7 +66,23 @@ EOF
   shift
 done
 
-visible_args=(--no-first-run --no-default-browser-check)
+visible_args=(
+  --no-first-run
+  --no-default-browser-check
+  --disable-background-networking
+  --disable-breakpad
+  --disable-component-update
+  --disable-default-apps
+  --disable-extensions
+  --disable-gpu
+  --disable-notifications
+  --disable-search-engine-choice-screen
+  --disable-sync
+  --disable-translate
+  --metrics-recording-only
+  --mute-audio
+  --password-store=basic
+)
 headless_args=(
   --headless=new
   --disable-gpu

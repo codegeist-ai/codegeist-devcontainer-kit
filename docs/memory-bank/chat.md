@@ -93,8 +93,11 @@
   prepends `$DEVCONTAINER_WORKSPACE_FOLDER/.devcontainer/scripts` to `PATH` for
   runtime commands.
 - The Chrome launcher adds workspace-local `.chrome` as `--user-data-dir` when
-  the caller did not already pass an explicit profile. Compose no longer injects
-  `CHROME_CDP_PROFILE_DIR` or mounts `/mnt/codegeist/chrome-cdp-profile`.
+  the caller did not already pass an explicit profile. Visible Chrome also
+  disables container-expensive defaults such as background networking, component
+  updates, extensions, sync, translation, notifications, audio, and GPU
+  acceleration. Compose no longer injects `CHROME_CDP_PROFILE_DIR` or mounts
+  `/mnt/codegeist/chrome-cdp-profile`.
 - `entrypoint.sh` starts nested `dockerd` without forcing a storage driver so
   Docker can use `overlay2` when available. Do not reintroduce `vfs` by default;
   it duplicates layers and can exhaust disk during full image builds.
@@ -274,6 +277,10 @@
   Compose and generated `.env`. Targeted verification should cover
   `tests/initialize.sh`, `tests/opencode-mounts.sh`, `tests/chrome-launcher.sh`,
   and `tests/release-build.sh` before the next runtime release.
+- Latest visible Chrome speed-up verification passed with `bash -n
+  scripts/chrome.sh tests/chrome-launcher.sh`, `tests/chrome-launcher.sh`,
+  `git --no-pager diff --check`, and timeout-bounded non-headless starts of both
+  `scripts/chrome.sh` and the current `chrome` command using temporary profiles.
 - The suite covers initialization, Compose config resolution, branch worktree
   setup, local Docker image build, QEMU Alpine `3.20.3` ISO boot via KVM
   acceleration until `localhost login:`, TTY `docker-run`, browser smoke

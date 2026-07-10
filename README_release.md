@@ -285,9 +285,11 @@ container mount itself changed. For SSH X11 forwarding, the launcher copies the
 current Xauthority file to a temporary file and adds localhost aliases when the
 cookie is stored under the forwarded `/unix:<display>` name. Plain visible
 `chrome` uses `$DEVCONTAINER_WORKSPACE_FOLDER/.chrome` unless the caller passes
-an explicit `--user-data-dir`. The kit no longer mounts a hostwide shared
-Playwright/CDP profile into every workspace because Chrome locks profile
-directories and parallel projects can block each other.
+an explicit `--user-data-dir`. Visible Chrome also disables container-expensive
+defaults such as background networking, component updates, extensions, sync,
+translation, notifications, audio, and GPU acceleration. The kit no longer
+mounts a hostwide shared Playwright/CDP profile into every workspace because
+Chrome locks profile directories and parallel projects can block each other.
 For interactive account sign-in, start Chrome directly from a terminal with
 `chrome`. Do not use the OpenCode/Playwright MCP browser session for account
 login flows; it is automation-controlled through Chrome DevTools Protocol, and

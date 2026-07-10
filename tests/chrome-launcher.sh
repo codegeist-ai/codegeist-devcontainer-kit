@@ -60,6 +60,23 @@ PATH="$fake_bin:$PATH" \
   || fail "chrome launcher did not refresh DISPLAY from generated workspace env"
 grep -Fx -- "--user-data-dir=$workspace_profile_dir" "$args_capture_file" >/dev/null \
   || fail "chrome launcher did not use workspace .chrome as visible profile"
+for expected_arg in \
+  --disable-background-networking \
+  --disable-breakpad \
+  --disable-component-update \
+  --disable-default-apps \
+  --disable-extensions \
+  --disable-gpu \
+  --disable-notifications \
+  --disable-search-engine-choice-screen \
+  --disable-sync \
+  --disable-translate \
+  --metrics-recording-only \
+  --mute-audio \
+  --password-store=basic; do
+  grep -Fx -- "$expected_arg" "$args_capture_file" >/dev/null \
+    || fail "chrome launcher did not pass visible performance flag: $expected_arg"
+done
 
 PATH="$fake_bin:$PATH" \
   DEVCONTAINER_WORKSPACE_FOLDER="$fixture_dir" \

@@ -11,9 +11,10 @@ The source `Dockerfile.base` intentionally carries the full
 Codegeist/planner-style toolchain, including Docker CE, Node 24, VS Code,
 GitHub CLI, Maven, GraalVM, JBang, Hugo, Nix, PowerShell through `pwsh`,
 OpenCode tooling, the Codegeist CLI installed through the upstream Linux
-installer, Repomix, Kubernetes and infrastructure CLIs, QEMU/KVM virtualization tools,
-`espeak-ng`, network diagnostics, password-store tooling through `pass`, and
-related CLI tools. The release build publishes this file as
+installer, Repomix, Kubernetes and infrastructure CLIs, QEMU/KVM virtualization
+tools, `espeak-ng`, network diagnostics, security scan tools, password-store
+tooling through `pass`, and related CLI tools. The release build publishes this
+file as
 `.devcontainer/Dockerfile` for consuming repositories.
 
 The consuming project should use the standard VS Code flow:
@@ -315,6 +316,15 @@ task qemu-alpine-smoke
 The test fails when `/dev/kvm` is missing or not writable. Hosts that run the
 devcontainer inside another VM must enable nested virtualization before this
 suite can pass.
+
+## Security Scan Tools
+
+The devcontainer image includes deterministic external security-scan tools used
+by consuming infrastructure repositories: `nmap` and `nping`, `hping3`,
+`ssh-audit` 3.9.0, `testssl`, `sslscan`, `ssh`, `ssh-keygen`, and `sysctl` from
+`procps`. These tools are installed in the shared image so local QEMU checks and
+approved remote scans use the same scanner versions instead of relying on
+machine-local packages.
 
 ## Develop This Kit
 

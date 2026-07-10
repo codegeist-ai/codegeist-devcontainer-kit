@@ -8,9 +8,9 @@
 # - Adds the Nix package manager for later package migration work without
 #   switching the devcontainer setup to flakes yet.
 # - Includes JBang, Hugo, Kubernetes, Terraform, Ansible, PowerShell, QEMU/KVM,
-#   password-store, speech, YAML, network, and FTP tools so the shared workspace
-#   can handle Java scripting, site, infrastructure, virtualization, and
-#   deployment tasks.
+#   password-store, speech, YAML, network, security-scan, and FTP tools so the
+#   shared workspace can handle Java scripting, site, infrastructure,
+#   virtualization, deployment, and external scan tasks.
 # - Installs the Codegeist CLI through the upstream Linux installer from the
 #   codegeist repository's main branch.
 # - `scripts/release-build.sh` copies this source file to release `Dockerfile` so
@@ -121,16 +121,20 @@ RUN apt-get update \
       cpio \
       dnsmasq \
       expect \
+      hping3 \
       iproute2 \
       iputils-ping \
       iptables \
       kmod \
       netcat-openbsd \
+      nmap \
       maven \
       nodejs \
       nushell \
+      openssh-client \
       pass \
       powershell \
+      procps \
       pwgen \
       python3 \
       python3-dev \
@@ -140,10 +144,12 @@ RUN apt-get update \
       qemu-utils \
       ripgrep \
       rsync \
+      sslscan \
       sshpass \
       socat \
       sudo \
       terraform \
+      testssl.sh \
       tigervnc-viewer \
       unzip \
       wget \
@@ -167,6 +173,7 @@ RUN python3 -m pip install --break-system-packages --no-cache-dir \
       ddgr \
       graphifyy \
       lxml_html_clean \
+      ssh-audit==3.9.0 \
       trafilatura
 
 RUN curl -fsSL "https://github.com/boyter/scc/releases/latest/download/scc_Linux_x86_64.tar.gz" \

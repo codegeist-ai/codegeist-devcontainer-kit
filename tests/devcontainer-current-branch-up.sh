@@ -75,6 +75,7 @@ assert_info_exclude_lacks_patterns \
   "/.oc_local/.gitignore" \
   "/.worktrees/" \
   "/.codegeist/.local.env" \
+  "/.chrome/" \
   "/.codegeist/Dockerfile" \
   "/.codegeist/compose.local.yml"
 [[ -z "$(git -C "$repo_dir" status --porcelain -- .worktrees/main)" ]] || fail "current branch alias is not ignored"

@@ -61,6 +61,7 @@ cat >"$p1_dir/.gitignore" <<'EOF'
 /.oc_local/
 /.oc_local/.gitignore
 /.worktrees/
+/.chrome/
 EOF
 
 git -C "$p1_dir" add README.md .gitignore
@@ -88,6 +89,7 @@ expected_remote_workspace_folder="$(expected_remote_workspace_folder "$worktree_
 assert_not_ignored "$p1_dir" ".codegeist/compose.local.yml"
 assert_not_ignored "$p1_dir" ".codegeist/Dockerfile"
 assert_ignored_by_root_gitignore "$p1_dir" ".codegeist/.local.env"
+assert_ignored_by_root_gitignore "$p1_dir" ".chrome/profile-file"
 assert_ignored_by_root_gitignore "$p1_dir" ".oc_local/.gitignore"
 assert_ignored_by_root_gitignore "$p1_dir" ".worktrees/$branch_name/.codegeist/.local.env"
 assert_info_exclude_lacks_patterns \
@@ -96,6 +98,7 @@ assert_info_exclude_lacks_patterns \
   "/.oc_local/.gitignore" \
   "/.worktrees/" \
   "/.codegeist/.local.env" \
+  "/.chrome/" \
   "/.codegeist/Dockerfile" \
   "/.codegeist/compose.local.yml"
 [[ "$(<"$p1_dir/.devcontainer/.env")" == *"DEVCONTAINER_WORKSPACE_FOLDER=$expected_workspace_folder"* ]] || fail "generated env does not set submodule workspace folder"

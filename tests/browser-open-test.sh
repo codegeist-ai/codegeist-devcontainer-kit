@@ -136,12 +136,13 @@ set +e
 timeout 15s docker exec -u "$expected_user_name" \
   -e BROWSER_OPEN_TEST_URL="$url" \
   -e CHROME_LOG_FILE="$chrome_log_file" \
-  -e CHROME_CDP_PROFILE_DIR="$chrome_profile_dir" \
+  -e CHROME_PROFILE_DIR="$chrome_profile_dir" \
   "$container_id" bash -lc '
     set -euo pipefail
 
     rm -f "$CHROME_LOG_FILE"
     exec chrome \
+      --user-data-dir="$CHROME_PROFILE_DIR" \
       --new-window \
       --window-position=40,40 \
       --window-size=1280,900 \
@@ -155,7 +156,7 @@ chrome_started="false"
 
 for _ in $(seq 1 300); do
   if docker exec -u "$expected_user_name" \
-    -e CHROME_CDP_PROFILE_DIR="$chrome_profile_dir" \
+    -e CHROME_PROFILE_DIR="$chrome_profile_dir" \
     -e BROWSER_OPEN_TEST_URL="$url" \
     "$container_id" bash -lc '
       set -euo pipefail
@@ -163,7 +164,7 @@ for _ in $(seq 1 300); do
 
       if [ -n "${DISPLAY:-}" ] && command -v xwininfo >/dev/null 2>&1; then
         window_tree="$(DISPLAY="$DISPLAY" xwininfo -root -tree 2>/dev/null || true)"
-        if grep -F -- "$CHROME_CDP_PROFILE_DIR" <<<"$window_tree" >/dev/null; then
+        if grep -F -- "$CHROME_PROFILE_DIR" <<<"$window_tree" >/dev/null; then
           matched="true"
         fi
       fi
@@ -171,7 +172,7 @@ for _ in $(seq 1 300); do
       process_args="$(ps ww -u "$(id -u)" -o args= || true)"
 
       case "$process_args" in
-        *"--user-data-dir=$CHROME_CDP_PROFILE_DIR"*)
+        *"--user-data-dir=$CHROME_PROFILE_DIR"*)
           matched="true"
           ;;
       esac

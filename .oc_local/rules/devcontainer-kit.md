@@ -60,6 +60,9 @@ local override templates in this repository.
   session from a terminal. Do not route login flows through OpenCode/Playwright
   MCP browser sessions because providers such as Google can reject
   CDP-controlled browsers as insecure.
+- Do not mount a hostwide shared Chrome profile by default. Use explicit
+  `--user-data-dir` only when overriding the default workspace-local `.chrome`
+  profile, so parallel projects do not contend on one locked Chrome profile.
 
 ## Runtime Release Workflow
 

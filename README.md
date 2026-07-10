@@ -61,6 +61,7 @@ files to the consuming repository's `.gitignore`:
 /.codegeist/.local.env
 /.oc_local/
 /.worktrees/
+/.chrome/
 ```
 
 Ignore `/.oc_local/` only when the consuming repository does not intentionally
@@ -113,6 +114,7 @@ code .worktrees/develop0
 The first start creates local and generated files when missing:
 
 - `.codegeist/.local.env`
+- `.chrome/`
 - `.devcontainer/.env`
 - `.devcontainer/Dockerfile.merged.gen`
 - `.devcontainer/compose.local.gen.yml`
@@ -233,19 +235,10 @@ from one display number to another, reopen the devcontainer so
 container mount itself changed. For SSH X11 forwarding, the launcher copies the
 current Xauthority file to a temporary file and adds localhost aliases when the
 cookie is stored under the forwarded `/unix:<display>` name. Plain visible
-`chrome` uses the shared Playwright/CDP profile when the devcontainer provides
-`CHROME_CDP_PROFILE_DIR`, unless the caller passes an explicit
-`--user-data-dir`.
-For Playwright/CDP automation that should share login state across Codegeist
-devcontainer instances, `initialize.sh` creates the host profile directory
-`${CODEGEIST_CHROME_CDP_PROFILE_DIR:-$HOME/.config/codegeist-chrome-cdp}` and
-Compose mounts it at `/mnt/codegeist/chrome-cdp-profile` inside every workspace
-container. Override `CODEGEIST_CHROME_CDP_PROFILE_DIR` before the devcontainer
-starts when a machine needs a different shared host path.
-OpenCode Playwright MCP configurations that should use the same profile can set
-`PLAYWRIGHT_MCP_USER_DATA_DIR=/mnt/codegeist/chrome-cdp-profile` in the local MCP
-server environment; do not rely on JSON environment-variable interpolation in
-the Playwright MCP config file.
+`chrome` uses `$DEVCONTAINER_WORKSPACE_FOLDER/.chrome` unless the caller passes
+an explicit `--user-data-dir`. The kit no longer mounts a hostwide shared
+Playwright/CDP profile into every workspace because Chrome locks profile
+directories and parallel projects can block each other.
 In this repository, the same command can be exercised from the kit image:
 
 ```bash
@@ -256,16 +249,19 @@ Pass a URL after `--` when you want the visible test fixture to open a specific
 page instead of its local data URL default.
 
 For interactive account sign-in, start Chrome directly from a terminal with
-`chrome`. It uses the shared Playwright/CDP profile by default in Codegeist
-devcontainers. Do not use the OpenCode/Playwright MCP browser session for account
+`chrome`. Do not use the OpenCode/Playwright MCP browser session for account
 login flows; it is automation-controlled through Chrome DevTools Protocol, and
-providers such as Google can reject it as an insecure browser or app. To seed the
-shared Playwright/CDP profile once, run visible Chrome, sign in, close Chrome,
-and restart OpenCode before using the MCP browser:
+providers such as Google can reject it as an insecure browser or app. Use an
+explicit project-local profile when you need repeatable login state for one
+project:
 
 ```bash
 chrome
 ```
+
+The default visible profile is `.chrome` in the opened workspace and is ignored
+by Git. Pass a different `--user-data-dir` only when you need another isolated
+profile.
 
 Do not point Playwright/CDP at Chrome's default profile such as
 `~/.config/google-chrome`; Chrome blocks remote debugging for the default data
@@ -464,6 +460,7 @@ The consuming repository should ignore local files generated next to the subtree
 /.codegeist/.local.env
 /.oc_local/
 /.worktrees/
+/.chrome/
 ```
 
 Do not ignore `/.oc_local/` if the consuming repository deliberately tracks a
@@ -513,6 +510,7 @@ The same generated root files must still be ignored by the consuming repository:
 /.codegeist/.local.env
 /.oc_local/
 /.worktrees/
+/.chrome/
 ```
 
 The `.devcontainer/.env`, `.devcontainer/Dockerfile.merged.gen`,
@@ -934,8 +932,7 @@ Typical examples:
 - `.devcontainer/Dockerfile.merged.gen`
 - `.devcontainer/compose.local.gen.yml`
 - `.devcontainer/compose.user.gen.yml`
-- `$HOME/.config/codegeist-chrome-cdp` unless `CODEGEIST_CHROME_CDP_PROFILE_DIR`
-  overrides the shared Chrome CDP profile host path
+- `.chrome/`
 - `.oc_local/` when it is only generated OpenCode local state
 - generated runtime metadata
 - editor state

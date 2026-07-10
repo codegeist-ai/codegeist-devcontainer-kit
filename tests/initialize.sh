@@ -33,7 +33,6 @@ expected_project_name=""
 expected_user="$(id -u):$(id -u)"
 expected_user_name="$(expected_container_user)"
 expected_kvm_gid="$(stat -c %g /dev/kvm 2>/dev/null || id -g)"
-expected_chrome_cdp_profile_dir="$fixture_dir/.config/codegeist-chrome-cdp"
 worktree_path=""
 worktree_local_env=""
 current_branch=""
@@ -61,7 +60,7 @@ rm -f "$fixture_dir/.devcontainer/.env"
 rm -f "$fixture_dir/.devcontainer/compose.local.gen.yml"
 rm -f "$fixture_dir/.devcontainer/compose.user.gen.yml"
 
-env -u CODEGEIST_CHROME_CDP_PROFILE_DIR HOME="$fixture_dir" DISPLAY=localhost:42.0 BRANCH=feature/initialize-test "$fixture_dir/.devcontainer/initialize.sh"
+HOME="$fixture_dir" DISPLAY=localhost:42.0 BRANCH=feature/initialize-test "$fixture_dir/.devcontainer/initialize.sh"
 expected_hostname="$(expected_generated_hostname "$fixture_dir" "feature/initialize-test")"
 expected_project_name="$(expected_compose_project_name "$fixture_dir" "feature/initialize-test")"
 
@@ -77,7 +76,6 @@ expected_project_name="$(expected_compose_project_name "$fixture_dir" "feature/i
 [[ -f "$fixture_dir/.devcontainer/.env" ]] || fail ".devcontainer/.env was not created"
 [[ -f "$fixture_dir/.devcontainer/compose.local.gen.yml" ]] || fail ".devcontainer/compose.local.gen.yml was not created"
 [[ -f "$fixture_dir/.devcontainer/compose.user.gen.yml" ]] || fail ".devcontainer/compose.user.gen.yml was not created"
-[[ -d "$expected_chrome_cdp_profile_dir" ]] || fail "shared Chrome CDP profile directory was not created"
 [[ "$(<"$fixture_dir/.devcontainer/compose.user.gen.yml")" == *"# legacy compose marker"* ]] || fail "user compose bridge did not copy legacy compose override"
 [[ -f "$fixture_dir/.gitignore" ]] || fail ".gitignore was not created"
 [[ -d "$fixture_dir/.oc_local" ]] || fail ".oc_local was not created in repository root"
@@ -87,6 +85,7 @@ assert_not_ignored "$fixture_dir" ".codegeist/compose.local.yml"
 [[ -n "$(git -C "$fixture_dir" status --porcelain -- .codegeist/compose.local.yml)" ]] || fail ".codegeist/compose.local.yml is not visible to git status"
 assert_not_ignored "$fixture_dir" ".codegeist/Dockerfile"
 assert_ignored_by_root_gitignore "$fixture_dir" ".codegeist/.local.env"
+assert_ignored_by_root_gitignore "$fixture_dir" ".chrome/profile-file"
 assert_ignored_by_root_gitignore "$fixture_dir" ".oc_local/.gitignore"
 assert_ignored_by_root_gitignore "$fixture_dir" ".worktrees/feature/initialize-test/.codegeist/.local.env"
 assert_info_exclude_lacks_patterns \
@@ -95,6 +94,7 @@ assert_info_exclude_lacks_patterns \
   "/.oc_local/.gitignore" \
   "/.worktrees/" \
   "/.codegeist/.local.env" \
+  "/.chrome/" \
   "/.codegeist/Dockerfile" \
   "/.codegeist/compose.local.yml"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_HOSTNAME=$expected_hostname"* ]] || fail ".env does not contain generated hostname"
@@ -104,7 +104,7 @@ assert_info_exclude_lacks_patterns \
 [[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_GID=$(id -u)"* ]] || fail ".env does not contain generated GID"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_KVM_GID=$expected_kvm_gid"* ]] || fail ".env does not contain generated KVM GID"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_DISPLAY=localhost:42.0"* ]] || fail ".env does not contain generated DISPLAY"
-[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"CODEGEIST_CHROME_CDP_PROFILE_DIR=$expected_chrome_cdp_profile_dir"* ]] || fail ".env does not contain shared Chrome CDP profile path"
+[[ "$(<"$fixture_dir/.devcontainer/.env")" != *"CODEGEIST_CHROME_CDP_PROFILE_DIR="* ]] || fail ".env persisted shared Chrome CDP profile path"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" != *"BRANCH="* ]] || fail ".env persisted BRANCH input"
 ! grep -q '^COMPOSE_PROJECT_NAME=' "$fixture_dir/.devcontainer/.env" || fail ".env persisted Docker Compose project override"
 [[ "$(<"$fixture_dir/.devcontainer/compose.local.gen.yml")" == *"name: $expected_project_name"* ]] || fail "generated compose file does not set generated project name"
@@ -120,7 +120,7 @@ worktree_local_env="$worktree_path/.codegeist/.local.env"
 [[ -L "$worktree_local_env" ]] || fail "worktree .codegeist/.local.env is not a symlink"
 rm -f "$worktree_local_env"
 printf 'WORKTREE_LOCAL_ENV=1\n' >"$worktree_local_env"
-env -u CODEGEIST_CHROME_CDP_PROFILE_DIR HOME="$fixture_dir" BRANCH=feature/initialize-test "$fixture_dir/.devcontainer/initialize.sh"
+HOME="$fixture_dir" BRANCH=feature/initialize-test "$fixture_dir/.devcontainer/initialize.sh"
 [[ -f "$worktree_local_env" ]] || fail "existing worktree .codegeist/.local.env file was removed"
 [[ ! -L "$worktree_local_env" ]] || fail "existing worktree .codegeist/.local.env file was replaced with a symlink"
 [[ "$(<"$worktree_local_env")" = "WORKTREE_LOCAL_ENV=1" ]] || fail "existing worktree .codegeist/.local.env file was overwritten"
@@ -136,13 +136,13 @@ cp "$fixture_dir/.codegeist/.local.env" "$fixture_dir/.codegeist/.local.env.befo
 printf '\n# local compose marker\n' >>"$fixture_dir/.codegeist/compose.local.yml"
 printf 'CUSTOM_ENV=1\n' >"$fixture_dir/.codegeist/.local.env"
 
-env -u CODEGEIST_CHROME_CDP_PROFILE_DIR HOME="$fixture_dir" BRANCH=feature/initialize-test "$fixture_dir/.devcontainer/initialize.sh"
+HOME="$fixture_dir" BRANCH=feature/initialize-test "$fixture_dir/.devcontainer/initialize.sh"
 
 [[ "$(<"$fixture_dir/.codegeist/compose.local.yml")" == *"# local compose marker"* ]] || fail ".codegeist/compose.local.yml was overwritten"
 [[ "$(<"$fixture_dir/.devcontainer/compose.user.gen.yml")" == *"# local compose marker"* ]] || fail "user compose bridge did not refresh local compose marker"
 [[ "$(<"$fixture_dir/.codegeist/.local.env")" = "CUSTOM_ENV=1" ]] || fail ".codegeist/.local.env was overwritten"
 
-env -u BRANCH -u DISPLAY -u CODEGEIST_CHROME_CDP_PROFILE_DIR HOME="$fixture_dir" "$fixture_dir/.devcontainer/initialize.sh"
+env -u BRANCH -u DISPLAY HOME="$fixture_dir" "$fixture_dir/.devcontainer/initialize.sh"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" != *"BRANCH="* ]] || fail "generated .env kept stale BRANCH after unset start"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" != *"DEVCONTAINER_BRANCH_NAME=feature-initialize-test"* ]] || fail "generated .env reused stale branch after unset start"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" != *"DEVCONTAINER_COMPOSE_PROJECT_NAME=$expected_project_name"* ]] || fail "generated .env reused stale Compose project after unset start"
@@ -152,11 +152,11 @@ env -u BRANCH -u DISPLAY -u CODEGEIST_CHROME_CDP_PROFILE_DIR HOME="$fixture_dir"
 
 current_branch="$(git -C "$fixture_dir" rev-parse --abbrev-ref HEAD)"
 current_branch_alias="$fixture_dir/.worktrees/$current_branch"
-env -u CODEGEIST_CHROME_CDP_PROFILE_DIR HOME="$fixture_dir" BRANCH="$current_branch" "$fixture_dir/.devcontainer/initialize.sh"
+HOME="$fixture_dir" BRANCH="$current_branch" "$fixture_dir/.devcontainer/initialize.sh"
 [[ -L "$current_branch_alias" ]] || fail "current branch did not create a worktree alias"
 [[ "$(readlink -f "$current_branch_alias")" = "$fixture_dir" ]] || fail "current branch alias does not resolve to repository root"
 git -C "$fixture_dir" switch -c replacement-root >/dev/null
-env -u CODEGEIST_CHROME_CDP_PROFILE_DIR HOME="$fixture_dir" BRANCH="$current_branch" "$fixture_dir/.devcontainer/initialize.sh"
+HOME="$fixture_dir" BRANCH="$current_branch" "$fixture_dir/.devcontainer/initialize.sh"
 [[ -d "$current_branch_alias" ]] || fail "stale current branch alias was not replaced with a worktree"
 [[ ! -L "$current_branch_alias" ]] || fail "stale current branch alias is still a symlink"
 [[ "$(git -C "$current_branch_alias" rev-parse --abbrev-ref HEAD)" = "$current_branch" ]] || fail "replaced current branch alias is not on the original branch"

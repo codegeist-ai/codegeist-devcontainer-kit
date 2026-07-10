@@ -186,7 +186,6 @@ prepare_devcontainer_home() {
   local home_dir="$1"
 
   mkdir -p \
-    "$home_dir/.config/codegeist-chrome-cdp" \
     "$home_dir/.config/opencode" \
     "$home_dir/.local/share/opencode" \
     "$home_dir/.local/state/opencode"

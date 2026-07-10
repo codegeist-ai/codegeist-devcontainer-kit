@@ -13,3 +13,4 @@
 /.test-tmp/
 /.browser-smoke-tmp/
 /logs/
+/.chrome/

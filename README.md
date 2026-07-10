@@ -43,6 +43,7 @@ kit:
 /.codegeist/.local.env
 /.oc_local/
 /.worktrees/
+/.chrome/
 ```
 
 Do not ignore `/.oc_local/` if the consuming repository intentionally tracks a
@@ -283,30 +284,24 @@ from one display number to another, reopen the devcontainer so
 container mount itself changed. For SSH X11 forwarding, the launcher copies the
 current Xauthority file to a temporary file and adds localhost aliases when the
 cookie is stored under the forwarded `/unix:<display>` name. Plain visible
-`chrome` uses the shared Playwright/CDP profile when the devcontainer provides
-`CHROME_CDP_PROFILE_DIR`, unless the caller passes an explicit
-`--user-data-dir`. For
-Playwright/CDP automation that should share login state across Codegeist
-devcontainer instances, `initialize.sh` creates the host profile directory
-`${CODEGEIST_CHROME_CDP_PROFILE_DIR:-$HOME/.config/codegeist-chrome-cdp}` and
-Compose mounts it at `/mnt/codegeist/chrome-cdp-profile` inside every workspace
-container. Override `CODEGEIST_CHROME_CDP_PROFILE_DIR` before the devcontainer
-starts when a machine needs a different shared host path.
-OpenCode Playwright MCP configurations that should use the same profile can set
-`PLAYWRIGHT_MCP_USER_DATA_DIR=/mnt/codegeist/chrome-cdp-profile` in the local MCP
-server environment; do not rely on JSON environment-variable interpolation in
-the Playwright MCP config file.
+`chrome` uses `$DEVCONTAINER_WORKSPACE_FOLDER/.chrome` unless the caller passes
+an explicit `--user-data-dir`. The kit no longer mounts a hostwide shared
+Playwright/CDP profile into every workspace because Chrome locks profile
+directories and parallel projects can block each other.
 For interactive account sign-in, start Chrome directly from a terminal with
-`chrome`. It uses the shared Playwright/CDP profile by default in Codegeist
-devcontainers. Do not use the OpenCode/Playwright MCP browser session for account
+`chrome`. Do not use the OpenCode/Playwright MCP browser session for account
 login flows; it is automation-controlled through Chrome DevTools Protocol, and
-providers such as Google can reject it as an insecure browser or app. To seed the
-shared Playwright/CDP profile once, run visible Chrome, sign in, close Chrome,
-and restart OpenCode before using the MCP browser:
+providers such as Google can reject it as an insecure browser or app. Use an
+explicit project-local profile when you need repeatable login state for one
+project:
 
 ```bash
 chrome
 ```
+
+The default visible profile is `.chrome` in the opened workspace and is ignored
+by Git. Pass a different `--user-data-dir` only when you need another isolated
+profile.
 
 Do not point Playwright/CDP at Chrome's default profile such as
 `~/.config/google-chrome`; Chrome blocks remote debugging for the default data
@@ -326,8 +321,8 @@ The workspace service sets `shm_size: '1gb'` for browser stability, and Chrome
 hardware acceleration is disabled through the managed policy file at
 `/etc/opt/chrome/policies/managed/disable-hardware-accel.json`.
 
-Bookmarks, credentials outside the shared CDP profile, and project-specific
-service URLs belong in consuming-repository overrides or future focused kit work.
+Bookmarks, credentials, browser profiles, and project-specific service URLs
+belong in consuming-repository overrides or future focused kit work.
 
 ## QEMU Support
 

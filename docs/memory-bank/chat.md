@@ -40,7 +40,9 @@
   `pwsh`, `espeak-ng`, network diagnostics, password-store tooling through
   `pass`, QEMU/KVM virtualization tools, Kubernetes administration CLIs
   (`kubectl`, `helm`, `k9s`, `talosctl`), and infrastructure tools (`terraform`,
-  `ansible`) in the default toolchain. Browser/UI tooling includes Google Chrome,
+  `ansible`) in the default toolchain. Terminal capture tooling includes `vhs`,
+  `ffmpeg`, and `ttyd` so consuming repositories can render CLI/TUI docs previews
+  without project-local image fragments. Browser/UI tooling includes Google Chrome,
   X11 helpers, and `Xvfb` so tools can use a virtual X server without host
   display access. It also installs `python3-dev` so
   unpinned pip tools with native Python extensions, such as current `graphifyy`

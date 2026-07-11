@@ -12,9 +12,9 @@ Codegeist/planner-style toolchain, including Docker CE, Node 24, VS Code,
 GitHub CLI, Maven, GraalVM, JBang, Hugo, Nix, PowerShell through `pwsh`,
 OpenCode tooling, the Codegeist CLI installed through the upstream Linux
 installer, Repomix, Kubernetes and infrastructure CLIs, QEMU/KVM virtualization
-tools, `espeak-ng`, network diagnostics, security scan tools, password-store
-tooling through `pass`, and related CLI tools. The release build publishes this
-file as
+tools, terminal capture tools, `espeak-ng`, network diagnostics, security scan
+tools, password-store tooling through `pass`, and related CLI tools. The release
+build publishes this file as
 `.devcontainer/Dockerfile` for consuming repositories.
 
 The consuming project should use the standard VS Code flow:
@@ -314,6 +314,14 @@ task qemu-alpine-smoke
 The test fails when `/dev/kvm` is missing or not writable. Hosts that run the
 devcontainer inside another VM must enable nested virtualization before this
 suite can pass.
+
+## Terminal Capture Tools
+
+The devcontainer image includes `vhs`, `ffmpeg`, and `ttyd` for deterministic
+terminal rendering and documentation-preview captures. Consuming repositories can
+drive real native CLIs or TUIs through VHS without installing these tools in a
+project-local `.codegeist/Dockerfile` fragment. Image-level tests verify all
+three commands are present after the kit image builds.
 
 ## Security Scan Tools
 

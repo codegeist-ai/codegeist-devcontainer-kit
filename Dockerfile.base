@@ -8,9 +8,10 @@
 # - Adds the Nix package manager for later package migration work without
 #   switching the devcontainer setup to flakes yet.
 # - Includes JBang, Hugo, Kubernetes, Terraform, Ansible, PowerShell, QEMU/KVM,
-#   password-store, speech, YAML, network, security-scan, and FTP tools so the
-#   shared workspace can handle Java scripting, site, infrastructure,
-#   virtualization, deployment, and external scan tasks.
+#   password-store, speech, YAML, terminal-capture, network, security-scan, and
+#   FTP tools so the shared workspace can handle Java scripting, site,
+#   infrastructure, virtualization, deployment, docs previews, and external scan
+#   tasks.
 # - Installs the Codegeist CLI through the upstream Linux installer from the
 #   codegeist repository's main branch.
 # - `scripts/release-build.sh` copies this source file to release `Dockerfile` so
@@ -23,6 +24,8 @@
 # - CONTAINER_USER and CONTAINER_GROUP select the login user created in the image.
 # - CONTAINER_UID and CONTAINER_GID default to 1000 and can be aligned later by the
 #   devcontainer runtime.
+# - VHS_VERSION and TTYD_VERSION select terminal-rendering tools used by
+#   documentation capture workflows in consuming repositories.
 #
 # Related files:
 # - docker-compose.yml
@@ -38,6 +41,8 @@ ARG CONTAINER_UID=1000
 ARG CONTAINER_GID=1000
 ARG GRAALVM_VERSION=25.0.2
 ARG HUGO_VERSION=0.147.9
+ARG VHS_VERSION=0.11.0
+ARG TTYD_VERSION=1.7.7
 
 ENV LANG=C.UTF-8 \
     LC_CTYPE=C.UTF-8 \
@@ -110,6 +115,7 @@ RUN apt-get update \
       docker-ce-cli \
       docker-compose-plugin \
       espeak-ng \
+      ffmpeg \
       ftp \
       gh \
       git \
@@ -194,6 +200,16 @@ RUN curl -fsSL "https://github.com/go-task/task/releases/latest/download/task_li
  && tar -xzf /tmp/task.tar.gz -C /usr/local/bin task \
  && chmod +x /usr/local/bin/task \
  && rm -f /tmp/task.tar.gz
+
+RUN curl -fsSL "https://github.com/charmbracelet/vhs/releases/download/v${VHS_VERSION}/vhs_${VHS_VERSION}_amd64.deb" \
+      -o /tmp/vhs.deb \
+ && dpkg -i /tmp/vhs.deb \
+ && rm -f /tmp/vhs.deb \
+ && vhs --version \
+ && curl -fsSL "https://github.com/tsl0922/ttyd/releases/download/${TTYD_VERSION}/ttyd.x86_64" \
+      -o /usr/local/bin/ttyd \
+ && chmod +x /usr/local/bin/ttyd \
+ && ttyd --version
 
 RUN curl -fsSL https://raw.githubusercontent.com/codegeist-ai/codegeist/main/scripts/install/codegeist-install-linux.sh \
       | env CODEGEIST_INSTALL_DIR=/opt/codegeist CODEGEIST_BIN_DIR=/usr/local/bin bash \

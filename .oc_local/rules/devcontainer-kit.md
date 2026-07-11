@@ -31,6 +31,9 @@ local override templates in this repository.
   `x11-apps`, `x11-utils`, `xauth`, and `xvfb`. Document `xvfb-run` for UI tools
   that need a virtual X server without using the host display, but do not imply
   that the kit provides VNC or noVNC.
+- Keep terminal capture tools in the default image: `vhs`, `ffmpeg`, and `ttyd`.
+  They support deterministic CLI/TUI documentation-preview captures without
+  requiring each consuming repository to install the same generic renderer stack.
 - When changing default image tools, update the matching documentation and smoke
   coverage if the tool is part of the documented development contract.
 

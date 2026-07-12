@@ -14,8 +14,9 @@ projects should pin `.devcontainer` to the `release` branch.
 The `release` branch is a runtime-only tree. It contains the files needed by the
 Dev Containers extension and excludes this repository's development-only files,
 tests, and local AI workflow support. The image toolchain includes PowerShell as
-`pwsh` for cross-platform shell and automation work, plus shared QEMU and
-security-scan tools for infrastructure checks inside consuming devcontainers.
+`pwsh` for cross-platform shell and automation work, shared terminal-capture
+tools for documentation previews, plus shared QEMU and security-scan tools for
+infrastructure checks inside consuming devcontainers.
 
 ## Consumer Setup
 
@@ -285,9 +286,11 @@ container mount itself changed. For SSH X11 forwarding, the launcher copies the
 current Xauthority file to a temporary file and adds localhost aliases when the
 cookie is stored under the forwarded `/unix:<display>` name. Plain visible
 `chrome` uses `$DEVCONTAINER_WORKSPACE_FOLDER/.chrome` unless the caller passes
-an explicit `--user-data-dir`. The kit no longer mounts a hostwide shared
-Playwright/CDP profile into every workspace because Chrome locks profile
-directories and parallel projects can block each other.
+an explicit `--user-data-dir`. Visible Chrome also disables container-expensive
+defaults such as background networking, component updates, extensions, sync,
+translation, notifications, audio, and GPU acceleration. The kit no longer
+mounts a hostwide shared Playwright/CDP profile into every workspace because
+Chrome locks profile directories and parallel projects can block each other.
 For interactive account sign-in, start Chrome directly from a terminal with
 `chrome`. Do not use the OpenCode/Playwright MCP browser session for account
 login flows; it is automation-controlled through Chrome DevTools Protocol, and
@@ -365,6 +368,13 @@ The command is healthy when Alpine reaches a `localhost login:` prompt. Press
 `Ctrl-a` then `x` to exit QEMU from the terminal. For non-interactive project
 checks, wrap the same QEMU command with `expect` and fail if the login prompt is
 not printed within the chosen timeout.
+
+## Terminal Capture Tools
+
+The release kit includes `vhs`, `ffmpeg`, and `ttyd` for deterministic terminal
+rendering and documentation-preview captures. Consuming repositories can drive
+real native CLIs or TUIs through VHS without adding these generic tools through a
+project-local `.codegeist/Dockerfile` fragment.
 
 ## Security Scan Tools
 

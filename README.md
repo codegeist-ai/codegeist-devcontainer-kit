@@ -9,12 +9,12 @@ This repository is a reusable devcontainer kit that can be added to other
 repositories at `.devcontainer/`, either as a Git subtree or as a Git submodule.
 The source `Dockerfile.base` intentionally carries the full
 Codegeist/planner-style toolchain, including Docker CE, Node 24, VS Code,
-GitHub CLI, Maven, GraalVM, JBang, Hugo, Nix, PowerShell through `pwsh`,
-OpenCode tooling, the Codegeist CLI installed through the upstream Linux
-installer, Repomix, Kubernetes and infrastructure CLIs, QEMU/KVM virtualization
-tools, terminal capture tools, `espeak-ng`, network diagnostics, security scan
-tools, password-store tooling through `pass`, and related CLI tools. The release
-build publishes this file as
+GitHub CLI, Maven, GraalVM, JBang, Hugo, Nix, PowerShell through `pwsh`, Task
+with Bash completion, OpenCode tooling, the Codegeist CLI installed through the
+upstream Linux installer, Repomix, Kubernetes and infrastructure CLIs, QEMU/KVM
+virtualization tools, terminal capture tools, `espeak-ng`, network diagnostics,
+security scan tools, password-store tooling through `pass`, and related CLI
+tools. The release build publishes this file as
 `.devcontainer/Dockerfile` for consuming repositories.
 
 The consuming project should use the standard VS Code flow:

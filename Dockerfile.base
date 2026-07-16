@@ -105,6 +105,7 @@ RUN apt-get update \
       build-essential \
       ansible \
       bash \
+      bash-completion \
       ca-certificates \
       code \
       containerd.io \
@@ -199,6 +200,7 @@ RUN curl -fsSL "https://github.com/go-task/task/releases/latest/download/task_li
       -o /tmp/task.tar.gz \
  && tar -xzf /tmp/task.tar.gz -C /usr/local/bin task \
  && chmod +x /usr/local/bin/task \
+ && task --completion bash > /usr/share/bash-completion/completions/task \
  && rm -f /tmp/task.tar.gz
 
 RUN curl -fsSL "https://github.com/charmbracelet/vhs/releases/download/v${VHS_VERSION}/vhs_${VHS_VERSION}_amd64.deb" \

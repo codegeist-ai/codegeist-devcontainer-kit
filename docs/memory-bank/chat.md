@@ -81,9 +81,10 @@
 - `.gitmodules` configures both `.devcontainer` and `.opencode` to track their
   `release` branches so the shared submodule update workflow can refresh them.
 - `.opencode` has been refreshed to the shared agent-kit release that provides a
-  Playwright MCP config file using `/usr/local/bin/chrome`, a `1280x900`
-  viewport, and suppression of Playwright's unsupported
-  `--disable-blink-features=AutomationControlled` default arg.
+  Playwright MCP config file using `/usr/local/bin/chrome`, the workspace-local
+  `.chrome` profile, suppression of Playwright's unsupported
+  `--disable-blink-features=AutomationControlled` default arg, and Chromium's
+  sandbox so Playwright does not add `--no-sandbox` to the Chrome launch.
 - The kit no longer creates or mounts a hostwide shared Chrome CDP profile.
   Plain `chrome` uses `$DEVCONTAINER_WORKSPACE_FOLDER/.chrome` by default and
   `initialize.sh` adds `/.chrome/` to the consuming repo's `.gitignore`. Use
@@ -301,6 +302,9 @@
   and Node syntax checks, `git --no-pager diff --check`, and the complete
   `task tests-run` suite. Release creation still requires a fresh full-suite
   attestation for the exact clean commit being published.
+- Latest Playwright MCP sandbox verification passed in the shared agent-kit
+  release test and through a real isolated Playwright launch. The root Chrome
+  process started successfully without the `--no-sandbox` argument.
 - The suite covers initialization, Compose config resolution, branch worktree
   setup, local Docker image build, QEMU Alpine `3.20.3` ISO boot via KVM
   acceleration until `localhost login:`, TTY `docker-run`, browser smoke

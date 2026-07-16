@@ -54,7 +54,16 @@ local override templates in this repository.
   `initialize.sh`; SSH and VS Code own forwarding listener allocation.
 - Preserve the host-side `DISPLAY` visible to `initializeCommand` by writing it
   to generated `.devcontainer/.env` as `DEVCONTAINER_DISPLAY`, then pass that
-  value into the container as `DISPLAY` from `docker-compose.yml`.
+  value into the container as `DISPLAY` from `docker-compose.yml`. Treat it as a
+  candidate, not proof that a host-local X11 socket is mounted.
+- In visible Chrome, prefer Wayland only when
+  `$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY` is a real socket, and force
+  `--ozone-platform=wayland` while removing an inherited invalid `DISPLAY`.
+- Accept local X11 displays such as `:0` only when the matching
+  `/tmp/.X11-unix/X0` socket exists. Do not add a shared default X11 socket mount
+  or require broad `xhost +` access.
+- Keep SSH-loopback X11 normalization and explicitly configured remote X11 host
+  values working when Wayland is unavailable.
 - For parallel visible-browser work, prefer opening the selected worktree path
   directly so generated display state is isolated per worktree. Treat multiple
   root-opened sessions with different `BRANCH` values as unsafe unless
@@ -84,6 +93,9 @@ local override templates in this repository.
 - After save, require a clean worktree, rerun `task tests-run`, run
   `tests/release-build.sh`, then publish with
   `task release-build -- release --push`.
+- `task tests-run` must exercise real non-headless Chrome with `DISPLAY=:0`, no
+  X0 socket, and a real Wayland compositor. `scripts/release-build.sh` must reject
+  a commit without the matching `.test-tmp/release-verification` attestation.
 - After the release branch is pushed, update only the local `.devcontainer/`
   submodule checkout to `origin/release` and report the parent gitlink change;
   do not commit that gitlink automatically unless the user explicitly asks.

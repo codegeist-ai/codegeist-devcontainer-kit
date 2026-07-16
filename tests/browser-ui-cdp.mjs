@@ -10,6 +10,8 @@
 // - --url: file:// or http(s):// URL to open in Chrome
 // - --expected: text expected in the rendered accessibility tree
 // - --screenshot: path where a PNG screenshot should be written
+// - --mode: optional `headless` default or `visible` for a real display server
+// - --expected-browser-arg: optional Chrome process argument to require
 //
 // Related files:
 // - tests/browser-smoke.sh
@@ -23,6 +25,7 @@ import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
 const args = parseArgs(process.argv.slice(2));
+const mode = args.mode ?? 'headless';
 
 for (const name of ['url', 'expected', 'screenshot']) {
   if (!args[name]) {
@@ -30,18 +33,33 @@ for (const name of ['url', 'expected', 'screenshot']) {
   }
 }
 
+if (!['headless', 'visible'].includes(mode)) {
+  throw new Error(`unsupported --mode value: ${mode}`);
+}
+
 const port = await reservePort();
 const userDataDir = await mkdtemp(path.join(os.tmpdir(), 'chrome-ui-cdp.'));
+const chromeArgs = [];
 let chrome;
+let chromeStderr = '';
+
+if (mode === 'headless') {
+  chromeArgs.push('--headless');
+} else {
+  chromeArgs.push('--enable-automation');
+}
+chromeArgs.push(
+  `--user-data-dir=${userDataDir}`,
+  `--remote-debugging-port=${port}`,
+  'about:blank',
+);
 
 try {
-  chrome = spawn('chrome', [
-    '--headless',
-    `--user-data-dir=${userDataDir}`,
-    `--remote-debugging-port=${port}`,
-    'about:blank',
-  ], {
+  chrome = spawn('chrome', chromeArgs, {
     stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  chrome.stderr.on('data', (chunk) => {
+    chromeStderr += chunk.toString();
   });
 
   const page = await waitForPage(port);
@@ -51,6 +69,19 @@ try {
     await cdp.send('Page.enable');
     await cdp.send('Runtime.enable');
     await cdp.send('Accessibility.enable');
+
+    if (mode === 'visible') {
+      const commandLine = await cdp.send('Browser.getBrowserCommandLine');
+      const browserArguments = commandLine.arguments ?? [];
+
+      if (browserArguments.some((argument) => argument.startsWith('--headless'))) {
+        throw new Error('visible Chrome unexpectedly started in headless mode');
+      }
+      if (args['expected-browser-arg'] && !browserArguments.includes(args['expected-browser-arg'])) {
+        throw new Error(`Chrome command line is missing ${args['expected-browser-arg']}`);
+      }
+    }
+
     await cdp.send('Page.navigate', { url: args.url });
     await waitForReadyState(cdp);
 
@@ -69,8 +100,18 @@ try {
       process.exitCode = 1;
     }
   } finally {
+    if (mode === 'visible') {
+      await cdp.send('Browser.close').catch(() => {});
+      await delay(100);
+    }
     await cdp.close();
   }
+} catch (error) {
+  if (chromeStderr.trim()) {
+    console.error('Chrome stderr:');
+    console.error(chromeStderr.trim());
+  }
+  throw error;
 } finally {
   if (chrome) {
     chrome.kill('SIGTERM');
@@ -86,6 +127,12 @@ function parseArgs(rawArgs) {
     const arg = rawArgs[i];
     if (!arg.startsWith('--')) {
       throw new Error(`unexpected positional argument: ${arg}`);
+    }
+
+    const separatorIndex = arg.indexOf('=');
+    if (separatorIndex > 2) {
+      parsed[arg.slice(2, separatorIndex)] = arg.slice(separatorIndex + 1);
+      continue;
     }
 
     const key = arg.slice(2);

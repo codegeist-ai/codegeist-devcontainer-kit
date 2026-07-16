@@ -212,8 +212,8 @@ visible browser startup when the devcontainer has access to a host display, and
 the same launcher supports deterministic headless automation for tests. The image
 also includes `Xvfb` for tools that need a virtual X11 display without a host UI.
 It does not add VNC, noVNC, bookmarks, credentials, or project-specific service
-URLs; the only shared browser state it owns is the Chrome CDP profile mount
-described below.
+URLs. Plain visible Chrome stores its project-local state under the opened
+workspace's ignored `.chrome/` directory.
 
 Run visible Chrome from a terminal inside the devcontainer when you need to load
 a URL with container-side DNS and certificates:
@@ -222,25 +222,34 @@ a URL with container-side DNS and certificates:
 chrome https://example.test
 ```
 
-The visible command does not start VNC or noVNC. It expects `DISPLAY` or
-`WAYLAND_DISPLAY` to be available inside the container through the user's
-devcontainer/host display setup. `initialize.sh` writes the host-side `DISPLAY`
-visible to `initializeCommand` into `.devcontainer/.env` as
-`DEVCONTAINER_DISPLAY`, and Compose passes that generated value into the
-container on create. The launcher also rereads the mounted `.devcontainer/.env`
-before starting visible Chrome, so a VS Code reopen can refresh SSH X11 display
-state even when the existing container is reused. If SSH X11 forwarding moves
-from one display number to another, reopen the devcontainer so
-`initializeCommand` refreshes the generated value; rebuild only when the
-container mount itself changed. For SSH X11 forwarding, the launcher copies the
-current Xauthority file to a temporary file and adds localhost aliases when the
-cookie is stored under the forwarded `/unix:<display>` name. Plain visible
-`chrome` uses `$DEVCONTAINER_WORKSPACE_FOLDER/.chrome` unless the caller passes
-an explicit `--user-data-dir`. Visible Chrome also disables container-expensive
-defaults such as background networking, component updates, extensions, sync,
-translation, notifications, audio, and GPU acceleration. The kit no longer
-mounts a hostwide shared Playwright/CDP profile into every workspace because
-Chrome locks profile directories and parallel projects can block each other.
+The visible command does not start VNC or noVNC, and it does not treat a non-empty
+display variable as proof that a display server is reachable. A Wayland candidate
+is usable only when `WAYLAND_DISPLAY` and `XDG_RUNTIME_DIR` identify an existing
+Unix socket. When that socket exists, the launcher prefers it, removes an
+inherited invalid `DISPLAY`, and starts Chrome with `--ozone-platform=wayland`.
+A local X11 value such as `DISPLAY=:0` is usable only when the matching
+`/tmp/.X11-unix/X0` socket exists inside the container. The shared Compose config
+does not mount `/tmp/.X11-unix` by default. SSH-forwarded values such as
+`DISPLAY=localhost:10.0` remain supported through host networking and Xauthority
+normalization; explicitly configured remote X11 host values are passed through as
+caller-managed connections.
+
+`initialize.sh` still writes the host-side `DISPLAY` visible to
+`initializeCommand` into `.devcontainer/.env` as `DEVCONTAINER_DISPLAY`, and
+Compose passes that candidate into the container on create. The launcher rereads
+the mounted file before starting visible Chrome, so a VS Code reopen can refresh
+SSH X11 state when the existing container is reused. If no usable Wayland or X11
+backend exists, the launcher exits before Google Chrome starts and reports the
+missing socket paths. Use `chrome --headless ...`, SSH X11 forwarding, or an
+explicit project-local socket mount instead of broad host access such as
+`xhost +`.
+
+Plain visible `chrome` uses `$DEVCONTAINER_WORKSPACE_FOLDER/.chrome` unless the
+caller passes an explicit `--user-data-dir`. Visible Chrome also disables
+container-expensive defaults such as background networking, component updates,
+extensions, sync, translation, notifications, audio, and GPU acceleration. The
+kit does not mount a hostwide shared Playwright/CDP profile because Chrome locks
+profile directories and parallel projects can block each other.
 In this repository, the same command can be exercised from the kit image:
 
 ```bash
@@ -290,6 +299,12 @@ Chrome through `chrome --headless` inside the workspace container, captures
 a PNG screenshot of a container-local HTML file, and compares rendered
 accessibility text against the expected value. This keeps the test path aligned
 with the visible launcher while staying deterministic in CI-like environments.
+The same test also reproduces the local VS Code failure shape with
+`DEVCONTAINER_DISPLAY=:0`, no `/tmp/.X11-unix/X0`, and a real Weston Wayland
+socket. It starts non-headless Chrome, verifies `--ozone-platform=wayland` through
+CDP, captures rendered output, and must pass as part of `task tests-run` before
+`scripts/release-build.sh` accepts the current commit. Weston is installed only
+in the disposable test fixture, not in the released image.
 
 ## QEMU Support
 
@@ -391,6 +406,11 @@ to push the branch after it is updated locally:
 ```bash
 task release-build -- --push
 ```
+
+`task release-build` requires a commit-bound verification written only after
+`task tests-run` completes. This prevents a runtime release from being created
+without the real `DISPLAY=:0` plus Wayland Chrome regression passing on the exact
+commit being released.
 
 The release branch tree contains only:
 

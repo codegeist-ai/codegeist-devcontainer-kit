@@ -272,25 +272,32 @@ is only reachable from that runtime context:
 chrome https://example.test
 ```
 
-The visible command does not start VNC or noVNC. It expects `DISPLAY` or
-`WAYLAND_DISPLAY` to be available inside the container through the user's
-devcontainer/host display setup. `initialize.sh` writes the host-side `DISPLAY`
-visible to `initializeCommand` into `.devcontainer/.env` as
-`DEVCONTAINER_DISPLAY`, and Compose passes that generated value into the
-container on create. The launcher also rereads the mounted `.devcontainer/.env`
-before starting visible Chrome, so a VS Code reopen can refresh SSH X11 display
-state even when the existing container is reused. If SSH X11 forwarding moves
-from one display number to another, reopen the devcontainer so
-`initializeCommand` refreshes the generated value; rebuild only when the
-container mount itself changed. For SSH X11 forwarding, the launcher copies the
-current Xauthority file to a temporary file and adds localhost aliases when the
-cookie is stored under the forwarded `/unix:<display>` name. Plain visible
-`chrome` uses `$DEVCONTAINER_WORKSPACE_FOLDER/.chrome` unless the caller passes
-an explicit `--user-data-dir`. Visible Chrome also disables container-expensive
-defaults such as background networking, component updates, extensions, sync,
-translation, notifications, audio, and GPU acceleration. The kit no longer
-mounts a hostwide shared Playwright/CDP profile into every workspace because
-Chrome locks profile directories and parallel projects can block each other.
+The visible command does not start VNC or noVNC, and it validates display
+transport before starting Google Chrome. A Wayland candidate is usable only when
+`WAYLAND_DISPLAY` and `XDG_RUNTIME_DIR` identify an existing Unix socket. When
+that socket exists, the launcher prefers it, removes an inherited invalid
+`DISPLAY`, and starts Chrome with `--ozone-platform=wayland`. A local X11 value
+such as `DISPLAY=:0` is usable only when `/tmp/.X11-unix/X0` exists inside the
+container; the shared Compose config does not mount `/tmp/.X11-unix` by default.
+SSH-forwarded values such as `DISPLAY=localhost:10.0` remain supported through
+host networking and Xauthority normalization. Explicit remote X11 host values
+remain caller-managed and are passed through.
+
+`initialize.sh` still writes the host-side `DISPLAY` visible to
+`initializeCommand` into `.devcontainer/.env` as `DEVCONTAINER_DISPLAY`, and
+Compose passes that candidate into the container on create. The launcher rereads
+the mounted file before starting visible Chrome, so a VS Code reopen can refresh
+SSH X11 state when the existing container is reused. If no usable backend exists,
+the launcher exits before Google Chrome starts and reports the missing socket
+paths. Use `chrome --headless ...`, SSH X11 forwarding, or an explicit
+project-local socket mount instead of broad host access such as `xhost +`.
+
+Plain visible `chrome` uses `$DEVCONTAINER_WORKSPACE_FOLDER/.chrome` unless the
+caller passes an explicit `--user-data-dir`. Visible Chrome also disables
+container-expensive defaults such as background networking, component updates,
+extensions, sync, translation, notifications, audio, and GPU acceleration. The
+kit does not mount a hostwide shared Playwright/CDP profile because Chrome locks
+profile directories and parallel projects can block each other.
 For interactive account sign-in, start Chrome directly from a terminal with
 `chrome`. Do not use the OpenCode/Playwright MCP browser session for account
 login flows; it is automation-controlled through Chrome DevTools Protocol, and

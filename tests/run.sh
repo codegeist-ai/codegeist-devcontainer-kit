@@ -4,6 +4,8 @@
 # Why this exists:
 # - provides one narrow entrypoint for validating the new kit behavior
 # - reports total runtime while keeping slow checks as warnings, not failures
+# - records a commit-bound release verification only after every test, including
+#   the real DISPLAY=:0 plus Wayland browser regression, succeeds
 #
 # Related files:
 # - ./helpers.sh
@@ -21,9 +23,11 @@ WARN_DOCKER_SECONDS="${WARN_DOCKER_SECONDS:-60}"
 WARN_DEVCONTAINER_SECONDS="${WARN_DEVCONTAINER_SECONDS:-240}"
 WARN_FAST_SECONDS="${WARN_FAST_SECONDS:-10}"
 WARN_SUITE_SECONDS="${WARN_SUITE_SECONDS:-600}"
+release_verification_file="$project_root/.test-tmp/release-verification"
 
 setup_suite
 trap cleanup_suite EXIT
+rm -f "$release_verification_file"
 
 run_timed "initialize bootstrap" "$WARN_FAST_SECONDS" "$script_dir/initialize.sh"
 run_timed "Dockerfile merge" "$WARN_FAST_SECONDS" "$script_dir/dockerfile-merge.sh"
@@ -50,5 +54,10 @@ log "test suite completed in ${suite_duration}s"
 if [ "$suite_duration" -gt "$WARN_SUITE_SECONDS" ]; then
   warn "test suite took ${suite_duration}s, above warning threshold ${WARN_SUITE_SECONDS}s"
 fi
+
+cat >"$release_verification_file" <<EOF
+commit=$(git -C "$project_root" rev-parse HEAD)
+browser-wayland-display0=passed
+EOF
 
 pass "all generic devcontainer kit tests passed"

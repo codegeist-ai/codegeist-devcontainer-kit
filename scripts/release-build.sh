@@ -11,6 +11,8 @@
 # Inputs:
 # - Optional positional argument: release branch name, default `release`.
 # - Optional `--push`: push the release branch to `origin` after updating it.
+# - `.test-tmp/release-verification` must attest that `task tests-run` passed for
+#   the current commit, including the real DISPLAY=:0 Wayland browser regression.
 #
 # Related files:
 # - ../Taskfile.yaml
@@ -26,6 +28,8 @@ push_branch=0
 repo_root=""
 tmp_index=""
 tmp_tree=""
+verified_commit=""
+verified_browser_regression=""
 
 runtime_files=(
   ".gitignore"
@@ -98,6 +102,25 @@ git -C "$repo_root" check-ref-format --branch "$release_branch" >/dev/null \
 
 [ -z "$(git -C "$repo_root" status --porcelain)" ] \
   || fail "working tree must be clean"
+
+verification_file="$repo_root/.test-tmp/release-verification"
+if [ -f "$verification_file" ]; then
+  while IFS='=' read -r verification_key verification_value; do
+    case "$verification_key" in
+      commit)
+        verified_commit="$verification_value"
+        ;;
+      browser-wayland-display0)
+        verified_browser_regression="$verification_value"
+        ;;
+    esac
+  done <"$verification_file"
+fi
+
+current_commit="$(git -C "$repo_root" rev-parse HEAD)"
+[ "$verified_commit" = "$current_commit" ] \
+  && [ "$verified_browser_regression" = "passed" ] \
+  || fail "release verification is missing or stale; run task tests-run successfully on the current commit"
 
 for runtime_file in "${runtime_files[@]}"; do
   [ -e "$repo_root/$runtime_file" ] || fail "runtime file is missing: $runtime_file"

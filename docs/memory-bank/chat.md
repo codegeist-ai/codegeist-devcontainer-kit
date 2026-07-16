@@ -102,6 +102,12 @@
   updates, extensions, sync, translation, notifications, audio, and GPU
   acceleration. Compose no longer injects `CHROME_CDP_PROFILE_DIR` or mounts
   `/mnt/codegeist/chrome-cdp-profile`.
+- Visible Chrome now resolves a usable backend instead of trusting non-empty
+  environment variables. A reachable Wayland socket takes priority and forces
+  `--ozone-platform=wayland` with `DISPLAY` removed; local X11 values such as `:0`
+  require `/tmp/.X11-unix/X0`. SSH-loopback and explicitly configured remote X11
+  values remain supported. The shared Compose config does not mount local X11
+  sockets by default.
 - `entrypoint.sh` starts nested `dockerd` without forcing a storage driver so
   Docker can use `overlay2` when available. Do not reintroduce `vfs` by default;
   it duplicates layers and can exhaust disk during full image builds.
@@ -186,17 +192,13 @@
   `.browser-smoke-tmp/`) because Docker bind mounts in this workspace cannot rely
   on arbitrary `/tmp` paths being visible to the daemon.
 - Browser UI verification uses `tests/browser-ui-cdp.mjs`, a Node 24 Chrome
-  DevTools Protocol driver invoked by `tests/browser-smoke.sh`; tests launch
-  Chrome through `chrome --headless`, while users can run visible Chrome by
-  typing `chrome` when the devcontainer has access to `DISPLAY` or
-  `WAYLAND_DISPLAY`. `initialize.sh` captures the host-side `DISPLAY` visible to
-  `initializeCommand` as `DEVCONTAINER_DISPLAY`, and `docker-compose.yml` passes
-  that generated value into the container as `DISPLAY` on create. The visible
-  launcher rereads the mounted `.devcontainer/.env` before starting Chrome, so a
-  VS Code reopen can refresh SSH X11 display state even when the existing
-  container is reused. The launcher also normalizes SSH X11 forwarding by copying
-  the current Xauthority file to a temporary file and adding localhost aliases
-  for `/unix:<display>` cookies.
+  DevTools Protocol driver invoked by `tests/browser-smoke.sh`. It covers both
+  headless rendering and the real local VS Code failure shape: a Dev Containers
+  CLI fixture starts with `DEVCONTAINER_DISPLAY=:0`, has no X0 socket, starts a
+  test-only Weston compositor, then launches non-headless Chrome through the
+  real Wayland socket and verifies its command line and rendered page through
+  CDP. `initialize.sh` still captures host `DISPLAY` as a candidate, while the
+  launcher validates local transport and keeps SSH Xauthority normalization.
 - Use `xvfb-run` when a browser or UI tool needs an X server but should not use
   the host display. Keep this separate from VNC/noVNC support, which the kit does
   not provide.
@@ -217,6 +219,10 @@
   then a clean-worktree check, then `task tests-run`, then
   `tests/release-build.sh`, before publishing with
   `task release-build -- release --push`.
+- A successful full suite writes `.test-tmp/release-verification` for the tested
+  commit with `browser-wayland-display0=passed`. `scripts/release-build.sh`
+  rejects missing, stale, or incomplete verification so the exact real Wayland
+  regression cannot be skipped before release creation.
 - After pushing a release branch update, move the local `.devcontainer/`
   submodule checkout to the pushed `origin/release` commit and report the parent
   gitlink change. Do not update `.opencode/` or automatically commit the
@@ -289,6 +295,12 @@
   scripts/chrome.sh tests/chrome-launcher.sh`, `tests/chrome-launcher.sh`,
   `git --no-pager diff --check`, and timeout-bounded non-headless starts of both
   `scripts/chrome.sh` and the current `chrome` command using temporary profiles.
+- Latest display-backend regression verification passed with the deterministic
+  `tests/chrome-launcher.sh`, the real `tests/browser-smoke.sh` Dev Containers
+  fixture using `DISPLAY=:0` plus Weston Wayland, `tests/release-build.sh`, shell
+  and Node syntax checks, `git --no-pager diff --check`, and the complete
+  `task tests-run` suite. Release creation still requires a fresh full-suite
+  attestation for the exact clean commit being published.
 - The suite covers initialization, Compose config resolution, branch worktree
   setup, local Docker image build, QEMU Alpine `3.20.3` ISO boot via KVM
   acceleration until `localhost login:`, TTY `docker-run`, browser smoke

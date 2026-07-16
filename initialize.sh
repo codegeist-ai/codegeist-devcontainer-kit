@@ -18,8 +18,8 @@
 # - The host `DISPLAY` seen during initializeCommand is copied into the generated
 #   `.env`. Compose injects it on container creation, and the Chrome launcher can
 #   reread the mounted file after a VS Code reopen when the container is reused.
-# - A host-side Chrome CDP profile directory is created once and mounted into
-#   every Codegeist devcontainer at a stable path for Playwright MCP automation.
+#   This preserves the display candidate but does not make a host-local X11 socket
+#   such as `/tmp/.X11-unix/X0` reachable inside the container.
 # - `Dockerfile.merged.gen` is generated from the kit Dockerfile plus the
 #   repository-root `.codegeist/Dockerfile` extension when that extension exists.
 # - OpenCode keys session state by directory path, so the container workspace

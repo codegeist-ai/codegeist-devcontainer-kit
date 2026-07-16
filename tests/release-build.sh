@@ -32,6 +32,7 @@ release_repo="$suite_tmp_dir/release-build-fixture"
 release_branch="release"
 expected_files="$suite_tmp_dir/release-build-expected-files.txt"
 actual_files="$suite_tmp_dir/release-build-actual-files.txt"
+missing_verification_log="$suite_tmp_dir/release-build-missing-verification.log"
 
 create_git_repo "$release_repo"
 copy_project_files "$release_repo"
@@ -39,6 +40,18 @@ git -C "$release_repo" add .
 git -C "$release_repo" commit -m "initial devcontainer kit" >/dev/null
 
 main_commit="$(git -C "$release_repo" rev-parse main)"
+
+if (cd "$release_repo" && scripts/release-build.sh) >"$missing_verification_log" 2>&1; then
+  fail "release-build accepted a commit without full-suite verification"
+fi
+grep -F "release verification is missing or stale" "$missing_verification_log" >/dev/null \
+  || fail "release-build did not explain the mandatory verification gate"
+
+mkdir -p "$release_repo/.test-tmp"
+cat >"$release_repo/.test-tmp/release-verification" <<EOF
+commit=$main_commit
+browser-wayland-display0=passed
+EOF
 
 (cd "$release_repo" && scripts/release-build.sh) >/dev/null
 
@@ -92,4 +105,4 @@ fi
 [[ "$(git -C "$release_repo" log -1 --format=%s "$release_branch")" = "chore(release): update devcontainer runtime branch" ]] \
   || fail "release branch commit subject is wrong"
 
-pass "release-build creates a runtime-only branch without changing main"
+pass "release-build requires verification and creates a runtime-only branch"

@@ -18,7 +18,9 @@ Then:
    it reports synchronized local and remote base branches.
 2. Review `git --no-pager status --short --branch`.
 3. Stop if the worktree is not clean.
-4. Run the full verification suite again with `task tests-run`.
+4. Run the full verification suite again with `task tests-run`. Confirm its real
+   browser smoke starts non-headless Chrome with `DISPLAY=:0`, no X0 socket, and
+   a real Wayland compositor.
 5. Run `tests/release-build.sh`.
 6. Run `task release-build -- release --push`.
 7. Verify the remote release branch exists with
@@ -50,6 +52,9 @@ Do not start the release branch build until @.opencode/commands/save.md has
 finished successfully.
 Do not skip `task tests-run` after the save workflow and clean-worktree check;
 release builds must always retest the current saved state before publishing.
+Do not continue unless `.test-tmp/release-verification` matches the current commit
+and contains `browser-wayland-display0=passed`; `scripts/release-build.sh` also
+enforces this gate.
 Do not skip updating `.devcontainer/` to the just-pushed `origin/release` commit
 after the release branch push succeeds.
 Do not skip `tests/release-build.sh` before updating the release branch.

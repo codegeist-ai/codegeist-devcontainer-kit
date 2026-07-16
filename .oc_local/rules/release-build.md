@@ -27,6 +27,10 @@ repository.
 ## Verification
 
 - Stop if the worktree is dirty before release creation.
+- Run `task tests-run` on the exact clean commit being released. Its real browser
+  fixture must pass with `DISPLAY=:0`, no X0 socket, and a real Wayland socket.
+- Require `.test-tmp/release-verification` to match the current commit and attest
+  `browser-wayland-display0=passed`; release creation must fail otherwise.
 - Run `tests/release-build.sh` before updating the release branch.
 - After `task release-build -- release --push`, verify `origin/release` exists.
 - Verify the `release` branch tree contains only runtime files.

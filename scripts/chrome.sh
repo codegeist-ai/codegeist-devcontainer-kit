@@ -11,6 +11,8 @@
 # - Visible Chrome defaults to `$DEVCONTAINER_WORKSPACE_FOLDER/.chrome` unless
 #   the caller passes `--user-data-dir`, and disables container-expensive
 #   browser services that are not needed for normal interactive checks.
+# - Visible mode prefers a reachable Wayland socket, validates local X11 sockets,
+#   and preserves SSH-forwarded or explicitly configured remote X11 displays.
 # - `DEVCONTAINER_WORKSPACE_FOLDER` points at the mounted workspace whose
 #   `.devcontainer/.env` may contain a refreshed `DEVCONTAINER_DISPLAY` after a
 #   VS Code reopen.
@@ -42,7 +44,10 @@ Modes:
   --headless   Start headless Chrome for tests and automation.
 
 Visible mode environment:
-  DISPLAY or WAYLAND_DISPLAY must be available for visible Chrome.
+  A non-empty DISPLAY or WAYLAND_DISPLAY alone is not sufficient. Wayland needs
+  a socket at $XDG_RUNTIME_DIR/$WAYLAND_DISPLAY, and local X11 displays such as
+  :0 need the matching /tmp/.X11-unix/X0 socket inside the container.
+  A reachable Wayland socket takes precedence over DISPLAY.
   DISPLAY is refreshed from .devcontainer/.env when the workspace provides a
   generated DEVCONTAINER_DISPLAY value.
   Plain `chrome` uses $DEVCONTAINER_WORKSPACE_FOLDER/.chrome unless the caller
@@ -153,18 +158,75 @@ refresh_display_from_workspace_env() {
   export DISPLAY="$display_value"
 }
 
+resolve_visible_display() {
+  local display_value="${DISPLAY:-}"
+  local display_number=""
+  local wayland_socket=""
+
+  wayland_error=""
+  x11_error=""
+
+  if [ -n "${WAYLAND_DISPLAY:-}" ]; then
+    if [ -z "${XDG_RUNTIME_DIR:-}" ]; then
+      wayland_error="Detected WAYLAND_DISPLAY=$WAYLAND_DISPLAY, but XDG_RUNTIME_DIR is not set."
+    else
+      wayland_socket="$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY"
+      if [ -S "$wayland_socket" ]; then
+        # Chrome defaults to X11 on Linux, so select Wayland explicitly and do
+        # not let an unreachable inherited DISPLAY pull it back to X11.
+        unset DISPLAY
+        visible_args+=(--ozone-platform=wayland)
+        return 0
+      fi
+
+      wayland_error="Detected WAYLAND_DISPLAY=$WAYLAND_DISPLAY, but no socket is available at $wayland_socket."
+    fi
+  else
+    wayland_error="WAYLAND_DISPLAY is not set."
+  fi
+
+  if [[ "$display_value" =~ ^:([0-9]+)(\.[0-9]+)?$ ]]; then
+    display_number="${BASH_REMATCH[1]}"
+    if [ -S "/tmp/.X11-unix/X$display_number" ]; then
+      return 0
+    fi
+
+    x11_error="Detected DISPLAY=$display_value, but /tmp/.X11-unix/X$display_number is not available inside the container."
+    return 1
+  fi
+
+  if [ -n "$display_value" ]; then
+    # SSH-forwarded localhost displays and caller-managed remote X11 displays
+    # cannot be proven usable from the socket filesystem. Preserve them.
+    return 0
+  fi
+
+  x11_error="DISPLAY is not set."
+  return 1
+}
+
+report_unusable_visible_display() {
+  cat >&2 <<EOF
+Chrome needs a usable visible display.
+
+$x11_error
+$wayland_error
+
+Use \`chrome --headless ...\` for automation, reopen the devcontainer with SSH
+X11 forwarding, or configure a container-visible Wayland or local X11 socket.
+EOF
+}
+
 if [ "$mode" = "headless" ]; then
   exec google-chrome "${headless_args[@]}" "${chrome_args[@]}"
 fi
 
 refresh_display_from_workspace_env
 
-if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
-  cat >&2 <<'EOF'
-Chrome needs a container-visible display for non-headless mode.
-Start the devcontainer with your host display forwarded, then run `chrome` again.
-Use `chrome --headless ...` for tests and automation.
-EOF
+wayland_error=""
+x11_error=""
+if ! resolve_visible_display; then
+  report_unusable_visible_display
   exit 1
 fi
 

@@ -57,10 +57,10 @@ repository's root `.gitignore`. It never writes generated-file ignores to
 `.git/info/exclude`, so review and commit intentional `.gitignore` changes like
 normal repository state.
 
-The generated `.devcontainer/.env`, `.devcontainer/Dockerfile.merged.gen`,
-`.devcontainer/compose.local.gen.yml`, and `.devcontainer/compose.user.gen.yml`
-files are written inside the submodule checkout and are ignored by the release
-kit itself.
+The generated `.devcontainer/.env`, `.devcontainer/.Xauthority.gen`,
+`.devcontainer/Dockerfile.merged.gen`, `.devcontainer/compose.local.gen.yml`, and
+`.devcontainer/compose.user.gen.yml` files are written inside the submodule
+checkout and are ignored by the release kit itself.
 
 ## OpenCode Agent Setup
 
@@ -183,6 +183,7 @@ The first start creates local runtime files when missing:
 - root `.worktrees/`; `.worktrees/<branch>` as a worktree or current-branch
   symlink alias when `BRANCH` is set
 - `.devcontainer/.env`
+- `.devcontainer/.Xauthority.gen`
 - `.devcontainer/Dockerfile.merged.gen`
 - `.devcontainer/compose.local.gen.yml`
 - `.devcontainer/compose.user.gen.yml`, an ignored bridge to optional
@@ -273,24 +274,34 @@ chrome https://example.test
 ```
 
 The visible command does not start VNC or noVNC, and it validates display
-transport before starting Google Chrome. A Wayland candidate is usable only when
-`WAYLAND_DISPLAY` and `XDG_RUNTIME_DIR` identify an existing Unix socket. When
-that socket exists, the launcher prefers it, removes an inherited invalid
-`DISPLAY`, and starts Chrome with `--ozone-platform=wayland`. A local X11 value
-such as `DISPLAY=:0` is usable only when `/tmp/.X11-unix/X0` exists inside the
-container; the shared Compose config does not mount `/tmp/.X11-unix` by default.
-SSH-forwarded values such as `DISPLAY=localhost:10.0` remain supported through
-host networking and Xauthority normalization. Explicit remote X11 host values
-remain caller-managed and are passed through.
+transport before starting Google Chrome. During `initializeCommand`,
+`initialize.sh` detects an existing host Wayland socket from `WAYLAND_DISPLAY`
+and `XDG_RUNTIME_DIR` (or `/run/user/<uid>/wayland-0`) and adds a generated bind
+for only that socket. When the mounted socket is reachable, the launcher prefers
+it, removes inherited `DISPLAY`, and starts Chrome with
+`--ozone-platform=wayland`. A local X11 value such as `DISPLAY=:0` is usable only
+when `/tmp/.X11-unix/X0` exists; the shared Compose config does not mount local
+X11 sockets by default.
 
-`initialize.sh` still writes the host-side `DISPLAY` visible to
-`initializeCommand` into `.devcontainer/.env` as `DEVCONTAINER_DISPLAY`, and
-Compose passes that candidate into the container on create. The launcher rereads
-the mounted file before starting visible Chrome, so a VS Code reopen can refresh
-SSH X11 state when the existing container is reused. If no usable backend exists,
-the launcher exits before Google Chrome starts and reports the missing socket
-paths. Use `chrome --headless ...`, SSH X11 forwarding, or an explicit
-project-local socket mount instead of broad host access such as `xhost +`.
+VS Code SSH reconnects can allocate a new loopback display number while reusing
+an existing container. Each initialize run atomically refreshes the selected
+workspace's `.devcontainer/.env` and ignored `.devcontainer/.Xauthority.gen`.
+The launcher rereads those files on every visible start, probes
+`DISPLAY=localhost:N.0` or `127.0.0.1:N.0` with a short `xdpyinfo` check, and, if
+needed, normalizes the matching `/unix:N` cookie through unique temporary
+Xauthority aliases. It
+exits before Google Chrome starts when no candidate is reachable. Worktrees keep
+separate generated state and `.chrome` profiles, so multiple VS Code instances
+on one host do not overwrite each other's runtime display files. Explicit
+non-loopback X11 hosts remain caller-managed.
+
+Wayland discovery can mount only a socket that exists when the container is
+created. `initialize.sh` cannot create a graphical host session, and a socket
+that appears later cannot be added to an existing container without recreation.
+SSH X11 reconnect recovery does not have that limitation because it uses host
+networking and refreshed workspace-local authority state. Use
+`chrome --headless ...` when no visible backend is available; broad host access
+such as `xhost +` is neither required nor recommended.
 
 Plain visible `chrome` uses `$DEVCONTAINER_WORKSPACE_FOLDER/.chrome` unless the
 caller passes an explicit `--user-data-dir`. Visible Chrome also disables
@@ -422,9 +433,10 @@ not as ordinary project source.
 
 - Do not edit files inside `.devcontainer/` directly to customize one consuming
   project.
-- Do not commit `.devcontainer/.env`, `.devcontainer/Dockerfile.merged.gen`,
-  `.devcontainer/compose.local.gen.yml`, `.devcontainer/compose.user.gen.yml`,
-  `.codegeist/.local.env`, or generated `.worktrees/` files. Keep
+- Do not commit `.devcontainer/.env`, `.devcontainer/.Xauthority.gen`,
+  `.devcontainer/Dockerfile.merged.gen`, `.devcontainer/compose.local.gen.yml`,
+  `.devcontainer/compose.user.gen.yml`, `.codegeist/.local.env`, or generated
+  `.worktrees/` files. Keep
   `.codegeist/compose.local.yml` visible to Git and keep `.codegeist/Dockerfile`
   visible to Git without `FROM`; commit either only when its overrides are
   intentional repository state.

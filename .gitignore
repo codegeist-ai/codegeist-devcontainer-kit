@@ -1,8 +1,16 @@
 /compose.local.gen.yml
+/compose.local.gen.yml.*
 /compose.user.gen.yml
+/compose.user.gen.yml.*
 /Dockerfile.merged.gen
 /.env
+/.env.*
+/.Xauthority.gen
+/.Xauthority.gen.*
 /.devcontainer/.env
+/.devcontainer/.env.*
+/.devcontainer/.Xauthority.gen
+/.devcontainer/.Xauthority.gen.*
 /.codegeist/.local.env
 /.oc_local/
 /.worktrees/

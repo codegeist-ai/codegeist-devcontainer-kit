@@ -18,8 +18,9 @@
   for virtual X11 sessions, and no VNC/noVNC layer.
 - Open task
   `docs/tasks/T001_add_browser_support_to_devcontainer/tasks/T001_03_support_parallel_worktree_display_state.md`
-  tracks follow-up work for parallel visible-browser sessions across multiple
-  worktree devcontainers on the same host.
+  now has reconnect-safe runtime isolation for parallel worktree devcontainers;
+  its remaining scope is the root-side generated Compose-file race during
+  simultaneous first-time `BRANCH` starts.
 - OpenCode work should continue from this repository root in the current
   maintenance checkout.
 
@@ -106,11 +107,19 @@
   acceleration. Compose no longer injects `CHROME_CDP_PROFILE_DIR` or mounts
   `/mnt/codegeist/chrome-cdp-profile`.
 - Visible Chrome now resolves a usable backend instead of trusting non-empty
-  environment variables. A reachable Wayland socket takes priority and forces
-  `--ozone-platform=wayland` with `DISPLAY` removed; local X11 values such as `:0`
-  require `/tmp/.X11-unix/X0`. SSH-loopback and explicitly configured remote X11
-  values remain supported. The shared Compose config does not mount local X11
-  sockets by default.
+  environment variables. `initialize.sh` mounts one existing host Wayland socket
+  through generated Compose state; a reachable socket takes priority and forces
+  `--ozone-platform=wayland` with `DISPLAY` removed. Local X11 values such as `:0`
+  require `/tmp/.X11-unix/X0`, and SSH-loopback values require a successful short
+  `xdpyinfo` probe before Chrome starts.
+- VS Code SSH reconnect state is refreshed atomically in each selected
+  workspace's `.devcontainer/.env` and ignored `.devcontainer/.Xauthority.gen`.
+  The launcher rereads both on every start and normalizes only the requested
+  display's `/unix:N` cookie through a unique temporary authority file, avoiding
+  accidental attachment to another parallel SSH session. Parallel worktrees
+  retain separate display state and workspace-local `.chrome` profiles. Empty
+  refreshed Wayland values clear stale create-time container variables, and
+  generated Compose overrides are replaced atomically.
 - `entrypoint.sh` starts nested `dockerd` without forcing a storage driver so
   Docker can use `overlay2` when available. Do not reintroduce `vfs` by default;
   it duplicates layers and can exhaust disk during full image builds.
@@ -154,9 +163,10 @@
   starts the fixture through Dev Containers CLI, so terminal cwd failures after
   container startup are caught by the test.
 - Generated runtime files such as `.codegeist/.local.env`, `.devcontainer/.env`,
-  `.devcontainer/Dockerfile.merged.gen`, `.devcontainer/compose.local.gen.yml`,
-  `.devcontainer/compose.user.gen.yml`, `.oc_local/`, and `.worktrees/` should
-  stay untracked unless a consuming repository explicitly owns an overlay.
+  `.devcontainer/.Xauthority.gen`, `.devcontainer/Dockerfile.merged.gen`,
+  `.devcontainer/compose.local.gen.yml`, `.devcontainer/compose.user.gen.yml`,
+  `.oc_local/`, and `.worktrees/` should stay untracked unless a consuming
+  repository explicitly owns an overlay.
   Optional `.codegeist/compose.local.yml` and `.codegeist/Dockerfile` files stay
   visible to Git and should be committed only for intentional repository
   overrides; `.codegeist/Dockerfile` must not contain `FROM`.
@@ -200,8 +210,9 @@
   CLI fixture starts with `DEVCONTAINER_DISPLAY=:0`, has no X0 socket, starts a
   test-only Weston compositor, then launches non-headless Chrome through the
   real Wayland socket and verifies its command line and rendered page through
-  CDP. `initialize.sh` still captures host `DISPLAY` as a candidate, while the
-  launcher validates local transport and keeps SSH Xauthority normalization.
+  CDP. The browser smoke also verifies that stale SSH-loopback X11 is rejected
+  before `google-chrome` starts. The fast launcher smoke runs two workspace
+  instances in parallel and verifies reconnect state isolation and recovery.
 - Use `xvfb-run` when a browser or UI tool needs an X server but should not use
   the host display. Keep this separate from VNC/noVNC support, which the kit does
   not provide.
@@ -304,6 +315,14 @@
   and Node syntax checks, `git --no-pager diff --check`, and the complete
   `task tests-run` suite. Release creation still requires a fresh full-suite
   attestation for the exact clean commit being published.
+- Latest reconnect-display verification passed with shell and Node syntax
+  checks, `git --no-pager diff --check`, `tests/chrome-launcher.sh`,
+  `tests/dockerfile-merge.sh`, `tests/code-open-args.sh`,
+  `tests/release-build.sh`, a real headless Chrome dump, and the initializer's
+  new Wayland, parallel-worktree, and generated-Xauthority assertions. The
+  initializer's final real `devcontainer up` phase was blocked after its image
+  built because the Docker filesystem reached `ENOSPC`; full Compose, browser,
+  and suite verification remains required before release.
 - Latest Playwright MCP sandbox verification passed in the shared agent-kit
   release test and through a real isolated Playwright launch. The root Chrome
   process started successfully without the `--no-sandbox` argument.

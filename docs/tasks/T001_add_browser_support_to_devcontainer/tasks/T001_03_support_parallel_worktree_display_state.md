@@ -90,6 +90,24 @@ Out of scope:
 
 ## Implementation Notes
 
+- Implemented reconnect-safe runtime state: `initialize.sh` now atomically writes
+  `.devcontainer/.env` and `.devcontainer/.Xauthority.gen` into the selected
+  worktree as well as the root Compose input when `BRANCH` selects a worktree.
+- Implemented launcher-time recovery: `scripts/chrome.sh` rereads the selected
+  workspace state on every launch, probes SSH-loopback X11 with `xdpyinfo`, and
+  normalizes only the requested display's `/unix:N` Xauthority cookie before
+  Chrome starts, so another parallel SSH session is never selected as fallback.
+- Implemented deterministic smoke coverage in `tests/chrome-launcher.sh`: two
+  workspace launchers run in parallel with distinct displays, authority files,
+  profiles, and capture files; separate cases cover successful reconnect
+  recovery and rejection before `google-chrome` starts.
+- Implemented host Wayland discovery and a generated one-socket Compose mount.
+  A socket that appears after container creation still requires recreation
+  because Docker cannot add a new bind mount to an existing container.
+- Remaining scope: simultaneous first-time root starts with different `BRANCH`
+  values still share root-side Compose input files during container creation.
+  Existing containers use their selected worktree state and are isolated for
+  subsequent Chrome launches and SSH reconnects.
 - Preferred minimal approach: keep the recommended parallel workflow as
   selecting or preparing the worktree, then opening the worktree path directly in
   VS Code. Add tests proving this direct-worktree path keeps

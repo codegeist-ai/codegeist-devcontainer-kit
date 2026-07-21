@@ -119,6 +119,10 @@ devcontainer_cli() {
       -u DEVCONTAINER_GID \
       -u DEVCONTAINER_KVM_GID \
       -u DEVCONTAINER_DISPLAY \
+      -u DEVCONTAINER_XAUTHORITY \
+      -u DEVCONTAINER_WAYLAND_DISPLAY \
+      -u DEVCONTAINER_WAYLAND_SOCKET_HOST \
+      -u DEVCONTAINER_WAYLAND_RUNTIME_DIR \
       npx --yes @devcontainers/cli "$@")
     return
   fi
@@ -138,6 +142,10 @@ devcontainer_cli() {
     -u DEVCONTAINER_GID \
     -u DEVCONTAINER_KVM_GID \
     -u DEVCONTAINER_DISPLAY \
+    -u DEVCONTAINER_XAUTHORITY \
+    -u DEVCONTAINER_WAYLAND_DISPLAY \
+    -u DEVCONTAINER_WAYLAND_SOCKET_HOST \
+    -u DEVCONTAINER_WAYLAND_RUNTIME_DIR \
     npx --yes @devcontainers/cli "$@"
 }
 

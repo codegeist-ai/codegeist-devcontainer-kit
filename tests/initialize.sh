@@ -6,6 +6,8 @@
 # - protects user-edited local files from being overwritten across devcontainer up
 # - proves root-side worktree preparation and later Dev Containers lifecycle
 #   initialization preserve user-owned local files
+# - verifies parallel worktrees keep separate display and Xauthority state and
+#   that host Wayland discovery emits only a live one-socket mount
 #
 # Related files:
 # - ../initialize.sh
@@ -37,6 +39,12 @@ worktree_path=""
 worktree_local_env=""
 current_branch=""
 current_branch_alias=""
+parallel_worktree_path=""
+host_xauthority="$fixture_dir/.Xauthority"
+wayland_runtime_dir="$suite_tmp_dir/w"
+wayland_display="w"
+wayland_socket="$wayland_runtime_dir/$wayland_display"
+wayland_pid=""
 create_git_fixture_repo "$fixture_dir"
 
 cleanup_devcontainer() {
@@ -46,6 +54,11 @@ cleanup_devcontainer() {
 }
 
 cleanup_test() {
+  if [ -n "$wayland_pid" ]; then
+    kill "$wayland_pid" >/dev/null 2>&1 || true
+    wait "$wayland_pid" >/dev/null 2>&1 || true
+  fi
+  rm -rf "$wayland_runtime_dir"
   cleanup_devcontainer
   if [ "$local_suite" -eq 1 ]; then
     cleanup_suite
@@ -60,7 +73,9 @@ rm -f "$fixture_dir/.devcontainer/.env"
 rm -f "$fixture_dir/.devcontainer/compose.local.gen.yml"
 rm -f "$fixture_dir/.devcontainer/compose.user.gen.yml"
 
-HOME="$fixture_dir" DISPLAY=localhost:42.0 BRANCH=feature/initialize-test "$fixture_dir/.devcontainer/initialize.sh"
+env -u WAYLAND_DISPLAY -u XDG_RUNTIME_DIR \
+  HOME="$fixture_dir" DISPLAY=localhost:42.0 BRANCH=feature/initialize-test \
+  "$fixture_dir/.devcontainer/initialize.sh"
 expected_hostname="$(expected_generated_hostname "$fixture_dir" "feature/initialize-test")"
 expected_project_name="$(expected_compose_project_name "$fixture_dir" "feature/initialize-test")"
 
@@ -104,6 +119,8 @@ assert_info_exclude_lacks_patterns \
 [[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_GID=$(id -u)"* ]] || fail ".env does not contain generated GID"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_KVM_GID=$expected_kvm_gid"* ]] || fail ".env does not contain generated KVM GID"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_DISPLAY=localhost:42.0"* ]] || fail ".env does not contain generated DISPLAY"
+[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_XAUTHORITY=$fixture_dir/.worktrees/feature/initialize-test/.devcontainer/.Xauthority.gen"* ]] || fail ".env does not point to workspace-local Xauthority"
+[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_WAYLAND_DISPLAY="* ]] || fail ".env does not contain generated Wayland display key"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" != *"CODEGEIST_CHROME_CDP_PROFILE_DIR="* ]] || fail ".env persisted shared Chrome CDP profile path"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" != *"BRANCH="* ]] || fail ".env persisted BRANCH input"
 ! grep -q '^COMPOSE_PROJECT_NAME=' "$fixture_dir/.devcontainer/.env" || fail ".env persisted Docker Compose project override"
@@ -116,6 +133,25 @@ assert_info_exclude_lacks_patterns \
 [[ -z "$(git -C "$fixture_dir" status --porcelain -- .devcontainer/compose.user.gen.yml)" ]] || fail "user compose bridge is not ignored"
 worktree_path="$fixture_dir/.worktrees/feature/initialize-test"
 [[ -d "$worktree_path" ]] || fail "root initializer did not create the requested worktree"
+[[ "$(<"$worktree_path/.devcontainer/.env")" == *"DEVCONTAINER_DISPLAY=localhost:42.0"* ]] || fail "selected worktree did not receive isolated display state"
+[[ -f "$worktree_path/.devcontainer/.Xauthority.gen" ]] || fail "selected worktree did not receive generated Xauthority"
+assert_ignored_by_root_gitignore "$fixture_dir" ".worktrees/feature/initialize-test/.devcontainer/.Xauthority.gen"
+
+printf 'workspace-a-authority\n' >"$host_xauthority"
+env -u WAYLAND_DISPLAY -u XDG_RUNTIME_DIR \
+  HOME="$fixture_dir" XAUTHORITY="$host_xauthority" DISPLAY=localhost:44.0 \
+  BRANCH=feature/initialize-test "$fixture_dir/.devcontainer/initialize.sh"
+printf 'workspace-b-authority\n' >"$host_xauthority"
+env -u WAYLAND_DISPLAY -u XDG_RUNTIME_DIR \
+  HOME="$fixture_dir" XAUTHORITY="$host_xauthority" DISPLAY=localhost:45.0 \
+  BRANCH=feature/initialize-parallel "$fixture_dir/.devcontainer/initialize.sh"
+parallel_worktree_path="$fixture_dir/.worktrees/feature/initialize-parallel"
+
+[[ "$(<"$worktree_path/.devcontainer/.env")" == *"DEVCONTAINER_DISPLAY=localhost:44.0"* ]] || fail "workspace A display state was overwritten by workspace B"
+[[ "$(<"$parallel_worktree_path/.devcontainer/.env")" == *"DEVCONTAINER_DISPLAY=localhost:45.0"* ]] || fail "workspace B did not receive its own display state"
+[[ "$(<"$worktree_path/.devcontainer/.Xauthority.gen")" = "workspace-a-authority" ]] || fail "workspace A Xauthority was overwritten by workspace B"
+[[ "$(<"$parallel_worktree_path/.devcontainer/.Xauthority.gen")" = "workspace-b-authority" ]] || fail "workspace B did not receive its own Xauthority"
+
 worktree_local_env="$worktree_path/.codegeist/.local.env"
 [[ -L "$worktree_local_env" ]] || fail "worktree .codegeist/.local.env is not a symlink"
 rm -f "$worktree_local_env"
@@ -142,13 +178,31 @@ HOME="$fixture_dir" BRANCH=feature/initialize-test "$fixture_dir/.devcontainer/i
 [[ "$(<"$fixture_dir/.devcontainer/compose.user.gen.yml")" == *"# local compose marker"* ]] || fail "user compose bridge did not refresh local compose marker"
 [[ "$(<"$fixture_dir/.codegeist/.local.env")" = "CUSTOM_ENV=1" ]] || fail ".codegeist/.local.env was overwritten"
 
-env -u BRANCH -u DISPLAY HOME="$fixture_dir" "$fixture_dir/.devcontainer/initialize.sh"
+mkdir -m 700 "$wayland_runtime_dir"
+socat "UNIX-LISTEN:$wayland_socket,fork" EXEC:/bin/true >/dev/null 2>&1 &
+wayland_pid="$!"
+for _ in $(seq 1 50); do
+  [ ! -S "$wayland_socket" ] || break
+  sleep 0.1
+done
+[[ -S "$wayland_socket" ]] || fail "test Wayland socket was not created"
+HOME="$fixture_dir" XDG_RUNTIME_DIR="$wayland_runtime_dir" WAYLAND_DISPLAY="$wayland_display" \
+  "$fixture_dir/.devcontainer/initialize.sh"
+[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_WAYLAND_DISPLAY=$wayland_display"* ]] || fail ".env did not capture host Wayland display"
+[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_WAYLAND_SOCKET_HOST=$wayland_socket"* ]] || fail ".env did not capture host Wayland socket"
+[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_WAYLAND_RUNTIME_DIR=/tmp/codegeist-wayland"* ]] || fail ".env did not set container Wayland runtime"
+[[ "$(<"$fixture_dir/.devcontainer/compose.local.gen.yml")" == *"$wayland_socket:/tmp/codegeist-wayland/$wayland_display"* ]] || fail "generated Compose did not mount the host Wayland socket"
+
+env -u BRANCH -u DISPLAY -u WAYLAND_DISPLAY -u XDG_RUNTIME_DIR \
+  HOME="$fixture_dir" "$fixture_dir/.devcontainer/initialize.sh"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" != *"BRANCH="* ]] || fail "generated .env kept stale BRANCH after unset start"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" != *"DEVCONTAINER_BRANCH_NAME=feature-initialize-test"* ]] || fail "generated .env reused stale branch after unset start"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" != *"DEVCONTAINER_COMPOSE_PROJECT_NAME=$expected_project_name"* ]] || fail "generated .env reused stale Compose project after unset start"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_WORKSPACE_FOLDER=$fixture_dir"* ]] || fail "generated .env did not reset workspace when BRANCH was unset"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_DISPLAY="* ]] || fail "generated .env removed DISPLAY key after unset start"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" != *"DEVCONTAINER_DISPLAY=localhost:42.0"* ]] || fail "generated .env reused stale DISPLAY after unset start"
+[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_WAYLAND_DISPLAY="* ]] || fail "generated .env removed Wayland key after unset start"
+[[ "$(<"$fixture_dir/.devcontainer/compose.local.gen.yml")" != *"/tmp/codegeist-wayland"* ]] || fail "generated Compose retained stale Wayland mount"
 
 current_branch="$(git -C "$fixture_dir" rev-parse --abbrev-ref HEAD)"
 current_branch_alias="$fixture_dir/.worktrees/$current_branch"

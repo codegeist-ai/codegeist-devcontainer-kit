@@ -12,10 +12,10 @@
 #   the caller passes `--user-data-dir`, and disables container-expensive
 #   browser services that are not needed for normal interactive checks.
 # - Visible mode prefers a reachable Wayland socket, validates local X11 sockets,
-#   and preserves SSH-forwarded or explicitly configured remote X11 displays.
+#   and probes SSH-forwarded X11 before Google Chrome starts.
 # - `DEVCONTAINER_WORKSPACE_FOLDER` points at the mounted workspace whose
-#   `.devcontainer/.env` may contain a refreshed `DEVCONTAINER_DISPLAY` after a
-#   VS Code reopen.
+#   `.devcontainer/.env` contains reconnect-refreshed display and Xauthority
+#   state isolated from other workspace instances on the same host.
 #
 # Related files:
 # - Dockerfile.base
@@ -47,9 +47,11 @@ Visible mode environment:
   A non-empty DISPLAY or WAYLAND_DISPLAY alone is not sufficient. Wayland needs
   a socket at $XDG_RUNTIME_DIR/$WAYLAND_DISPLAY, and local X11 displays such as
   :0 need the matching /tmp/.X11-unix/X0 socket inside the container.
-  A reachable Wayland socket takes precedence over DISPLAY.
-  DISPLAY is refreshed from .devcontainer/.env when the workspace provides a
-  generated DEVCONTAINER_DISPLAY value.
+  A reachable Wayland socket takes precedence over DISPLAY. SSH-loopback X11
+  displays are verified with xdpyinfo and may normalize their matching
+  Xauthority /unix:N cookie.
+  DISPLAY and XAUTHORITY are refreshed from the current workspace's
+  .devcontainer/.env on every launch, including after VS Code SSH reconnects.
   Plain `chrome` uses $DEVCONTAINER_WORKSPACE_FOLDER/.chrome unless the caller
   passes an explicit --user-data-dir.
 
@@ -96,51 +98,17 @@ headless_args=(
   --no-sandbox
 )
 
-normalize_ssh_xauthority() {
-  local display_number=""
-  local xauth_dir=""
-  local normalized_xauthority=""
-  local cookie=""
-
-  case "${DISPLAY:-}" in
-    localhost:[0-9]*|127.0.0.1:[0-9]*) ;;
-    *) return 0 ;;
-  esac
-
-  [ -n "${XAUTHORITY:-}" ] || return 0
-  [ -f "$XAUTHORITY" ] || return 0
-  command -v xauth >/dev/null 2>&1 || return 0
-
-  display_number="${DISPLAY#*:}"
-  display_number="${display_number%%.*}"
-  [ -n "$display_number" ] || return 0
-
-  cookie="$(xauth list 2>/dev/null \
-    | awk -v suffix="/unix:${display_number}" '$1 ~ suffix"$" { print $NF; exit }')"
-  [ -n "$cookie" ] || return 0
-
-  xauth_dir="${XDG_RUNTIME_DIR:-/tmp}"
-  if [ ! -d "$xauth_dir" ] || [ ! -w "$xauth_dir" ]; then
-    xauth_dir="/tmp"
-  fi
-
-  normalized_xauthority="$(mktemp "$xauth_dir/chrome-xauthority.XXXXXX")"
-  cp "$XAUTHORITY" "$normalized_xauthority"
-  chmod 600 "$normalized_xauthority"
-  export XAUTHORITY="$normalized_xauthority"
-
-  # SSH X11 forwarding often stores only a /unix cookie while DISPLAY uses
-  # localhost. Add host aliases to a temporary authority file for GUI clients.
-  xauth add "localhost:${display_number}" MIT-MAGIC-COOKIE-1 "$cookie" >/dev/null 2>&1 || true
-  xauth add "localhost:${display_number}.0" MIT-MAGIC-COOKIE-1 "$cookie" >/dev/null 2>&1 || true
-  xauth add "127.0.0.1:${display_number}" MIT-MAGIC-COOKIE-1 "$cookie" >/dev/null 2>&1 || true
-  xauth add "127.0.0.1:${display_number}.0" MIT-MAGIC-COOKIE-1 "$cookie" >/dev/null 2>&1 || true
-}
-
 refresh_display_from_workspace_env() {
   local generated_env=""
   local line=""
   local display_value=""
+  local xauthority_value=""
+  local wayland_display_value=""
+  local wayland_runtime_value=""
+  local has_display=0
+  local has_xauthority=0
+  local has_wayland_display=0
+  local has_wayland_runtime=0
 
   [ -n "${DEVCONTAINER_WORKSPACE_FOLDER:-}" ] || return 0
   generated_env="$DEVCONTAINER_WORKSPACE_FOLDER/.devcontainer/.env"
@@ -150,12 +118,150 @@ refresh_display_from_workspace_env() {
     case "$line" in
       DEVCONTAINER_DISPLAY=*)
         display_value="${line#DEVCONTAINER_DISPLAY=}"
+        has_display=1
+        ;;
+      DEVCONTAINER_XAUTHORITY=*)
+        xauthority_value="${line#DEVCONTAINER_XAUTHORITY=}"
+        has_xauthority=1
+        ;;
+      DEVCONTAINER_WAYLAND_DISPLAY=*)
+        wayland_display_value="${line#DEVCONTAINER_WAYLAND_DISPLAY=}"
+        has_wayland_display=1
+        ;;
+      DEVCONTAINER_WAYLAND_RUNTIME_DIR=*)
+        wayland_runtime_value="${line#DEVCONTAINER_WAYLAND_RUNTIME_DIR=}"
+        has_wayland_runtime=1
         ;;
     esac
   done <"$generated_env"
 
-  [ -n "$display_value" ] || return 0
-  export DISPLAY="$display_value"
+  if [ "$has_display" -eq 1 ]; then
+    if [ -n "$display_value" ]; then
+      export DISPLAY="$display_value"
+    else
+      unset DISPLAY
+    fi
+  fi
+
+  if [ "$has_xauthority" -eq 1 ] && [ -n "$xauthority_value" ]; then
+    export XAUTHORITY="$xauthority_value"
+  fi
+
+  if [ "$has_wayland_display" -eq 1 ] && [ "$has_wayland_runtime" -eq 1 ]; then
+    # Empty refreshed values clear create-time Compose state after a host logout
+    # or reconnect. New sockets still require container recreation for mounting.
+    if [ -n "$wayland_display_value" ] && [ -n "$wayland_runtime_value" ]; then
+      export WAYLAND_DISPLAY="$wayland_display_value"
+      export XDG_RUNTIME_DIR="$wayland_runtime_value"
+    else
+      unset WAYLAND_DISPLAY XDG_RUNTIME_DIR
+    fi
+  fi
+}
+
+probe_x11_display() {
+  local display_value="$1"
+  local authority_file="${2:-}"
+
+  if [ -n "$authority_file" ]; then
+    DISPLAY="$display_value" XAUTHORITY="$authority_file" \
+      timeout 2s xdpyinfo >/dev/null 2>&1
+    return
+  fi
+
+  DISPLAY="$display_value" timeout 2s xdpyinfo >/dev/null 2>&1
+}
+
+create_normalized_xauthority() {
+  local display_number="$1"
+  local cookie="$2"
+  local source_file="${XAUTHORITY:-}"
+  local xauth_dir="${XDG_RUNTIME_DIR:-/tmp}"
+  local normalized_xauthority=""
+
+  if [ ! -d "$xauth_dir" ] || [ ! -w "$xauth_dir" ]; then
+    xauth_dir="/tmp"
+  fi
+
+  normalized_xauthority="$(mktemp "$xauth_dir/chrome-xauthority.XXXXXX")"
+  if [ -n "$source_file" ] && [ -f "$source_file" ]; then
+    cp "$source_file" "$normalized_xauthority"
+  fi
+  chmod 600 "$normalized_xauthority"
+
+  # SSH commonly records hostname/unix:N while clients connect through a
+  # loopback DISPLAY. Keep aliases unique to this launcher process.
+  if ! xauth -f "$normalized_xauthority" add "localhost:${display_number}" MIT-MAGIC-COOKIE-1 "$cookie" >/dev/null 2>&1 \
+    || ! xauth -f "$normalized_xauthority" add "localhost:${display_number}.0" MIT-MAGIC-COOKIE-1 "$cookie" >/dev/null 2>&1 \
+    || ! xauth -f "$normalized_xauthority" add "127.0.0.1:${display_number}" MIT-MAGIC-COOKIE-1 "$cookie" >/dev/null 2>&1 \
+    || ! xauth -f "$normalized_xauthority" add "127.0.0.1:${display_number}.0" MIT-MAGIC-COOKIE-1 "$cookie" >/dev/null 2>&1; then
+    rm -f "$normalized_xauthority"
+    return 1
+  fi
+  printf '%s\n' "$normalized_xauthority"
+}
+
+try_normalized_ssh_display() {
+  local display_number="$1"
+  local cookie="$2"
+  local candidate_display="localhost:${display_number}.0"
+  local candidate_xauthority=""
+
+  candidate_xauthority="$(create_normalized_xauthority "$display_number" "$cookie")" || return 1
+  tested_ssh_displays+=("$candidate_display")
+  if probe_x11_display "$candidate_display" "$candidate_xauthority"; then
+    export DISPLAY="$candidate_display"
+    export XAUTHORITY="$candidate_xauthority"
+    return 0
+  fi
+
+  rm -f "$candidate_xauthority"
+  return 1
+}
+
+resolve_ssh_x11() {
+  local requested_display="$1"
+  local requested_number="$2"
+  local authority_file="${XAUTHORITY:-}"
+  local authority_entry=""
+  local authority_family=""
+  local authority_cookie=""
+  local candidate_number=""
+
+  if ! command -v xdpyinfo >/dev/null 2>&1; then
+    x11_error="Detected SSH DISPLAY=$requested_display, but xdpyinfo is unavailable for the required reachability check."
+    return 1
+  fi
+
+  tested_ssh_displays+=("$requested_display")
+  if probe_x11_display "$requested_display" "$authority_file"; then
+    return 0
+  fi
+
+  if ! command -v xauth >/dev/null 2>&1; then
+    x11_error="Detected stale SSH DISPLAY=$requested_display, and xauth is unavailable for candidate recovery."
+    return 1
+  fi
+  if [ -z "$authority_file" ] || [ ! -f "$authority_file" ]; then
+    x11_error="Detected stale SSH DISPLAY=$requested_display, but XAUTHORITY does not identify a readable file."
+    return 1
+  fi
+
+  # Only normalize the requested workspace display. Trying another reachable
+  # cookie could attach Chrome to a different parallel VS Code SSH session.
+  while read -r authority_entry authority_family authority_cookie _; do
+    [[ "$authority_entry" =~ /unix:([0-9]+)(\.[0-9]+)?$ ]] || continue
+    candidate_number="${BASH_REMATCH[1]}"
+    [ "$candidate_number" = "$requested_number" ] || continue
+    [ "$authority_family" = "MIT-MAGIC-COOKIE-1" ] || continue
+    [[ "$authority_cookie" =~ ^[[:xdigit:]]+$ ]] || continue
+    if try_normalized_ssh_display "$candidate_number" "$authority_cookie"; then
+      return 0
+    fi
+  done < <(xauth -f "$authority_file" list 2>/dev/null)
+
+  x11_error="Detected stale SSH DISPLAY=$requested_display; its Xauthority cookie did not pass xdpyinfo."
+  return 1
 }
 
 resolve_visible_display() {
@@ -195,9 +301,15 @@ resolve_visible_display() {
     return 1
   fi
 
+  if [[ "$display_value" =~ ^(localhost|127\.0\.0\.1):([0-9]+)(\.[0-9]+)?$ ]]; then
+    display_number="${BASH_REMATCH[2]}"
+    resolve_ssh_x11 "$display_value" "$display_number"
+    return
+  fi
+
   if [ -n "$display_value" ]; then
-    # SSH-forwarded localhost displays and caller-managed remote X11 displays
-    # cannot be proven usable from the socket filesystem. Preserve them.
+    # Explicit non-loopback remote X11 hosts remain caller-managed. Unlike SSH
+    # loopback forwards, the kit cannot infer their authority or lifecycle.
     return 0
   fi
 
@@ -211,9 +323,10 @@ Chrome needs a usable visible display.
 
 $x11_error
 $wayland_error
+SSH X11 candidates tested: ${tested_ssh_displays[*]:-none}
 
 Use \`chrome --headless ...\` for automation, reopen the devcontainer with SSH
-X11 forwarding, or configure a container-visible Wayland or local X11 socket.
+X11 forwarding, or recreate it to mount a newly available Wayland socket.
 EOF
 }
 
@@ -225,6 +338,7 @@ refresh_display_from_workspace_env
 
 wayland_error=""
 x11_error=""
+tested_ssh_displays=()
 if ! resolve_visible_display; then
   report_unusable_visible_display
   exit 1
@@ -237,8 +351,6 @@ if [ "$has_explicit_user_data_dir" -eq 0 ]; then
     visible_args+=(--user-data-dir="$workspace_profile_dir")
   fi
 fi
-
-normalize_ssh_xauthority
 
 if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] && command -v dbus-run-session >/dev/null 2>&1; then
   exec dbus-run-session -- google-chrome "${visible_args[@]}" "${chrome_args[@]}"

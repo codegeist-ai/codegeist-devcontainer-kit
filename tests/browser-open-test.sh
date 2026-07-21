@@ -205,10 +205,9 @@ Visible Chrome uses the container's X11 or Wayland display directly. This is
 different from `code` in a VS Code devcontainer terminal, which may work through
 VS Code's remote CLI instead of opening an X11/Wayland GUI process.
 
-If Chrome reports "Missing X server or $DISPLAY", verify that the host display
-socket and its authorization are reachable from Docker. Typical X11 setups need
-the matching Xauthority file mounted or an explicit host-side access rule such as
-`xhost +SI:localuser:<container-user>`.
+If Chrome reports that no display is reachable, verify that the SSH X11 listener
+or generated Wayland socket is still active. Normal kit starts refresh a
+workspace-local Xauthority copy and do not require broad `xhost` access.
 EOF
   fail "visible Chrome did not create a detectable X11 window in the devcontainer fixture"
 fi

@@ -6,6 +6,7 @@
 # - verifies the browser can read container-local resources without host display
 #   forwarding or project-specific browser configuration
 # - drives a rendered browser UI check through Chrome DevTools Protocol
+# - proves stale SSH-loopback X11 is rejected before Google Chrome starts
 # - reproduces the local VS Code failure shape with DISPLAY=:0, no X0 socket, and
 #   a real Wayland compositor before a runtime release can pass the full suite
 #
@@ -35,6 +36,9 @@ wayland_screenshot_file="/tmp/browser-wayland-visible.png"
 wayland_runtime_dir="/tmp/browser-wayland-runtime"
 wayland_socket_name="vscode-wayland-regression.sock"
 weston_log_file="/tmp/browser-wayland-weston.log"
+stale_workspace="/tmp/browser-stale-ssh-workspace"
+stale_error_file="/tmp/browser-stale-ssh-error.log"
+stale_chrome_marker="/tmp/browser-stale-ssh-google-chrome-started"
 browser_tmp_root="${BROWSER_SMOKE_TMP_ROOT:-$project_root/.browser-smoke-tmp}"
 
 cleanup_devcontainer() {
@@ -102,6 +106,45 @@ if [ "$actual_content" != "$expected_content" ]; then
   printf 'Actual browser content:   %s\n' "$actual_content" >&2
   fail "Chrome did not load the container-local file content"
 fi
+
+log "checking stale SSH X11 is rejected before Google Chrome starts"
+docker exec -u "$expected_user_name" \
+  -e STALE_WORKSPACE="$stale_workspace" \
+  -e STALE_ERROR_FILE="$stale_error_file" \
+  -e STALE_CHROME_MARKER="$stale_chrome_marker" \
+  "$container_id" bash -lc '
+    set -euo pipefail
+
+    fake_bin="$STALE_WORKSPACE/fake-bin"
+    authority_file="$STALE_WORKSPACE/.devcontainer/.Xauthority.gen"
+    rm -rf "$STALE_WORKSPACE"
+    mkdir -p "$STALE_WORKSPACE/.devcontainer" "$fake_bin"
+    : >"$authority_file"
+    cat >"$STALE_WORKSPACE/.devcontainer/.env" <<EOF
+DEVCONTAINER_DISPLAY=localhost:39999.0
+DEVCONTAINER_XAUTHORITY=$authority_file
+DEVCONTAINER_WAYLAND_DISPLAY=
+DEVCONTAINER_WAYLAND_RUNTIME_DIR=
+EOF
+    cat >"$fake_bin/google-chrome" <<EOF
+#!/usr/bin/env bash
+touch "$STALE_CHROME_MARKER"
+EOF
+    chmod +x "$fake_bin/google-chrome"
+    rm -f "$STALE_ERROR_FILE" "$STALE_CHROME_MARKER"
+
+    set +e
+    env -u WAYLAND_DISPLAY -u XDG_RUNTIME_DIR \
+      PATH="$fake_bin:$PATH" \
+      DEVCONTAINER_WORKSPACE_FOLDER="$STALE_WORKSPACE" \
+      chrome about:blank 2>"$STALE_ERROR_FILE"
+    launcher_status="$?"
+    set -e
+
+    [ "$launcher_status" -ne 0 ]
+    [ ! -e "$STALE_CHROME_MARKER" ]
+    grep -F "Detected stale SSH DISPLAY=localhost:39999.0" "$STALE_ERROR_FILE" >/dev/null
+  '
 
 docker cp "$script_dir/browser-ui-cdp.mjs" "$container_id:$ui_driver_file"
 
@@ -194,6 +237,16 @@ docker exec -u "$expected_user_name" \
     [ -S "$WAYLAND_RUNTIME_DIR/$WAYLAND_SOCKET_NAME" ] \
       || { cat "$WESTON_LOG_FILE" >&2 || true; exit 1; }
 
+    # The launcher intentionally clears stale create-time Wayland values when
+    # initializeCommand writes empty replacements. Point this test workspace at
+    # the compositor it created before exercising the real launcher.
+    cat >"$DEVCONTAINER_WORKSPACE_FOLDER/.devcontainer/.env" <<EOF
+DEVCONTAINER_DISPLAY=:0
+DEVCONTAINER_XAUTHORITY=${XAUTHORITY:-}
+DEVCONTAINER_WAYLAND_DISPLAY=$WAYLAND_SOCKET_NAME
+DEVCONTAINER_WAYLAND_RUNTIME_DIR=$WAYLAND_RUNTIME_DIR
+EOF
+
     cat >"$UI_CONTAINER_FILE" <<EOF
 <!doctype html>
 <html lang="en">
@@ -213,4 +266,4 @@ EOF
     test -s "$UI_SCREENSHOT_FILE"
   '
 
-pass "Chrome passes headless UI checks and the real DISPLAY=:0 Wayland regression"
+pass "Chrome passes headless, stale SSH X11, and real DISPLAY=:0 Wayland regressions"

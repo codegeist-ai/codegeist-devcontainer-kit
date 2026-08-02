@@ -23,13 +23,18 @@
   simultaneous first-time `BRANCH` starts.
 - OpenCode work should continue from this repository root in the current
   maintenance checkout.
+- The repository-local contributor baseline now targets source `main`: 0BSD
+  licensing, a local contribution guide, Issue-to-task-to-PR linkage, and
+  read-only CI all use `task check` as the normal fast contract.
+- Contributor rollout remains open until the pending public Issues, pull request,
+  and roadmap/GitHub state are created outside this repository.
 
 ## Current State
 
 - Local default branch is `main`.
-- `.devcontainer/` and `.opencode/` are checked-out shared submodules in this
-  development repository. Do not edit them directly during normal project work
-  unless the task is explicit submodule work.
+- `.devcontainer/` and `.opencode/` are configured shared submodules in this
+  development repository. When initialized, do not edit them directly during
+  normal project work unless the task is explicit submodule work.
 - `.devcontainer` is a runtime-release submodule. Release workflows may update
   its gitlink to the latest pushed `origin/release` commit, but should not
   automatically commit that parent gitlink after publishing unless the user asks.
@@ -201,9 +206,12 @@
   must not open VS Code or start/remove containers.
 - Tests should exercise the real Dev Containers lifecycle when behavior depends
   on VS Code or the Dev Containers CLI integration.
-- Test fixtures now use repo-local ignored temp roots (`.test-tmp/` and
-  `.browser-smoke-tmp/`) because Docker bind mounts in this workspace cannot rely
-  on arbitrary `/tmp` paths being visible to the daemon.
+- Docker-backed broad-suite fixtures use repo-local ignored temp roots
+  (`.test-tmp/` and `.browser-smoke-tmp/`) because bind mounts cannot rely on
+  arbitrary `/tmp` paths being visible to the daemon. The normal `task check`
+  release fixture does not need Docker: it copies only explicit release source
+  inputs into cleanup-trapped OS temporary state and leaves no repo-local test
+  directory behind.
 - Browser UI verification uses `tests/browser-ui-cdp.mjs`, a Node 24 Chrome
   DevTools Protocol driver invoked by `tests/browser-smoke.sh`. It covers both
   headless rendering and the real local VS Code failure shape: a Dev Containers
@@ -222,9 +230,11 @@
   insecure. Manual Google sign-in succeeded after launching
   `chrome https://accounts.google.com` from the terminal with the updated
   launcher. Plain `chrome` now uses workspace-local `.chrome` by default.
-- After code, script, or workflow changes, run the complete `task tests-run`
-  suite before handoff when the environment allows it. If the environment blocks
-  the full suite, report the blocker and list targeted checks that passed.
+- Run `task check` for normal contributor changes. Run the complete
+  `task tests-run` suite when image, Dev Containers lifecycle, Docker/Compose,
+  QEMU, browser runtime, or release-relevant integration behavior changes; if
+  the environment blocks a relevant full suite, report the blocker and targeted
+  checks that passed.
 - Runtime releases are published from clean `main` with `task release-build`;
   use `--push` only when the branch should be pushed immediately. This repository
   publishes runtime artifacts through the `release` branch only, not through
@@ -344,6 +354,7 @@
 ## Useful Commands
 
 ```bash
+task check
 task tests-run
 task qemu-alpine-smoke
 task code-open

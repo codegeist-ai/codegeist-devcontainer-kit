@@ -7,6 +7,9 @@ Containers workflow with the current Codegeist/planner development toolchain.
 
 This repository is a reusable devcontainer kit that can be added to other
 repositories at `.devcontainer/`, either as a Git subtree or as a Git submodule.
+The `main` branch is the canonical source and contribution target. The generated
+`release` branch is the runtime-only tree intended for consuming
+`.devcontainer/` submodules and is not an implementation target.
 The source `Dockerfile.base` intentionally carries the full
 Codegeist/planner-style toolchain, including Docker CE, Node 24, VS Code,
 GitHub CLI, Maven, GraalVM, JBang, Hugo, Nix, PowerShell through `pwsh`, Task
@@ -16,6 +19,17 @@ virtualization tools, terminal capture tools, `espeak-ng`, network diagnostics,
 security scan tools, password-store tooling through `pass`, and related CLI
 tools. The release build publishes this file as
 `.devcontainer/Dockerfile` for consuming repositories.
+
+Project work is tracked through
+[GitHub Issues](https://github.com/codegeist-ai/codegeist-devcontainer-kit/issues),
+the [Codegeist roadmap listing](https://github.com/users/codegeist-ai/projects/1),
+and resumable local specifications described in the
+[task guide](docs/tasks/README.md). See [CONTRIBUTING.md](CONTRIBUTING.md) for the
+source workflow and extension boundaries. Codegeist's shared
+[Code of Conduct](https://github.com/codegeist-ai/.github/blob/main/CODE_OF_CONDUCT.md),
+[Security Policy](https://github.com/codegeist-ai/.github/blob/main/SECURITY.md),
+and [Support Policy](https://github.com/codegeist-ai/.github/blob/main/SUPPORT.md)
+apply to this repository.
 
 The consuming project should use the standard VS Code flow:
 
@@ -373,7 +387,22 @@ If the repository was already cloned without submodules, initialize them later:
 git submodule update --init --recursive
 ```
 
-Run the local test suite from this repository root:
+Run the normal fast, deterministic contributor check from this repository root:
+
+```bash
+task check
+```
+
+This validates shell syntax and the focused source-to-release contract without
+building the image, starting Docker, QEMU, Dev Containers, or browsers,
+publishing a release, or modifying this repository's Git history. The release
+fixture uses a bounded source input list under a cleanup-trapped OS temporary
+directory and leaves no `.test-tmp`, cache, log, or copied local state in the
+source checkout.
+
+Run the broad local test suite when changing image contents, Dev Containers
+lifecycle behavior, Docker/Compose integration, QEMU, browser runtime, or another
+contract covered only by integration tests:
 
 ```bash
 task tests-run
@@ -431,6 +460,7 @@ The release branch tree contains only:
 .oc_local.opencode.json.example
 Dockerfile
 Dockerfile.example
+LICENSE
 README.md
 compose.local.yml.example
 devcontainer.json
@@ -443,7 +473,8 @@ scripts/chrome.sh
 `scripts/release-build.sh` copies source `Dockerfile.base` into the release tree
 as `Dockerfile` and ships `Dockerfile.example` as the on-demand template for root
 `.codegeist/Dockerfile`; do not add a tracked root `Dockerfile` to the source
-checkout for the kit base image.
+checkout for the kit base image. The source and generated runtime trees both ship
+the canonical 0BSD `LICENSE`.
 
 ## OpenCode Workspace
 
@@ -1021,3 +1052,13 @@ Prefer:
 - The base image currently keeps the copied Codegeist/planner toolchain intact;
   future work can split generic tools from project-specific features when there
   is a concrete consumer need.
+
+The public roadmap listing is maintained at
+<https://github.com/users/codegeist-ai/projects/1>. Contributor-sized work should
+start from a GitHub Issue and, when implementation detail needs durable handoff,
+a linked specification under `docs/tasks/`.
+
+## License
+
+This repository and its generated runtime release are available under the
+[Zero-Clause BSD (`0BSD`) license](LICENSE).

@@ -378,20 +378,28 @@ create_git_fixture_repo() {
   local fixture_dir="$1"
 
   create_fixture_repo "$fixture_dir"
-  git -C "$fixture_dir" init >/dev/null
-  git -C "$fixture_dir" config user.name "Test User"
-  git -C "$fixture_dir" config user.email "test@example.com"
+  create_git_repo "$fixture_dir"
   git -C "$fixture_dir" add .
   git -C "$fixture_dir" commit -m "initial fixture" >/dev/null
 }
 
 create_git_repo() {
   local repo_dir="$1"
+  local empty_template_dir="$repo_dir/.git-empty-template"
 
-  mkdir -p "$repo_dir"
-  git -C "$repo_dir" init -b main >/dev/null
-  git -C "$repo_dir" config user.name "Test User"
-  git -C "$repo_dir" config user.email "test@example.com"
+  mkdir -p "$repo_dir" "$empty_template_dir"
+  if ! git -C "$repo_dir" init --template="$empty_template_dir" -b main >/dev/null; then
+    rm -rf "$empty_template_dir"
+    return 1
+  fi
+  rm -rf "$empty_template_dir"
+
+  # Fixture commits must not inherit signing, hooks, or template behavior from
+  # the contributor's Git configuration.
+  git -C "$repo_dir" config --local commit.gpgSign false
+  git -C "$repo_dir" config --local core.hooksPath /dev/null
+  git -C "$repo_dir" config --local user.name "Test User"
+  git -C "$repo_dir" config --local user.email "test@example.com"
 }
 
 create_kit_submodule_repo() {

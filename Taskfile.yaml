@@ -19,6 +19,7 @@
 # - tests/code-open-test.sh
 # - scripts/chrome.sh
 # - tests/browser-open-test.sh
+# - tests/release-build.sh
 
 version: '3'
 
@@ -38,6 +39,17 @@ vars:
     sh: printf '%s' "${CONTAINER_GID:-${UID:-$(id -u)}}"
 
 tasks:
+  check:
+    desc: Run fast deterministic contributor checks
+    cmds:
+      - >-
+        bash -n
+        "{{.TASKFILE_DIR}}/entrypoint.sh"
+        "{{.TASKFILE_DIR}}/initialize.sh"
+        "{{.TASKFILE_DIR}}"/scripts/*.sh
+        "{{.TASKFILE_DIR}}"/tests/*.sh
+      - '"{{.TASKFILE_DIR}}/tests/release-build.sh"'
+
   docker-build:
     desc: Build the generic devcontainer kit image
     cmds:

@@ -4,6 +4,7 @@
 - Type: `<feature|fix|docs|test|chore>`
 - Status: `open`
 - Parent: `none`
+- Public Tracking: `pending issue creation`
 
 ## Goal
 

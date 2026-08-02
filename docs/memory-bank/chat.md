@@ -25,9 +25,11 @@
   maintenance checkout.
 - The repository-local contributor baseline now targets source `main`: 0BSD
   licensing, a local contribution guide, Issue-to-task-to-PR linkage, and
-  read-only CI all use `task check` as the normal fast contract.
-- Contributor rollout remains open until the pending public Issues, pull request,
-  and roadmap/GitHub state are created outside this repository.
+  read-only CI all use `task check` as the normal fast contract. Pull request #1
+  and the matching `main` check passed, issues #2 through #4 are publicly ready,
+  and the generated `release` branch carries the root license.
+- Contributor rollout remains open for final repository metadata, branch
+  protection, and account-wide community-profile verification.
 
 ## Current State
 

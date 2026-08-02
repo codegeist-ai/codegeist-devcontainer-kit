@@ -4,7 +4,9 @@
 - Type: `docs`
 - Status: `open`
 - Parent: `none`
-- Public Tracking: `pending issue creation`
+- Public Tracking: https://github.com/codegeist-ai/codegeist-devcontainer-kit/issues/3
+- Contribution Level: `beginner (good first issue)`
+- Effort: `small`
 
 ## Goal
 

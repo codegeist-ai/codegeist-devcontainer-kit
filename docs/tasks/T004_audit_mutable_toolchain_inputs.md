@@ -4,7 +4,7 @@
 - Type: `chore`
 - Status: `open`
 - Parent: `none`
-- Public Tracking: `pending issue creation`
+- Public Tracking: https://github.com/codegeist-ai/codegeist-devcontainer-kit/issues/2
 - Contribution Level: `intermediate`
 - Effort: `medium`
 

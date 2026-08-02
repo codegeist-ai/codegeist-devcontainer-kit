@@ -4,7 +4,9 @@
 - Type: `feature`
 - Status: `open`
 - Parent: `none`
-- Public Tracking: `pending issue creation`
+- Public Tracking: https://github.com/codegeist-ai/codegeist-devcontainer-kit/issues/4
+- Contribution Level: `intermediate (help wanted)`
+- Effort: `medium`
 
 ## Goal
 

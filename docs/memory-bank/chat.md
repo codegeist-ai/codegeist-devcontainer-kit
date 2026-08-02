@@ -26,10 +26,10 @@
 - The repository-local contributor baseline now targets source `main`: 0BSD
   licensing, a local contribution guide, Issue-to-task-to-PR linkage, and
   read-only CI all use `task check` as the normal fast contract. Pull request #1
-  and the matching `main` check passed, issues #2 through #4 are publicly ready,
-  and the generated `release` branch carries the root license.
-- Contributor rollout remains open for final repository metadata, branch
-  protection, and account-wide community-profile verification.
+  and the matching `main` check passed, and the generated `release` branch carries
+  the root license. No placeholder contributor backlog is retained.
+- Repository metadata, branch protection, private vulnerability reporting, and the
+  account-wide community-profile verification are complete.
 
 ## Current State
 

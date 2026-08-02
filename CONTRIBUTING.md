@@ -21,8 +21,10 @@ submodule checkout, as an implementation target.
 1. Check the repository's [Issues](https://github.com/codegeist-ai/codegeist-devcontainer-kit/issues)
    and [roadmap listing](https://github.com/users/codegeist-ai/projects/1) before
    starting overlapping work.
-2. Link the Issue to a local task under `docs/tasks/` when the work needs a
-   resumable specification. Follow the [task guide](docs/tasks/README.md).
+2. An Issue labeled `status:ready` must link its canonical local task under
+   `docs/tasks/`. For a small unplanned fix, a maintainer may confirm that no new
+   task is needed; state the reason in the pull request. Always use an existing
+   task when one defines the work. Follow the [task guide](docs/tasks/README.md).
 3. Make the smallest source change on a branch based on `main`.
 4. Run the normal deterministic check:
 
@@ -33,8 +35,10 @@ submodule checkout, as an implementation target.
 5. Run `task tests-run` when changing the image, Dev Containers lifecycle,
    Docker/Compose behavior, QEMU, browser runtime, or another contract covered
    only by the broad integration suite.
-6. Open a pull request that links the public Issue and local task, explains the
-   source and release impact, and records the verification performed.
+6. Open a pull request that links the public Issue and applicable local task,
+   explains the source and release impact, and records the verification performed.
+   If no new task was required, state `No local task needed:` and the
+   maintainer-approved reason.
 
 `task check` validates shell syntax and focused source-to-release contracts. It
 is non-interactive, does not build the image or start Docker, QEMU, Dev
@@ -73,6 +77,7 @@ The separate [`codegeist-ai/.github`](https://github.com/codegeist-ai/.github)
 repository remains the source for shared community defaults used here and in
 other Codegeist repositories.
 
+- [GitHub account and repository model](https://github.com/codegeist-ai/.github/blob/main/GITHUB_ACCOUNT_MODEL.md)
 - [Code of Conduct](https://github.com/codegeist-ai/.github/blob/main/CODE_OF_CONDUCT.md)
 - [Security Policy](https://github.com/codegeist-ai/.github/blob/main/SECURITY.md)
 - [Support Policy](https://github.com/codegeist-ai/.github/blob/main/SUPPORT.md)

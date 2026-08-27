@@ -148,8 +148,6 @@ support remain out of scope.
   near the existing Dev Containers CLI smoke tests.
 - `tests/browser-ui-cdp.mjs` - container-side Chrome DevTools Protocol driver
   that launches Chrome, captures a screenshot, and compares rendered text.
-- `docs/memory-bank/chat.md` - update only if solve changes durable project
-  state, verification status, or known blockers.
 
 ## Implementation Steps
 

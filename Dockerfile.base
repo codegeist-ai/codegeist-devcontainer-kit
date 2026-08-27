@@ -26,6 +26,7 @@
 #   devcontainer runtime.
 # - VHS_VERSION and TTYD_VERSION select terminal-rendering tools used by
 #   documentation capture workflows in consuming repositories.
+# - TEA_VERSION pins the official Gitea CLI binary installed from dl.gitea.com.
 #
 # Related files:
 # - docker-compose.yml
@@ -43,6 +44,7 @@ ARG GRAALVM_VERSION=25.0.2
 ARG HUGO_VERSION=0.147.9
 ARG VHS_VERSION=0.11.0
 ARG TTYD_VERSION=1.7.7
+ARG TEA_VERSION=0.14.2
 
 ENV LANG=C.UTF-8 \
     LC_CTYPE=C.UTF-8 \
@@ -195,6 +197,13 @@ RUN lazygit_version="$(curl -fsSL https://api.github.com/repos/jesseduffield/laz
  && tar -xzf /tmp/lazygit.tar.gz -C /usr/local/bin lazygit \
  && chmod +x /usr/local/bin/lazygit \
  && rm -f /tmp/lazygit.tar.gz
+
+RUN tea_asset="tea-${TEA_VERSION}-linux-amd64" \
+ && curl -fsSL "https://dl.gitea.com/tea/${TEA_VERSION}/${tea_asset}" \
+      -o "/tmp/${tea_asset}" \
+ && install -m 0755 "/tmp/${tea_asset}" /usr/local/bin/tea \
+ && rm -f "/tmp/${tea_asset}" \
+ && tea --version
 
 RUN curl -fsSL "https://github.com/go-task/task/releases/latest/download/task_linux_amd64.tar.gz" \
       -o /tmp/task.tar.gz \

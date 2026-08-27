@@ -12,7 +12,8 @@ The `main` branch is the canonical source and contribution target. The generated
 `.devcontainer/` submodules and is not an implementation target.
 The source `Dockerfile.base` intentionally carries the full
 Codegeist/planner-style toolchain, including Docker CE, Node 24, VS Code,
-GitHub CLI, Maven, GraalVM, JBang, Hugo, Nix, PowerShell through `pwsh`, Task
+GitHub CLI, the Gitea `tea` CLI, Maven, GraalVM, JBang, Hugo, Nix, PowerShell
+through `pwsh`, Task
 with Bash completion, OpenCode tooling, the Codegeist CLI installed through the
 upstream Linux installer, Repomix, Kubernetes and infrastructure CLIs, QEMU/KVM
 virtualization tools, terminal capture tools, `espeak-ng`, network diagnostics,
@@ -361,6 +362,33 @@ terminal rendering and documentation-preview captures. Consuming repositories ca
 drive real native CLIs or TUIs through VHS without installing these tools in a
 project-local `.codegeist/Dockerfile` fragment. Image-level tests verify all
 three commands are present after the kit image builds.
+
+## Gitea CLI
+
+The devcontainer image includes `tea`, the official Gitea CLI. Put the server
+URL and application token in the ignored `.codegeist/.local.env` file so Compose
+injects the names that `tea login add` reads natively:
+
+```dotenv
+GITEA_SERVER_URL=https://git.codegeist.ai
+GITEA_SERVER_TOKEN=your-application-token
+```
+
+Add the login once, then use the stored active login to work with repositories,
+issues, and pull requests:
+
+```bash
+tea login add
+tea login list
+tea repos ls
+tea issues ls
+tea pulls ls
+```
+
+Run `tea --help` or `tea <command> --help` for the available commands and flags.
+Use `GITEA_SERVER_TOKEN`, not `GITEA_TOKEN`; the latter is not a `tea` login
+environment variable. Keep the token only in the ignored machine-local env file,
+never in shell history or tracked repository files.
 
 ## Security Scan Tools
 

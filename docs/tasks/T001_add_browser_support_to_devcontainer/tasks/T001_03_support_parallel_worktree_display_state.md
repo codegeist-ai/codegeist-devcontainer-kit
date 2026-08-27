@@ -80,7 +80,6 @@ Out of scope:
 - `tests/devcontainer-current-branch-up.sh`
 - `README.md`
 - `README_release.md`
-- `docs/memory-bank/chat.md`
 
 ## Dependencies
 

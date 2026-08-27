@@ -88,6 +88,13 @@ expected_project_name="$(expected_compose_project_name "$fixture_dir" "feature/i
 [[ ! -e "$fixture_dir/.devcontainer/.local.env" ]] || fail ".local.env was created in the kit directory"
 [[ -f "$fixture_dir/.devcontainer/compose.local.yml.example" ]] || fail "compose.local.yml.example is missing from the kit directory"
 [[ -f "$fixture_dir/.devcontainer/.local.env.example" ]] || fail ".local.env.example is missing from the kit directory"
+grep -F 'GITEA_SERVER_URL=' "$fixture_dir/.devcontainer/.local.env.example" >/dev/null \
+  || fail ".local.env.example does not document GITEA_SERVER_URL"
+grep -F 'GITEA_SERVER_TOKEN=' "$fixture_dir/.devcontainer/.local.env.example" >/dev/null \
+  || fail ".local.env.example does not document GITEA_SERVER_TOKEN"
+if grep -E '(^|[^_])GITEA_TOKEN=' "$fixture_dir/.devcontainer/.local.env.example" >/dev/null; then
+  fail ".local.env.example still documents legacy GITEA_TOKEN"
+fi
 [[ -f "$fixture_dir/.devcontainer/.env" ]] || fail ".devcontainer/.env was not created"
 [[ -f "$fixture_dir/.devcontainer/compose.local.gen.yml" ]] || fail ".devcontainer/compose.local.gen.yml was not created"
 [[ -f "$fixture_dir/.devcontainer/compose.user.gen.yml" ]] || fail ".devcontainer/compose.user.gen.yml was not created"

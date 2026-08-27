@@ -15,8 +15,9 @@ The `release` branch is a runtime-only tree. It contains the files needed by the
 Dev Containers extension and excludes this repository's development-only files,
 tests, and local AI workflow support. The image toolchain includes PowerShell as
 `pwsh` for cross-platform shell and automation work, Task with Bash completion,
-shared terminal-capture tools for documentation previews, plus shared QEMU and
-security-scan tools for infrastructure checks inside consuming devcontainers.
+the official Gitea `tea` CLI, shared terminal-capture tools for documentation
+previews, plus shared QEMU and security-scan tools for infrastructure checks
+inside consuming devcontainers.
 The runtime tree includes the repository's [`LICENSE`](LICENSE) and is
 distributed under the Zero-Clause BSD (`0BSD`) license.
 
@@ -424,6 +425,33 @@ The release kit includes `vhs`, `ffmpeg`, and `ttyd` for deterministic terminal
 rendering and documentation-preview captures. Consuming repositories can drive
 real native CLIs or TUIs through VHS without adding these generic tools through a
 project-local `.codegeist/Dockerfile` fragment.
+
+## Gitea CLI
+
+The image includes `tea`, the official Gitea CLI. Put the server URL and
+application token in the ignored `.codegeist/.local.env` file so Compose injects
+the names that `tea login add` reads natively:
+
+```dotenv
+GITEA_SERVER_URL=https://git.codegeist.ai
+GITEA_SERVER_TOKEN=your-application-token
+```
+
+Add the login once, then use the stored active login to work with repositories,
+issues, and pull requests:
+
+```bash
+tea login add
+tea login list
+tea repos ls
+tea issues ls
+tea pulls ls
+```
+
+Run `tea --help` or `tea <command> --help` for the available commands and flags.
+Use `GITEA_SERVER_TOKEN`, not `GITEA_TOKEN`; the latter is not a `tea` login
+environment variable. Keep the token only in the ignored machine-local env file,
+never in shell history or tracked repository files.
 
 ## Security Scan Tools
 

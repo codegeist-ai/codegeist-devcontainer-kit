@@ -82,6 +82,9 @@ expected_project_name="$(expected_compose_project_name "$fixture_dir" "feature/i
 [[ -f "$fixture_dir/.codegeist/compose.local.yml" ]] || fail ".codegeist/compose.local.yml was not created"
 [[ ! -e "$fixture_dir/.codegeist/Dockerfile" ]] || fail ".codegeist/Dockerfile was created without an on-demand extension"
 [[ -f "$fixture_dir/.codegeist/.local.env" ]] || fail ".codegeist/.local.env was not created"
+[[ -d "$fixture_dir/.codegeist/secrets" ]] || fail ".codegeist/secrets was not created"
+[[ -L "$fixture_dir/.tmp" ]] || fail ".tmp was not created as a symlink"
+[[ "$(readlink "$fixture_dir/.tmp")" = "/tmp/ws-data" ]] || fail ".tmp does not target /tmp/ws-data"
 [[ "$(<"$fixture_dir/.codegeist/compose.local.yml")" == *"# legacy compose marker"* ]] || fail "legacy compose.local.yml was not migrated"
 [[ "$(<"$fixture_dir/.codegeist/.local.env")" = "LEGACY_ENV=1" ]] || fail "legacy .local.env was not migrated"
 [[ ! -e "$fixture_dir/.devcontainer/compose.local.yml" ]] || fail "compose.local.yml was created in the kit directory"
@@ -107,6 +110,8 @@ assert_not_ignored "$fixture_dir" ".codegeist/compose.local.yml"
 [[ -n "$(git -C "$fixture_dir" status --porcelain -- .codegeist/compose.local.yml)" ]] || fail ".codegeist/compose.local.yml is not visible to git status"
 assert_not_ignored "$fixture_dir" ".codegeist/Dockerfile"
 assert_ignored_by_root_gitignore "$fixture_dir" ".codegeist/.local.env"
+assert_ignored_by_root_gitignore "$fixture_dir" ".codegeist/secrets/example"
+assert_ignored_by_root_gitignore "$fixture_dir" ".tmp"
 assert_ignored_by_root_gitignore "$fixture_dir" ".chrome/profile-file"
 assert_ignored_by_root_gitignore "$fixture_dir" ".oc_local/.gitignore"
 assert_ignored_by_root_gitignore "$fixture_dir" ".worktrees/feature/initialize-test/.codegeist/.local.env"
@@ -116,6 +121,8 @@ assert_info_exclude_lacks_patterns \
   "/.oc_local/.gitignore" \
   "/.worktrees/" \
   "/.codegeist/.local.env" \
+  "/.codegeist/secrets/" \
+  "/.tmp" \
   "/.chrome/" \
   "/.codegeist/Dockerfile" \
   "/.codegeist/compose.local.yml"
@@ -140,6 +147,8 @@ assert_info_exclude_lacks_patterns \
 [[ -z "$(git -C "$fixture_dir" status --porcelain -- .devcontainer/compose.user.gen.yml)" ]] || fail "user compose bridge is not ignored"
 worktree_path="$fixture_dir/.worktrees/feature/initialize-test"
 [[ -d "$worktree_path" ]] || fail "root initializer did not create the requested worktree"
+[[ -L "$worktree_path/.tmp" ]] || fail "selected worktree .tmp is not a symlink"
+[[ "$(readlink "$worktree_path/.tmp")" = "/tmp/ws-data" ]] || fail "selected worktree .tmp does not target /tmp/ws-data"
 [[ "$(<"$worktree_path/.devcontainer/.env")" == *"DEVCONTAINER_DISPLAY=localhost:42.0"* ]] || fail "selected worktree did not receive isolated display state"
 [[ -f "$worktree_path/.devcontainer/.Xauthority.gen" ]] || fail "selected worktree did not receive generated Xauthority"
 assert_ignored_by_root_gitignore "$fixture_dir" ".worktrees/feature/initialize-test/.devcontainer/.Xauthority.gen"
@@ -153,6 +162,7 @@ env -u WAYLAND_DISPLAY -u XDG_RUNTIME_DIR \
   HOME="$fixture_dir" XAUTHORITY="$host_xauthority" DISPLAY=localhost:45.0 \
   BRANCH=feature/initialize-parallel "$fixture_dir/.devcontainer/initialize.sh"
 parallel_worktree_path="$fixture_dir/.worktrees/feature/initialize-parallel"
+[[ -L "$parallel_worktree_path/.tmp" ]] || fail "parallel worktree .tmp is not a symlink"
 
 [[ "$(<"$worktree_path/.devcontainer/.env")" == *"DEVCONTAINER_DISPLAY=localhost:44.0"* ]] || fail "workspace A display state was overwritten by workspace B"
 [[ "$(<"$parallel_worktree_path/.devcontainer/.env")" == *"DEVCONTAINER_DISPLAY=localhost:45.0"* ]] || fail "workspace B did not receive its own display state"

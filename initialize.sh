@@ -29,6 +29,10 @@
 #   `/workspace` mount.
 # - Missing local-file ignore patterns are written to the repository `.gitignore`;
 #   this script never hides generated files through `.git/info/exclude`.
+# - Each opened workspace exposes `.tmp` as a link to `/tmp/ws-data`, keeping new
+#   disposable agent artifacts outside the persistent repository bind mount.
+#   Persistent secret files belong under the ignored `.codegeist/secrets/`
+#   directory instead of temporary storage.
 # - The script runs as a Dev Containers `initializeCommand` on the host and must
 #   stay idempotent, non-interactive, and safe for repeated starts.
 #
@@ -45,6 +49,8 @@
 # - compose.local.yml.example
 # - .codegeist/compose.local.yml
 # - .codegeist/.local.env
+# - .codegeist/secrets/
+# - ../.tmp
 # - .env
 # - .Xauthority.gen
 # - .local.env.example
@@ -412,7 +418,20 @@ EOF
 ensure_codegeist_dir() {
   local root_dir="$1"
 
-  mkdir -p "$root_dir/.codegeist"
+  mkdir -p "$root_dir/.codegeist/secrets"
+}
+
+ensure_workspace_tmp_link() {
+  local workspace_dir="$1"
+  local tmp_target="/tmp/ws-data"
+  local link_path="$workspace_dir/.tmp"
+
+  mkdir -p "$tmp_target"
+  if [ -e "$link_path" ] || [ -L "$link_path" ]; then
+    return 0
+  fi
+
+  ln -s "$tmp_target" "$link_path"
 }
 
 copy_local_or_example_if_missing() {
@@ -618,11 +637,15 @@ main() {
       fi
       ensure_gitignore_pattern "$root_dir" "/.worktrees/"
       ensure_gitignore_pattern "$root_dir" "/.codegeist/.local.env"
+      ensure_gitignore_pattern "$root_dir" "/.codegeist/secrets/"
       ensure_gitignore_pattern "$root_dir" "/.chrome/"
+      ensure_gitignore_pattern "$root_dir" "/.tmp"
+      ensure_workspace_tmp_link "$root_dir"
       if [ -n "$branch_name" ]; then
         prepare_selected_worktree "$root_dir" "$branch_name"
       fi
       workspace_folder="$(selected_workspace_folder "$root_dir" "$branch_name")"
+      ensure_workspace_tmp_link "$workspace_folder"
       workspace_env_file="$workspace_folder/.devcontainer/.env"
       workspace_xauthority_file="$workspace_folder/.devcontainer/.Xauthority.gen"
       discover_host_wayland

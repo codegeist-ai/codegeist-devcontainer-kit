@@ -52,9 +52,11 @@ directory, cache, log, or copied local state behind.
 Keep shared, repository-agnostic runtime behavior in this source repository.
 Consuming repositories should use `.codegeist/.local.env`,
 `.codegeist/compose.local.yml`, and `.codegeist/Dockerfile` for documented
-runtime extensions instead of editing `.devcontainer/`. Project-specific
-OpenCode behavior belongs in the consuming repository's `.oc_local/` overlay,
-not in its `.opencode/` or `.devcontainer/` submodule.
+runtime extensions instead of editing `.devcontainer/`. New persistent secret
+files belong under ignored `.codegeist/secrets/`, while new disposable artifacts
+belong under the initializer-managed `.tmp` link. Project-specific OpenCode
+behavior belongs in the consuming repository's `.oc_local/` overlay, not in its
+`.opencode/` or `.devcontainer/` submodule.
 
 Do not edit this source repository's nested `.devcontainer/` or `.opencode/`
 submodules as part of ordinary kit work.

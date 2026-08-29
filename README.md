@@ -74,9 +74,11 @@ files to the consuming repository's `.gitignore`:
 
 ```gitignore
 /.codegeist/.local.env
+/.codegeist/secrets/
 /.oc_local/
 /.worktrees/
 /.chrome/
+/.tmp
 ```
 
 Ignore `/.oc_local/` only when the consuming repository does not intentionally
@@ -129,6 +131,9 @@ code .worktrees/develop0
 The first start creates local and generated files when missing:
 
 - `.codegeist/.local.env`
+- `.codegeist/secrets/`, the ignored location for new persistent secret files
+- `.tmp`, a workspace-visible symlink to `/tmp/ws-data` for new disposable
+  artifacts
 - `.chrome/`
 - `.devcontainer/.env`
 - `.devcontainer/.Xauthority.gen`
@@ -153,6 +158,14 @@ The initializer creates writable `.oc_local/` and `.oc_local/.gitignore`, but it
 never copies the template or overwrites `.oc_local/opencode.json`. If a consuming
 repository tracks `.oc_local/`, remove or narrow generated ignores and keep
 secrets out of tracked local overlay files.
+
+Use `.tmp/` for new temporary directories, downloads, fixtures, and other
+disposable agent artifacts instead of adding new temporary roots directly to the
+workspace. The initializer creates `/tmp/ws-data` when needed and leaves any
+existing `.tmp` path unchanged. Existing repository-specific temporary paths are
+not migrated. Store new persistent secrets that are not disposable test inputs
+under `.codegeist/secrets/`; existing `.codegeist/.local.env` and `.chrome/`
+contracts remain unchanged.
 
 When upgrading an older checkout, `initialize.sh` copies legacy root `.local.env`
 or `compose.local.yml` into the matching `.codegeist/` path only when the new
@@ -557,9 +570,11 @@ The consuming repository should ignore local files generated next to the subtree
 
 ```gitignore
 /.codegeist/.local.env
+/.codegeist/secrets/
 /.oc_local/
 /.worktrees/
 /.chrome/
+/.tmp
 ```
 
 Do not ignore `/.oc_local/` if the consuming repository deliberately tracks a
@@ -607,9 +622,11 @@ The same generated root files must still be ignored by the consuming repository:
 
 ```gitignore
 /.codegeist/.local.env
+/.codegeist/secrets/
 /.oc_local/
 /.worktrees/
 /.chrome/
+/.tmp
 ```
 
 The `.devcontainer/.env`, `.devcontainer/.Xauthority.gen`,
@@ -1030,6 +1047,8 @@ Generated or machine-local files should not be committed.
 Typical examples:
 
 - `.codegeist/.local.env`
+- `.codegeist/secrets/` for new persistent secret files
+- `.tmp`, linked to `/tmp/ws-data` for disposable workspace-visible artifacts
 - `.devcontainer/.env`
 - `.devcontainer/.Xauthority.gen`
 - `.devcontainer/Dockerfile.merged.gen`
@@ -1045,6 +1064,11 @@ If a value must affect the runtime, write it to a local env file or another
 documented generated file that Compose reads explicitly. Compose overrides in
 `.codegeist/compose.local.yml` are visible to Git; commit only intentional
 repository-wide overrides.
+
+Do not create new temporary roots directly in the workspace. Use `.tmp/` when
+the initializer provides it, or another operating-system temporary directory
+outside the repository. The `/tmp/ws-data` target is not a managed `tmpfs`; its
+retention follows the host or container environment.
 
 ## Design Rules
 

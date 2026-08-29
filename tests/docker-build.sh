@@ -24,6 +24,7 @@ docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc \
     set -e
 
     test ! -e /tmp/opencode
+    test -d /tmp/ws-data
     test ! -e /usr/local/bin/chrome
     dpkg-query -W bash-completion >/dev/null
     test -s /usr/share/bash-completion/completions/task

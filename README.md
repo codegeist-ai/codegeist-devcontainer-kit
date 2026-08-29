@@ -74,9 +74,11 @@ kit:
 
 ```gitignore
 /.codegeist/.local.env
+/.codegeist/secrets/
 /.oc_local/
 /.worktrees/
 /.chrome/
+/.tmp
 ```
 
 Do not ignore `/.oc_local/` if the consuming repository intentionally tracks a
@@ -211,6 +213,9 @@ code .worktrees/develop0
 The first start creates local runtime files when missing:
 
 - `.codegeist/.local.env`
+- `.codegeist/secrets/`, the ignored location for new persistent secret files
+- `.tmp`, a workspace-visible symlink to `/tmp/ws-data` for new disposable
+  artifacts
 - root `.oc_local/` when no tracked project overlay exists
 - root `.worktrees/`; `.worktrees/<branch>` as a worktree or current-branch
   symlink alias when `BRANCH` is set
@@ -224,6 +229,15 @@ The first start creates local runtime files when missing:
 The generated Compose override sets a branch-aware Compose project name, sets the
 container hostname, and maps that same name to `127.0.0.1` through `extra_hosts`,
 so tools such as `sudo` can resolve the active container hostname.
+
+Use `.tmp/` for new temporary directories, downloads, fixtures, and disposable
+agent artifacts instead of creating new temporary roots directly in the
+workspace. The initializer creates `/tmp/ws-data` when needed and leaves an
+existing `.tmp` path unchanged. Existing temporary paths are not migrated, and
+the target is not a managed `tmpfs`; retention follows the host or container
+environment. Store new persistent secrets that are not disposable test inputs
+under `.codegeist/secrets/`. Existing `.codegeist/.local.env` and `.chrome/`
+contracts remain unchanged.
 
 When upgrading an older checkout, `initialize.sh` copies legacy root `.local.env`
 or `compose.local.yml` into the matching `.codegeist/` path only when the new
@@ -494,8 +508,8 @@ not as ordinary project source.
   project.
 - Do not commit `.devcontainer/.env`, `.devcontainer/.Xauthority.gen`,
   `.devcontainer/Dockerfile.merged.gen`, `.devcontainer/compose.local.gen.yml`,
-  `.devcontainer/compose.user.gen.yml`, `.codegeist/.local.env`, or generated
-  `.worktrees/` files. Keep
+  `.devcontainer/compose.user.gen.yml`, `.codegeist/.local.env`,
+  `.codegeist/secrets/`, `.tmp`, or generated `.worktrees/` files. Keep
   `.codegeist/compose.local.yml` visible to Git and keep `.codegeist/Dockerfile`
   visible to Git without `FROM`; commit either only when its overrides are
   intentional repository state.
@@ -509,6 +523,9 @@ not as ordinary project source.
   edit files inside `.opencode/` for one consuming project.
 - Put project-specific OpenCode instructions, commands, rules, and skills under
   `.oc_local/` instead of changing `.opencode/`.
+- Put new disposable artifacts under `.tmp/` and new persistent non-test secrets
+  under `.codegeist/secrets/`; do not invent additional workspace-local temp or
+  secret roots.
 - If `.oc_local/` is tracked, do not also ignore the whole directory. Ignore only
   generated local artifacts such as package caches or machine-local state.
 

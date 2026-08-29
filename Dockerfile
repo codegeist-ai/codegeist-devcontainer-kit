@@ -287,6 +287,7 @@ RUN groupadd --gid "$CONTAINER_GID" "$CONTAINER_GROUP" \
  && install -d -m 0755 /data/Projects \
  && install -d -m 0755 /host \
  && install -d -m 0755 /nix \
+ && install -d -m 1777 /tmp/ws-data \
  && ln -s /host/run/docker.sock /var/run/host-docker.sock \
  && install -d -m 0755 "/home/$CONTAINER_USER/.config/opencode" \
  && install -d -m 0755 "/home/$CONTAINER_USER/.m2" \

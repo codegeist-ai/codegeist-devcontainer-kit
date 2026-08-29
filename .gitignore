@@ -12,8 +12,10 @@
 /.devcontainer/.Xauthority.gen
 /.devcontainer/.Xauthority.gen.*
 /.codegeist/.local.env
+/.codegeist/secrets/
 /.oc_local/
 /.worktrees/
+/.tmp
 /.local.env
 /compose.local.yml
 /.worktrees/**/.codegeist/.local.env

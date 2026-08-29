@@ -99,3 +99,15 @@ local override templates in this repository.
 - After the release branch is pushed, update only the local `.devcontainer/`
   submodule checkout to `origin/release` and report the parent gitlink change;
   do not commit that gitlink automatically unless the user explicitly asks.
+
+## Git Remote Authority
+
+- Treat Gitea `main` as the source of truth. Its configured push mirror must
+  publish the exact same commit SHA to GitHub `main`; do not use a GitHub merge
+  method that rewrites mirrored commits.
+- Keep GitHub's `main` protection active for normal contributors, including the
+  pull-request, `Check`, and linear-history requirements. Keep admin enforcement
+  disabled because this user-owned repository cannot assign a dedicated mirror
+  bypass actor and the Gitea mirror authenticates as the repository owner.
+- After changing `main`, verify both remote SHAs and the Gitea push mirror's
+  `last_error` field before treating synchronization as complete.

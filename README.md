@@ -18,6 +18,37 @@ tests, and local AI workflow support. The image toolchain includes PowerShell as
 the official Gitea `tea` CLI, shared terminal-capture tools for documentation
 previews, plus shared QEMU and security-scan tools for infrastructure checks
 inside consuming devcontainers.
+The runtime tree includes the repository's [`LICENSE`](LICENSE) and is
+distributed under the Zero-Clause BSD (`0BSD`) license.
+
+## Project And Contributions
+
+Changes to the kit belong on the source repository's `main` branch, not in this
+generated `release` tree or a consuming repository's `.devcontainer/` checkout.
+Use the source repository's
+[contributor guide](https://github.com/codegeist-ai/codegeist-devcontainer-kit/blob/main/CONTRIBUTING.md),
+[GitHub Issues](https://github.com/codegeist-ai/codegeist-devcontainer-kit/issues),
+[task guide](https://github.com/codegeist-ai/codegeist-devcontainer-kit/blob/main/docs/tasks/README.md),
+and [Codegeist roadmap listing](https://github.com/users/codegeist-ai/projects/1)
+to propose and track work.
+
+In a source `main` checkout, run `task check` as the normal fast contributor
+check. Run the broader `task tests-run` suite when a change affects the image,
+Dev Containers lifecycle, Docker/Compose behavior, QEMU, or browser runtime.
+The fast check uses cleanup-trapped OS temporary state and leaves no repo-local
+test directory behind. These source tasks are intentionally omitted from the
+generated runtime tree.
+
+Codegeist's account-wide
+[Code of Conduct](https://github.com/codegeist-ai/.github/blob/main/CODE_OF_CONDUCT.md),
+[Security Policy](https://github.com/codegeist-ai/.github/blob/main/SECURITY.md),
+and [Support Policy](https://github.com/codegeist-ai/.github/blob/main/SUPPORT.md)
+apply without being duplicated in this runtime tree.
+
+## Release Notes
+
+- The generated runtime manifest includes the canonical root `LICENSE`, so the
+  license travels with every `.devcontainer/` release checkout.
 
 ## Consumer Setup
 

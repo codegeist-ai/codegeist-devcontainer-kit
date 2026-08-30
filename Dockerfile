@@ -8,10 +8,10 @@
 # - Adds the Nix package manager for later package migration work without
 #   switching the devcontainer setup to flakes yet.
 # - Includes JBang, Hugo, Kubernetes, Terraform, Ansible, PowerShell, QEMU/KVM,
-#   password-store, speech, YAML, terminal-capture, network, security-scan, and
-#   FTP tools so the shared workspace can handle Java scripting, site,
-#   infrastructure, virtualization, deployment, docs previews, and external scan
-#   tasks.
+#   password-store, speech, YAML, terminal productivity and capture, network,
+#   security-scan, and FTP tools so the shared workspace can handle Java
+#   scripting, site, infrastructure, virtualization, deployment, docs previews,
+#   and external scan tasks.
 # - Installs the Codegeist CLI through the upstream Linux installer from the
 #   codegeist repository's main branch.
 # - `scripts/release-build.sh` copies this source file to release `Dockerfile` so
@@ -56,7 +56,7 @@ ENV LANG=C.UTF-8 \
     CONTAINER_GID=${CONTAINER_GID} \
     JAVA_HOME=/opt/graalvm \
     GRAALVM_HOME=/opt/graalvm \
-    PATH=/opt/graalvm/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    PATH=/opt/nvim/bin:/opt/graalvm/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
 # Install only the minimum needed to register third-party APT repos.
 RUN apt-get update \
@@ -153,7 +153,6 @@ RUN apt-get update \
       qemu-kvm \
       qemu-system-x86 \
       qemu-utils \
-      ripgrep \
       rsync \
       sslscan \
       sshpass \
@@ -192,6 +191,60 @@ RUN curl -fsSL "https://github.com/boyter/scc/releases/latest/download/scc_Linux
  && tar -xzf /tmp/scc.tar.gz -C /usr/local/bin scc \
  && chmod +x /usr/local/bin/scc \
  && rm -f /tmp/scc.tar.gz
+
+# Install the latest official Linux x86_64 terminal tools without aliases or
+# user configuration. Versioned asset names use one direct release lookup each;
+# stable asset names can use GitHub's releases/latest/download path directly.
+RUN curl -fsSL "https://github.com/neovim/neovim/releases/latest/download/nvim-linux-x86_64.tar.gz" \
+      -o /tmp/nvim.tar.gz \
+ && install -d -m 0755 /opt/nvim \
+ && tar -xzf /tmp/nvim.tar.gz --strip-components=1 -C /opt/nvim \
+ && rm -f /tmp/nvim.tar.gz
+
+RUN gum_url="$(curl -fsSL https://api.github.com/repos/charmbracelet/gum/releases/latest \
+      | jq -er '.assets[] | select(.name | test("_Linux_x86_64\\.tar\\.gz$")) | .browser_download_url')" \
+ && curl -fsSL "$gum_url" -o /tmp/gum.tar.gz \
+ && tar -xzf /tmp/gum.tar.gz --wildcards --strip-components=1 \
+      -C /usr/local/bin '*/gum' \
+ && rm -f /tmp/gum.tar.gz
+
+RUN rg_url="$(curl -fsSL https://api.github.com/repos/BurntSushi/ripgrep/releases/latest \
+      | jq -er '.assets[] | select(.name | test("-x86_64-unknown-linux-musl\\.tar\\.gz$")) | .browser_download_url')" \
+ && curl -fsSL "$rg_url" -o /tmp/rg.tar.gz \
+ && tar -xzf /tmp/rg.tar.gz --wildcards --strip-components=1 \
+      -C /usr/local/bin '*/rg' \
+ && rm -f /tmp/rg.tar.gz
+
+RUN bat_url="$(curl -fsSL https://api.github.com/repos/sharkdp/bat/releases/latest \
+      | jq -er '.assets[] | select(.name | test("-x86_64-unknown-linux-gnu\\.tar\\.gz$")) | .browser_download_url')" \
+ && curl -fsSL "$bat_url" -o /tmp/bat.tar.gz \
+ && tar -xzf /tmp/bat.tar.gz --wildcards --strip-components=1 \
+      -C /usr/local/bin '*/bat' \
+ && rm -f /tmp/bat.tar.gz
+
+RUN curl -fsSL "https://github.com/aristocratos/btop/releases/latest/download/btop-x86_64-unknown-linux-musl.tar.gz" \
+      -o /tmp/btop.tar.gz \
+ && tar -xzf /tmp/btop.tar.gz --strip-components=3 \
+      -C /usr/local/bin ./btop/bin/btop \
+ && rm -f /tmp/btop.tar.gz
+
+RUN curl -fsSL "https://github.com/eza-community/eza/releases/latest/download/eza_x86_64-unknown-linux-gnu.tar.gz" \
+      -o /tmp/eza.tar.gz \
+ && tar -xzf /tmp/eza.tar.gz -C /usr/local/bin ./eza \
+ && rm -f /tmp/eza.tar.gz
+
+RUN dust_url="$(curl -fsSL https://api.github.com/repos/bootandy/dust/releases/latest \
+      | jq -er '.assets[] | select(.name | test("-x86_64-unknown-linux-gnu\\.tar\\.gz$")) | .browser_download_url')" \
+ && curl -fsSL "$dust_url" -o /tmp/dust.tar.gz \
+ && tar -xzf /tmp/dust.tar.gz --wildcards --strip-components=1 \
+      -C /usr/local/bin '*/dust' \
+ && rm -f /tmp/dust.tar.gz
+
+RUN fzf_url="$(curl -fsSL https://api.github.com/repos/junegunn/fzf/releases/latest \
+      | jq -er '.assets[] | select(.name | test("-linux_amd64\\.tar\\.gz$")) | .browser_download_url')" \
+ && curl -fsSL "$fzf_url" -o /tmp/fzf.tar.gz \
+ && tar -xzf /tmp/fzf.tar.gz -C /usr/local/bin fzf \
+ && rm -f /tmp/fzf.tar.gz
 
 RUN lazygit_version="$(curl -fsSL https://api.github.com/repos/jesseduffield/lazygit/releases/latest | python3 -c 'import json, sys; print(json.load(sys.stdin)["tag_name"].removeprefix("v"))')" \
  && curl -fsSL "https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_${lazygit_version}_Linux_x86_64.tar.gz" \
@@ -311,12 +364,14 @@ RUN groupadd --gid "$CONTAINER_GID" "$CONTAINER_GROUP" \
 # the existing apt-managed toolchain yet.
 RUN su - "$CONTAINER_USER" -c 'curl -L https://nixos.org/nix/install | sh -s -- --no-daemon --no-modify-profile'
 
-# Make login shells pick up the single-user Nix profile as well. The plain PATH
-# env is not enough because `bash -l` resets PATH from Debian's profile logic.
+# Make login shells pick up the single-user Nix profile and Neovim as well. The
+# plain PATH env is not enough because login shells reset Debian's default PATH.
 RUN printf '%s\n' \
       'if [ -e "/home/'"$CONTAINER_USER"'/.nix-profile/etc/profile.d/nix.sh" ]; then' \
       '  . "/home/'"$CONTAINER_USER"'/.nix-profile/etc/profile.d/nix.sh"' \
       'fi' \
+      'PATH="/opt/nvim/bin:$PATH"' \
+      'export PATH' \
       > /etc/profile.d/nix.sh
 
 # Make workspace-owned devcontainer scripts directly callable in interactive

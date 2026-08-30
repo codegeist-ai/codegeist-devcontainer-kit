@@ -17,8 +17,8 @@ through `pwsh`, Task
 with Bash completion, OpenCode tooling, the Codegeist CLI installed through the
 upstream Linux installer, Repomix, Kubernetes and infrastructure CLIs, QEMU/KVM
 virtualization tools, terminal capture tools, `espeak-ng`, network diagnostics,
-security scan tools, password-store tooling through `pass`, and related CLI
-tools. The release build publishes this file as
+security scan tools including Trivy, password-store tooling through `pass`, and
+related CLI tools. The release build publishes this file as
 `.devcontainer/Dockerfile` for consuming repositories.
 
 Project work is tracked through
@@ -411,6 +411,28 @@ by consuming infrastructure repositories: `nmap` and `nping`, `hping3`,
 `procps`. These tools are installed in the shared image so local QEMU checks and
 approved remote scans use the same scanner versions instead of relying on
 machine-local packages.
+
+The image also includes Trivy 0.74.0 for local project, configuration, and
+container-image scans. Scan Dockerfiles and other supported Infrastructure as
+Code configuration for policy and construction problems:
+
+```bash
+trivy config --severity HIGH,CRITICAL --exit-code 1 .
+```
+
+Scan a project filesystem for vulnerable dependencies, misconfigurations, and
+secrets, or scan the packages contained in a built image:
+
+```bash
+trivy fs --scanners vuln,misconfig,secret --severity HIGH,CRITICAL --exit-code 1 .
+trivy image --severity HIGH,CRITICAL --exit-code 1 my-image:tag
+```
+
+`trivy config` evaluates source configuration such as Dockerfile instructions;
+it does not determine which vulnerable packages are present in the resulting
+image. Use `trivy image` after building to inspect the final image contents.
+`--severity` limits reported findings, while `--exit-code 1` makes matching
+findings fail a CI step instead of returning Trivy's default successful status.
 
 ## Develop This Kit
 

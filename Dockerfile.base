@@ -27,6 +27,7 @@
 # - VHS_VERSION and TTYD_VERSION select terminal-rendering tools used by
 #   documentation capture workflows in consuming repositories.
 # - TEA_VERSION pins the official Gitea CLI binary installed from dl.gitea.com.
+# - TRIVY_VERSION pins the official Trivy security scanner release.
 #
 # Related files:
 # - docker-compose.yml
@@ -45,6 +46,7 @@ ARG HUGO_VERSION=0.147.9
 ARG VHS_VERSION=0.11.0
 ARG TTYD_VERSION=1.7.7
 ARG TEA_VERSION=0.14.2
+ARG TRIVY_VERSION=0.74.0
 
 ENV LANG=C.UTF-8 \
     LC_CTYPE=C.UTF-8 \
@@ -204,6 +206,10 @@ RUN tea_asset="tea-${TEA_VERSION}-linux-amd64" \
  && install -m 0755 "/tmp/${tea_asset}" /usr/local/bin/tea \
  && rm -f "/tmp/${tea_asset}" \
  && tea --version
+
+RUN curl -fsSL "https://raw.githubusercontent.com/aquasecurity/trivy/v${TRIVY_VERSION}/contrib/install.sh" \
+      | sh -s -- -b /usr/local/bin "v${TRIVY_VERSION}" \
+ && trivy --version
 
 RUN curl -fsSL "https://github.com/go-task/task/releases/latest/download/task_linux_amd64.tar.gz" \
       -o /tmp/task.tar.gz \

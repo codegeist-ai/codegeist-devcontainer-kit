@@ -13,6 +13,47 @@ script_dir="$(dirname "$(readlink -f "$0")")"
 source "$script_dir/helpers.sh"
 
 task_project docker-build
+
+trivy_fixture_dir="$suite_tmp_dir/trivy-config"
+mkdir -p "$trivy_fixture_dir"
+printf '%s\n' \
+  'FROM scratch' \
+  'USER root' \
+  >"$trivy_fixture_dir/Dockerfile"
+
+set +e
+trivy_config_output="$(docker run --rm \
+  --entrypoint trivy \
+  --mount "type=bind,src=$trivy_fixture_dir,dst=/scan,readonly" \
+  codegeist-devcontainer-kit:local \
+  config \
+  --cache-dir /tmp/trivy-cache \
+  --skip-check-update \
+  --skip-version-check \
+  --severity HIGH \
+  --exit-code 1 \
+  --format json \
+  --quiet \
+  /scan)"
+trivy_config_status="$?"
+set -e
+
+[ "$trivy_config_status" -eq 1 ] \
+  || fail "Trivy config scan returned $trivy_config_status instead of the expected finding exit 1"
+printf '%s' "$trivy_config_output" \
+  | jq -e '
+      [
+        .Results[]?.Misconfigurations[]?
+        | select(
+            .ID == "DS-0002"
+            and .Severity == "HIGH"
+            and (.Message | contains("Last USER command in Dockerfile should not be"))
+          )
+      ]
+      | length == 1
+    ' >/dev/null \
+  || fail "Trivy config scan did not report the expected DS-0002 root-user finding"
+
 docker run --rm --entrypoint pass codegeist-devcontainer-kit:local --version >/dev/null
 docker run --rm --entrypoint codegeist -w /tmp codegeist-devcontainer-kit:local --version >/dev/null
 docker run --rm --entrypoint jbang codegeist-devcontainer-kit:local --version >/dev/null
@@ -35,4 +76,4 @@ docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc \
   '
 docker run --rm --entrypoint bash codegeist-devcontainer-kit:local -ic \
   '_completion_loader task >/dev/null 2>&1; status="$?"; { [ "$status" -eq 0 ] || [ "$status" -eq 124 ]; } && complete -p task | grep -F "complete -F _task task" >/dev/null'
-pass "docker image builds through Taskfile with shared toolchain commands and Task completion available"
+pass "docker image builds with Trivy scanning, shared toolchain commands, and Task completion available"

@@ -16,9 +16,9 @@ GitHub CLI, the Gitea `tea` CLI, Maven, GraalVM, JBang, Hugo, Nix, PowerShell
 through `pwsh`, Task
 with Bash completion, OpenCode tooling, the Codegeist CLI installed through the
 upstream Linux installer, Repomix, Kubernetes and infrastructure CLIs, QEMU/KVM
-virtualization tools, terminal capture tools, `espeak-ng`, network diagnostics,
-security scan tools including Trivy, password-store tooling through `pass`, and
-related CLI tools. The release build publishes this file as
+virtualization tools, terminal productivity and capture tools, `espeak-ng`,
+network diagnostics, security scan tools including Trivy, password-store tooling
+through `pass`, and related CLI tools. The release build publishes this file as
 `.devcontainer/Dockerfile` for consuming repositories.
 
 Project work is tracked through
@@ -367,6 +367,33 @@ task qemu-alpine-smoke
 The test fails when `/dev/kvm` is missing or not writable. Hosts that run the
 devcontainer inside another VM must enable nested virtualization before this
 suite can pass.
+
+## Terminal Productivity Tools
+
+The image resolves and installs the latest official Linux x86_64 releases of
+Neovim (`nvim`), Gum, ripgrep (`rg`), bat, btop, eza, dust, and fzf during each
+image build. These commands cover editing, interactive shell prompts, fast text
+search, highlighted file output, resource monitoring, directory listings, disk
+usage inspection, and fuzzy selection:
+
+```bash
+nvim README.md
+gum choose development staging production
+rg 'initializeCommand' .
+bat Dockerfile.base
+btop
+eza --long --git --icons
+dust --depth 2 .
+printf '%s\n' alpha beta gamma | fzf
+```
+
+The kit installs the native command names side by side. It does not replace
+`vim`, `cat`, `ls`, or `du`, create aliases or symlinks, enable fzf shell
+keybindings, or add Neovim and Gum configuration. Interactive btop, Gum, and fzf
+flows require a usable TTY. The `--icons` eza view needs a terminal configured
+with a Nerd Font. A broad dust scan walks the selected directory tree and can be
+expensive on large workspaces, mounted filesystems, or generated dependency
+trees; pass a focused path and depth when appropriate.
 
 ## Terminal Capture Tools
 

@@ -60,6 +60,19 @@ docker run --rm --entrypoint jbang codegeist-devcontainer-kit:local --version >/
 docker run --rm --entrypoint tea codegeist-devcontainer-kit:local --version >/dev/null
 docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc \
   'ffmpeg -version >/dev/null && vhs --version >/dev/null && ttyd --version >/dev/null'
+docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc '
+  set -e
+  nvim --headless "+quit"
+  gum --version >/dev/null
+  rg --version >/dev/null
+  bat --version >/dev/null
+  btop --version >/dev/null
+  eza --version >/dev/null
+  dust --version >/dev/null
+  fzf --version >/dev/null
+  test ! -L /usr/local/bin/bat
+  ! dpkg-query -W ripgrep >/dev/null 2>&1
+'
 docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc \
   '
     set -e
@@ -76,4 +89,4 @@ docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc \
   '
 docker run --rm --entrypoint bash codegeist-devcontainer-kit:local -ic \
   '_completion_loader task >/dev/null 2>&1; status="$?"; { [ "$status" -eq 0 ] || [ "$status" -eq 124 ]; } && complete -p task | grep -F "complete -F _task task" >/dev/null'
-pass "docker image builds with Trivy scanning, shared toolchain commands, and Task completion available"
+pass "docker image builds with terminal tools, Trivy scanning, shared commands, and Task completion available"

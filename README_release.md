@@ -15,9 +15,9 @@ The `release` branch is a runtime-only tree. It contains the files needed by the
 Dev Containers extension and excludes this repository's development-only files,
 tests, and local AI workflow support. The image toolchain includes PowerShell as
 `pwsh` for cross-platform shell and automation work, Task with Bash completion,
-the official Gitea `tea` CLI, shared terminal-capture tools for documentation
-previews, plus shared QEMU and security-scan tools for infrastructure checks
-inside consuming devcontainers, including Trivy for project, configuration, and
+the official Gitea `tea` CLI, shared terminal productivity and capture tools,
+plus shared QEMU and security-scan tools for infrastructure checks inside
+consuming devcontainers, including Trivy for project, configuration, and
 container-image scans.
 The runtime tree includes the repository's [`LICENSE`](LICENSE) and is
 distributed under the Zero-Clause BSD (`0BSD`) license.
@@ -433,6 +433,31 @@ The command is healthy when Alpine reaches a `localhost login:` prompt. Press
 `Ctrl-a` then `x` to exit QEMU from the terminal. For non-interactive project
 checks, wrap the same QEMU command with `expect` and fail if the login prompt is
 not printed within the chosen timeout.
+
+## Terminal Productivity Tools
+
+Each image build resolves the latest official Linux x86_64 releases of Neovim
+(`nvim`), Gum, ripgrep (`rg`), bat, btop, eza, dust, and fzf. Use them directly
+for editing, interactive prompts, text search, highlighted output, resource
+monitoring, directory listings, disk-usage inspection, and fuzzy selection:
+
+```bash
+nvim README.md
+gum choose development staging production
+rg 'initializeCommand' .
+bat Dockerfile
+btop
+eza --long --git --icons
+dust --depth 2 .
+printf '%s\n' alpha beta gamma | fzf
+```
+
+The release kit does not replace `vim`, `cat`, `ls`, or `du`, create command
+aliases or symlinks, enable fzf shell keybindings, or install Neovim and Gum user
+configuration. Interactive btop, Gum, and fzf flows require a usable TTY. Eza
+icons require a Nerd Font in the terminal. Dust scans the selected directory tree
+and can be expensive on large workspaces, mounted filesystems, or generated
+dependency trees, so prefer a focused path and depth when appropriate.
 
 ## Terminal Capture Tools
 

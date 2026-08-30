@@ -17,7 +17,8 @@ tests, and local AI workflow support. The image toolchain includes PowerShell as
 `pwsh` for cross-platform shell and automation work, Task with Bash completion,
 the official Gitea `tea` CLI, shared terminal-capture tools for documentation
 previews, plus shared QEMU and security-scan tools for infrastructure checks
-inside consuming devcontainers.
+inside consuming devcontainers, including Trivy for project, configuration, and
+container-image scans.
 The runtime tree includes the repository's [`LICENSE`](LICENSE) and is
 distributed under the Zero-Clause BSD (`0BSD`) license.
 
@@ -474,6 +475,28 @@ infrastructure repositories: `nmap` and `nping`, `hping3`, `ssh-audit` 3.9.0,
 `testssl`, `sslscan`, `ssh`, `ssh-keygen`, and `sysctl` from `procps`. Keeping
 these tools in the shared image lets local QEMU checks and approved remote scans
 use the same scanner versions instead of depending on host-local packages.
+
+Trivy 0.74.0 is available inside the devcontainer. From the consuming project,
+scan Dockerfiles and other supported Infrastructure as Code configuration for
+policy and construction problems:
+
+```bash
+trivy config --severity HIGH,CRITICAL --exit-code 1 .
+```
+
+Scan the project filesystem for vulnerable dependencies, misconfigurations, and
+secrets, or scan the packages contained in a built image:
+
+```bash
+trivy fs --scanners vuln,misconfig,secret --severity HIGH,CRITICAL --exit-code 1 .
+trivy image --severity HIGH,CRITICAL --exit-code 1 my-image:tag
+```
+
+`trivy config` evaluates source configuration such as Dockerfile instructions;
+it does not determine which vulnerable packages are present in the resulting
+image. Use `trivy image` after building to inspect the final image contents.
+`--severity` limits reported findings, while `--exit-code 1` makes matching
+findings fail a CI step instead of returning Trivy's default successful status.
 
 ## Updating The Kit
 

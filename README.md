@@ -501,6 +501,17 @@ infrastructure repositories: `nmap` and `nping`, `hping3`, `ssh-audit` 3.9.0,
 these tools in the shared image lets local QEMU checks and approved remote scans
 use the same scanner versions instead of depending on host-local packages.
 
+Gitleaks 8.30.1 is available for detecting committed or local secrets. Scan Git
+history or the current directory without printing detected values:
+
+```bash
+gitleaks git --redact
+gitleaks dir --redact .
+```
+
+Gitleaks reports potential secrets but does not remove or revoke them. Rotate a
+real exposed credential and clean the Git history when necessary.
+
 Trivy 0.74.0 is available inside the devcontainer. From the consuming project,
 scan Dockerfiles and other supported Infrastructure as Code configuration for
 policy and construction problems:

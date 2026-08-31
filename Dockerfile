@@ -28,6 +28,8 @@
 #   documentation capture workflows in consuming repositories.
 # - TEA_VERSION pins the official Gitea CLI binary installed from dl.gitea.com.
 # - TRIVY_VERSION pins the official Trivy security scanner release.
+# - GITLEAKS_VERSION and GITLEAKS_SHA256 pin and verify the official Gitleaks
+#   secret-scanner release.
 #
 # Related files:
 # - docker-compose.yml
@@ -47,6 +49,8 @@ ARG VHS_VERSION=0.11.0
 ARG TTYD_VERSION=1.7.7
 ARG TEA_VERSION=0.14.2
 ARG TRIVY_VERSION=0.74.0
+ARG GITLEAKS_VERSION=8.30.1
+ARG GITLEAKS_SHA256=551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
 
 ENV LANG=C.UTF-8 \
     LC_CTYPE=C.UTF-8 \
@@ -263,6 +267,14 @@ RUN tea_asset="tea-${TEA_VERSION}-linux-amd64" \
 RUN curl -fsSL "https://raw.githubusercontent.com/aquasecurity/trivy/v${TRIVY_VERSION}/contrib/install.sh" \
       | sh -s -- -b /usr/local/bin "v${TRIVY_VERSION}" \
  && trivy --version
+
+RUN curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+      -o /tmp/gitleaks.tar.gz \
+ && printf '%s  %s\n' "$GITLEAKS_SHA256" /tmp/gitleaks.tar.gz | sha256sum -c - \
+ && tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks \
+ && install -m 0755 /tmp/gitleaks /usr/local/bin/gitleaks \
+ && rm -f /tmp/gitleaks.tar.gz /tmp/gitleaks \
+ && gitleaks version
 
 RUN curl -fsSL "https://github.com/go-task/task/releases/latest/download/task_linux_amd64.tar.gz" \
       -o /tmp/task.tar.gz \

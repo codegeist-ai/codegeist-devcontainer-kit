@@ -439,9 +439,20 @@ by consuming infrastructure repositories: `nmap` and `nping`, `hping3`,
 approved remote scans use the same scanner versions instead of relying on
 machine-local packages.
 
-The image also includes Trivy 0.74.0 for local project, configuration, and
-container-image scans. Scan Dockerfiles and other supported Infrastructure as
-Code configuration for policy and construction problems:
+The image also includes Gitleaks 8.30.1 for detecting committed or local secrets.
+Scan Git history or the current directory without printing detected values:
+
+```bash
+gitleaks git --redact
+gitleaks dir --redact .
+```
+
+Gitleaks reports potential secrets but does not remove or revoke them. Rotate a
+real exposed credential and clean the Git history when necessary.
+
+Trivy 0.74.0 provides local project, configuration, and container-image scans.
+Scan Dockerfiles and other supported Infrastructure as Code configuration for
+policy and construction problems:
 
 ```bash
 trivy config --severity HIGH,CRITICAL --exit-code 1 .

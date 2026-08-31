@@ -58,6 +58,7 @@ docker run --rm --entrypoint pass codegeist-devcontainer-kit:local --version >/d
 docker run --rm --entrypoint codegeist -w /tmp codegeist-devcontainer-kit:local --version >/dev/null
 docker run --rm --entrypoint jbang codegeist-devcontainer-kit:local --version >/dev/null
 docker run --rm --entrypoint tea codegeist-devcontainer-kit:local --version >/dev/null
+docker run --rm --entrypoint gitleaks codegeist-devcontainer-kit:local version >/dev/null
 docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc \
   'ffmpeg -version >/dev/null && vhs --version >/dev/null && ttyd --version >/dev/null'
 docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc '

@@ -48,6 +48,9 @@ apply without being duplicated in this runtime tree.
 
 ## Release Notes
 
+- Managed worktrees now initialize submodules anonymously with inherited Git
+  credential helpers disabled, preventing public repositories from blocking
+  `initializeCommand` on a credential prompt.
 - The generated runtime manifest includes the canonical root `LICENSE`, so the
   license travels with every `.devcontainer/` release checkout.
 
@@ -210,6 +213,10 @@ project root and then open that checkout:
 BRANCH=develop0 .devcontainer/initialize.sh
 code .worktrees/develop0
 ```
+
+When a new worktree needs submodules, `initialize.sh` disables inherited Git
+credential helpers and terminal prompts for that checkout. Public submodules are
+therefore cloned anonymously without waiting for a username or password.
 
 The first start creates local runtime files when missing:
 

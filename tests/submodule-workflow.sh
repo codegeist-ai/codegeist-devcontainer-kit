@@ -8,6 +8,8 @@
 #   after the consuming repo root prepares it with `BRANCH=dev0`, including
 #   generated `.codegeist` local files, nested Docker, and a commit/merge
 #   workflow.
+# - Verifies worktree setup initializes the released kit without relying on an
+#   inherited credential helper.
 #
 # Related files:
 # - ../initialize.sh
@@ -68,6 +70,7 @@ git -C "$p1_dir" add README.md .gitignore
 git -C "$p1_dir" commit -m "initial p1" >/dev/null
 git -C "$p1_dir" -c protocol.file.allow=always submodule add "$kit_repo_dir" .devcontainer >/dev/null
 git -C "$p1_dir" commit -m "add devcontainer submodule" >/dev/null
+git -C "$p1_dir" config credential.helper '!exit 99'
 
 BRANCH="$branch_name" "$p1_dir/.devcontainer/initialize.sh"
 
@@ -104,6 +107,7 @@ assert_info_exclude_lacks_patterns \
 [[ "$(<"$p1_dir/.devcontainer/.env")" == *"DEVCONTAINER_WORKSPACE_FOLDER=$expected_workspace_folder"* ]] || fail "generated env does not set submodule workspace folder"
 [[ -L "$worktree_path/.codegeist/.local.env" ]] || fail "worktree .codegeist/.local.env is not a symlink"
 [[ -f "$worktree_path/.devcontainer/devcontainer.json" ]] || fail "submodule devcontainer is missing in worktree"
+[[ "$(git -C "$worktree_path/.devcontainer" rev-parse HEAD)" = "$(git -C "$p1_dir" rev-parse HEAD:.devcontainer)" ]] || fail "worktree devcontainer did not use the recorded gitlink commit"
 
 prepare_devcontainer_home "$worktree_path"
 HOME="$worktree_path" devcontainer_cli up --remove-existing-container --workspace-folder "$worktree_path" | tee "$log_file"

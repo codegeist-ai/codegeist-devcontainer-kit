@@ -6,6 +6,8 @@
 #   created from the template only once.
 # - Git worktrees are prepared through BRANCH before VS Code or the Dev
 #   Containers CLI opens the selected workspace path.
+# - Worktree submodules are initialized anonymously and non-interactively so
+#   public repositories never block initializeCommand on a credential prompt.
 # - BRANCH lets root-side helpers create or reuse a managed worktree; when the
 #   branch is already checked out, `.worktrees/<branch>` is a symlink alias back
 #   to the current checkout so `workspaceFolder` still resolves.
@@ -576,7 +578,13 @@ ensure_worktree() {
   fi
 
   if [ -f "$worktree_path/.gitmodules" ]; then
-    git -C "$worktree_path" -c protocol.file.allow=always submodule update --init --recursive >&2
+    if ! GIT_TERMINAL_PROMPT=0 git -C "$worktree_path" \
+      -c credential.helper= \
+      -c protocol.file.allow=always \
+      submodule update --init --recursive >&2; then
+      printf 'Failed to initialize worktree submodules anonymously: %s\n' "$worktree_path" >&2
+      return 1
+    fi
   fi
 
   printf '%s\n' "$worktree_path"

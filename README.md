@@ -1035,7 +1035,10 @@ code .worktrees/develop0
 During root preparation, `initialize.sh` creates `.worktrees/`, creates or
 reuses `.worktrees/<branch>` when `BRANCH` is set, or creates a current-branch
 symlink alias when the selected branch is already checked out. It initializes any
-consuming-repository submodules when the repository defines them, creates root
+consuming-repository submodules when the repository defines them. A new
+worktree initializes its submodules anonymously with inherited Git credential
+helpers disabled, so public repositories cannot block `initializeCommand` on a
+username or password prompt. The script also creates root
 `.codegeist/.local.env` from `.devcontainer/.local.env.example` when missing,
 migrates a legacy root `.local.env` into `.codegeist/.local.env` when needed,
 and links the worktree `.codegeist/.local.env` back to the main root file. When

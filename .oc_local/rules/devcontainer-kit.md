@@ -111,3 +111,36 @@ local override templates in this repository.
   bypass actor and the Gitea mirror authenticates as the repository owner.
 - After changing `main`, verify both remote SHAs and the Gitea push mirror's
   `last_error` field before treating synchronization as complete.
+
+## Gitea Git Authentication
+
+- For Git fetches and pushes to this repository's
+  `https://git.codegeist.ai/` origin, use the non-empty `GITEA_TOKEN`
+  environment variable without asking the user which credential is required.
+- Pass the token only as a process-local `Authorization: token` HTTP header.
+  Never print or inspect its value, embed it in a remote URL, write it to Git
+  configuration, or persist it in a repository file.
+- The Gitea server currently requires certificate verification to be disabled.
+  Scope that exception to `https://git.codegeist.ai/` for the individual Git
+  process; never set global `http.sslVerify=false`.
+- Use this command environment for authenticated root-repository Git operations,
+  replacing `<git-command>` with `git fetch ...`, `git push ...`, or another
+  required Git command:
+
+  ```bash
+  test -n "${GITEA_TOKEN:-}" && \
+    GIT_TERMINAL_PROMPT=0 \
+    GIT_CONFIG_COUNT=2 \
+    GIT_CONFIG_KEY_0=http.https://git.codegeist.ai/.sslVerify \
+    GIT_CONFIG_VALUE_0=false \
+    GIT_CONFIG_KEY_1=http.extraHeader \
+    GIT_CONFIG_VALUE_1="Authorization: token ${GITEA_TOKEN}" \
+    <git-command>
+  ```
+
+- Stop with a concise non-secret error when `GITEA_TOKEN` is missing or the
+  authenticated operation fails. Do not fall back to an interactive username or
+  password prompt.
+- `.devcontainer` and `.opencode` use public GitHub repositories. Fetch those
+  submodules anonymously with `GIT_TERMINAL_PROMPT=0` and
+  `git -c credential.helper= ...`; they do not require `GITEA_TOKEN`.

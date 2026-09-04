@@ -7,11 +7,11 @@
 # - Provides a system Maven installation so the app does not need a wrapper.
 # - Adds the Nix package manager for later package migration work without
 #   switching the devcontainer setup to flakes yet.
-# - Includes JBang, Hugo, Kubernetes, Terraform, Ansible, PowerShell, QEMU/KVM,
-#   password-store, speech, YAML, terminal productivity and capture, network,
-#   security-scan, and FTP tools so the shared workspace can handle Java
-#   scripting, site, infrastructure, virtualization, deployment, docs previews,
-#   and external scan tasks.
+# - Includes JBang, Hugo, Kubernetes, Terraform, OpenTofu, Ansible, PowerShell,
+#   QEMU/KVM, password-store, speech, YAML, terminal productivity and capture,
+#   network, security-scan, and FTP tools so the shared workspace can handle
+#   Java scripting, site, infrastructure, virtualization, deployment, docs
+#   previews, and external scan tasks.
 # - Installs the Codegeist CLI through the upstream Linux installer from the
 #   codegeist repository's main branch.
 # - `scripts/release-build.sh` copies this source file to release `Dockerfile` so
@@ -105,7 +105,15 @@ RUN install -m 0755 -d /etc/apt/keyrings \
       | gpg --dearmor -o /etc/apt/keyrings/hashicorp-archive-keyring.gpg \
  && chmod a+r /etc/apt/keyrings/hashicorp-archive-keyring.gpg \
  && printf 'Types: deb\nURIs: https://apt.releases.hashicorp.com\nSuites: %s\nComponents: main\nSigned-By: /etc/apt/keyrings/hashicorp-archive-keyring.gpg\n' \
-      "${VERSION_CODENAME}" > /etc/apt/sources.list.d/hashicorp.sources
+       "${VERSION_CODENAME}" > /etc/apt/sources.list.d/hashicorp.sources \
+ && curl -fsSL https://get.opentofu.org/opentofu.gpg \
+       -o /etc/apt/keyrings/opentofu.gpg \
+ && curl -fsSL https://packages.opentofu.org/opentofu/tofu/gpgkey \
+      | gpg --no-tty --batch --dearmor -o /etc/apt/keyrings/opentofu-repo.gpg \
+ && chmod a+r /etc/apt/keyrings/opentofu.gpg /etc/apt/keyrings/opentofu-repo.gpg \
+ && printf 'deb [signed-by=/etc/apt/keyrings/opentofu.gpg,/etc/apt/keyrings/opentofu-repo.gpg] https://packages.opentofu.org/opentofu/tofu/any/ any main\n' \
+       > /etc/apt/sources.list.d/opentofu.list \
+ && chmod a+r /etc/apt/sources.list.d/opentofu.list
 
 # Install the shared development toolchain in one APT transaction.
 RUN apt-get update \
@@ -165,6 +173,7 @@ RUN apt-get update \
       terraform \
       testssl.sh \
       tigervnc-viewer \
+      tofu \
       unzip \
       wget \
       x11-apps \

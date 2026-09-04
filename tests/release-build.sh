@@ -60,6 +60,7 @@ git -C "$release_repo" add .
 git -C "$release_repo" commit -m "initial devcontainer kit" >/dev/null
 
 main_commit="$(git -C "$release_repo" rev-parse main)"
+release_subject="chore(release): update devcontainer runtime branch"
 
 [[ "$(git -C "$release_repo" config --local --get commit.gpgSign)" = "false" ]] \
   || fail "fixture repository did not disable inherited commit signing"
@@ -140,7 +141,48 @@ if git -C "$release_repo" show "$release_branch:initialize.sh" | grep -q 'rev-pa
   fail "release branch initializer still writes .git/info/exclude"
 fi
 
-[[ "$(git -C "$release_repo" log -1 --format=%s "$release_branch")" = "chore(release): update devcontainer runtime branch" ]] \
+[[ "$(git -C "$release_repo" log -1 --format=%s "$release_branch")" = "$release_subject" ]] \
   || fail "release branch commit subject is wrong"
 
-pass "release-build rejects dirty source and creates the exact runtime-only branch"
+expected_release_body="Source commit: $main_commit
+
+Changelog:
+- initial devcontainer kit"
+[[ "$(git -C "$release_repo" log -1 --format=%b "$release_branch")" = "$expected_release_body" ]] \
+  || fail "first release branch commit body lacks the source commit and changelog"
+
+printf '\nSecond release marker.\n' >>"$release_repo/README_release.md"
+git -C "$release_repo" add README_release.md
+git -C "$release_repo" commit -m "document second release" >/dev/null
+for change_number in 1 2 3 4 5; do
+  printf 'Source change %s.\n' "$change_number" >>"$release_repo/source-history.txt"
+  git -C "$release_repo" add source-history.txt
+  git -C "$release_repo" commit -m "source change $change_number" >/dev/null
+done
+second_main_commit="$(git -C "$release_repo" rev-parse main)"
+cat >"$release_repo/.test-tmp/release-verification" <<EOF
+commit=$second_main_commit
+browser-wayland-display0=passed
+EOF
+
+(cd "$release_repo" && scripts/release-build.sh) >/dev/null
+
+[[ "$(git -C "$release_repo" rev-list --parents -n 1 "$release_branch" | wc -w)" = "2" ]] \
+  || fail "subsequent release branch commit does not retain release history"
+[[ "$(git -C "$release_repo" log -1 --format=%s "$release_branch")" = "$release_subject" ]] \
+  || fail "subsequent release branch commit subject is not stable"
+
+expected_release_body="Source commit: $second_main_commit
+
+Changelog:
+- source change 5
+- source change 4
+- source change 3
+- source change 2
+- source change 1"
+[[ "$(git -C "$release_repo" log -1 --format=%b "$release_branch")" = "$expected_release_body" ]] \
+  || fail "subsequent release branch commit body is not limited to five source subjects"
+diff -u "$release_repo/README_release.md" <(git -C "$release_repo" show "$release_branch:README.md") \
+  || fail "subsequent release branch README.md does not match README_release.md"
+
+pass "release-build creates exact runtime commits with stable traceable messages"

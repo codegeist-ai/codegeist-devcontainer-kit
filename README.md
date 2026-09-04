@@ -565,6 +565,11 @@ task release-build -- --push
 without the real `DISPLAY=:0` plus Wayland Chrome regression passing on the exact
 commit being released.
 
+Every generated release commit uses the fixed subject
+`chore(release): update devcontainer runtime branch`. Its body records the full
+source commit ID and a short `Changelog` containing the latest five source
+commit subjects ending at that commit.
+
 The release branch tree contains only:
 
 ```text

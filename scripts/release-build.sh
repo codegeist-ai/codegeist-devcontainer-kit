@@ -7,6 +7,8 @@
 #   not this repository's tests, documentation, Taskfile, or OpenCode workspace.
 # - The branch is created as an orphan branch the first time so runtime history
 #   stays separate from the development branch.
+# - Every generated commit uses one stable subject. Its body records the exact
+#   source commit and a bounded source-commit changelog for release traceability.
 #
 # Inputs:
 # - Optional positional argument: release branch name, default `release`.
@@ -31,6 +33,9 @@ tmp_index=""
 tmp_tree=""
 verified_commit=""
 verified_browser_regression=""
+release_changelog=""
+
+release_subject="chore(release): update devcontainer runtime branch"
 
 runtime_files=(
   ".gitignore"
@@ -151,10 +156,17 @@ if git -C "$repo_root" rev-parse --verify --quiet "refs/heads/$release_branch" >
   parent_args=(-p "refs/heads/$release_branch")
 fi
 
+release_changelog="$(git -C "$repo_root" log --max-count=5 --format='- %s' "$current_commit")"
+
+release_body="Source commit: $current_commit
+
+Changelog:
+$release_changelog"
+
 release_commit="$(git -C "$repo_root" commit-tree "$runtime_tree" \
   "${parent_args[@]}" \
-  -m "chore(release): update devcontainer runtime branch" \
-  -m "Create a runtime-only devcontainer tree for consumption as a Git submodule branch.")"
+  -m "$release_subject" \
+  -m "$release_body")"
 
 git -C "$repo_root" update-ref "refs/heads/$release_branch" "$release_commit"
 

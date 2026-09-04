@@ -93,6 +93,10 @@ local override templates in this repository.
 - After save, require a clean worktree, rerun `task tests-run`, run
   `tests/release-build.sh`, then publish with
   `task release-build -- release --push`.
+- Keep every generated release commit subject exactly
+  `chore(release): update devcontainer runtime branch`. Its body must identify
+  the full source commit and include the latest five source commit subjects as a
+  short changelog.
 - `task tests-run` must exercise real non-headless Chrome with `DISPLAY=:0`, no
   X0 socket, and a real Wayland compositor. `scripts/release-build.sh` must reject
   a commit without the matching `.test-tmp/release-verification` attestation.

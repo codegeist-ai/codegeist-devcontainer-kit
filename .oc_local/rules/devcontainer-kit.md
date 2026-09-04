@@ -19,9 +19,9 @@ local override templates in this repository.
   a `/usr/local/bin/jbang` symlink so Java script workflows are available without
   a user-home-bound installation.
 - Keep Kubernetes and infrastructure administration tools in the default image:
-  `kubectl`, `helm`, `k9s`, `talosctl`, `terraform`, and `ansible`. Install the
-  CLI tools from their latest upstream channels unless the repository later
-  records a version-pinning policy.
+  `kubectl`, `helm`, `k9s`, `talosctl`, `terraform`, `tofu`, and `ansible`.
+  Install the CLI tools from their latest upstream channels unless the
+  repository later records a version-pinning policy.
 - Keep QEMU/KVM and related VM utility tools in the default image: `qemu-kvm`,
   `qemu-system-x86`, `qemu-utils`, `cloud-image-utils`, `bridge-utils`, `kmod`,
   `iptables`, `dnsmasq`, `cpio`, `sshpass`, `pwgen`, `expect`, and

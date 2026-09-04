@@ -430,6 +430,19 @@ Use `GITEA_SERVER_TOKEN`, not `GITEA_TOKEN`; the latter is not a `tea` login
 environment variable. Keep the token only in the ignored machine-local env file,
 never in shell history or tracked repository files.
 
+## Infrastructure As Code CLIs
+
+The image includes both Terraform as `terraform` and OpenTofu as `tofu`.
+OpenTofu is installed from its official signed Debian repository and remains a
+separate native command rather than replacing or aliasing Terraform. From a
+project with OpenTofu configuration, use the normal CLI workflow:
+
+```bash
+tofu fmt -check
+tofu validate
+tofu plan
+```
+
 ## Security Scan Tools
 
 The devcontainer image includes deterministic external security-scan tools used

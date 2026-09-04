@@ -16,9 +16,9 @@ Dev Containers extension and excludes this repository's development-only files,
 tests, and local AI workflow support. The image toolchain includes PowerShell as
 `pwsh` for cross-platform shell and automation work, Task with Bash completion,
 the official Gitea `tea` CLI, shared terminal productivity and capture tools,
-plus shared QEMU and security-scan tools for infrastructure checks inside
-consuming devcontainers, including Trivy for project, configuration, and
-container-image scans.
+Terraform and OpenTofu, plus shared QEMU and security-scan tools for
+infrastructure checks inside consuming devcontainers, including Trivy for
+project, configuration, and container-image scans.
 The runtime tree includes the repository's [`LICENSE`](LICENSE) and is
 distributed under the Zero-Clause BSD (`0BSD`) license.
 
@@ -499,6 +499,19 @@ Run `tea --help` or `tea <command> --help` for the available commands and flags.
 Use `GITEA_SERVER_TOKEN`, not `GITEA_TOKEN`; the latter is not a `tea` login
 environment variable. Keep the token only in the ignored machine-local env file,
 never in shell history or tracked repository files.
+
+## Infrastructure As Code CLIs
+
+The image includes both Terraform as `terraform` and OpenTofu as `tofu`.
+OpenTofu is installed from its official signed Debian repository and remains a
+separate native command rather than replacing or aliasing Terraform. From a
+project with OpenTofu configuration, use the normal CLI workflow:
+
+```bash
+tofu fmt -check
+tofu validate
+tofu plan
+```
 
 ## Security Scan Tools
 

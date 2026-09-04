@@ -71,6 +71,8 @@ docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc '
   eza --version >/dev/null
   dust --version >/dev/null
   fzf --version >/dev/null
+  tofu -version >/dev/null
+  terraform version >/dev/null
   test ! -L /usr/local/bin/bat
   ! dpkg-query -W ripgrep >/dev/null 2>&1
 '

@@ -466,6 +466,18 @@ icons require a Nerd Font in the terminal. Dust scans the selected directory tre
 and can be expensive on large workspaces, mounted filesystems, or generated
 dependency trees, so prefer a focused path and depth when appropriate.
 
+## UUID Generation
+
+The image includes `uuidgen` from Debian's `uuid-runtime` package for generating
+UUIDs from scripts or the terminal:
+
+```bash
+uuidgen
+```
+
+The release kit provides the command but does not configure `uuidd` as a
+persistent service or impose a project-specific UUID workflow.
+
 ## Terminal Capture Tools
 
 The release kit includes `vhs`, `ffmpeg`, and `ttyd` for deterministic terminal

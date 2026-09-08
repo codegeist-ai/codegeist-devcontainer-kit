@@ -8,10 +8,10 @@
 # - Adds the Nix package manager for later package migration work without
 #   switching the devcontainer setup to flakes yet.
 # - Includes JBang, Hugo, Kubernetes, Terraform, OpenTofu, Ansible, PowerShell,
-#   QEMU/KVM, password-store, speech, YAML, terminal productivity and capture,
-#   network, security-scan, and FTP tools so the shared workspace can handle
-#   Java scripting, site, infrastructure, virtualization, deployment, docs
-#   previews, and external scan tasks.
+#   QEMU/KVM, password-store, speech, YAML, UUID generation, terminal
+#   productivity and capture, network, security-scan, and FTP tools so the
+#   shared workspace can handle Java scripting, site, infrastructure,
+#   virtualization, deployment, docs previews, and external scan tasks.
 # - Installs the Codegeist CLI through the upstream Linux installer from the
 #   codegeist repository's main branch.
 # - `scripts/release-build.sh` copies this source file to release `Dockerfile` so
@@ -175,6 +175,7 @@ RUN apt-get update \
       tigervnc-viewer \
       tofu \
       unzip \
+      uuid-runtime \
       wget \
       x11-apps \
       x11-utils \

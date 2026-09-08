@@ -71,6 +71,7 @@ docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc '
   eza --version >/dev/null
   dust --version >/dev/null
   fzf --version >/dev/null
+  uuidgen | grep -Eq "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
   tofu -version >/dev/null
   terraform version >/dev/null
   test ! -L /usr/local/bin/bat

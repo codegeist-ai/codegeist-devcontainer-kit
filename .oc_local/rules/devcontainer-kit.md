@@ -34,6 +34,8 @@ local override templates in this repository.
 - Keep terminal capture tools in the default image: `vhs`, `ffmpeg`, and `ttyd`.
   They support deterministic CLI/TUI documentation-preview captures without
   requiring each consuming repository to install the same generic renderer stack.
+- Keep `uuidgen` from Debian's `uuid-runtime` package in the default image for
+  generic UUID generation. Do not configure `uuidd` as a persistent service.
 - When changing default image tools, update the matching documentation and smoke
   coverage if the tool is part of the documented development contract.
 

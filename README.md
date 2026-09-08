@@ -395,6 +395,18 @@ with a Nerd Font. A broad dust scan walks the selected directory tree and can be
 expensive on large workspaces, mounted filesystems, or generated dependency
 trees; pass a focused path and depth when appropriate.
 
+## UUID Generation
+
+The image includes `uuidgen` from Debian's `uuid-runtime` package for generating
+UUIDs from scripts or the terminal:
+
+```bash
+uuidgen
+```
+
+The kit provides the command but does not configure `uuidd` as a persistent
+service or impose a project-specific UUID workflow.
+
 ## Terminal Capture Tools
 
 The devcontainer image includes `vhs`, `ffmpeg`, and `ttyd` for deterministic

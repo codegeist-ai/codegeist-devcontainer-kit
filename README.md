@@ -176,6 +176,23 @@ Project-specific OpenCode behavior belongs in `.oc_local/`. Only change the
 `.opencode/` submodule itself when updating the shared agent kit for every
 consumer, and commit that as a normal submodule gitlink update.
 
+## OpenCode In tmux
+
+The image installs `oc` globally at `/usr/local/bin/oc`. It starts
+`opencode --auto -c` in tmux and forwards additional OpenCode arguments:
+
+```bash
+oc
+oc --model provider/model
+oc /path/to/project
+```
+
+Outside tmux, each invocation creates and attaches to a new session. Inside
+tmux, it opens a new window in the current session instead of nesting tmux. The
+wrapper does not name or reuse sessions. Because `--auto` approves permissions
+that are not explicitly denied, use `oc` only in trusted workspaces with trusted
+OpenCode configuration.
+
 ## Daily Use
 
 Open the consuming project root in VS Code and let the Dev Containers extension

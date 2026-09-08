@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# oc - start OpenCode in a persistent tmux terminal
+#
+# Inputs:
+# - All arguments are forwarded to OpenCode after the fixed `--auto -c` flags.
+# - TMUX selects a new window in the current session instead of nesting tmux.
+#
+# Side effects:
+# - Creates a new attached tmux session outside tmux, or a new window inside it.
+#
+# Related files:
+# - ../Dockerfile.base
+# - ../tests/opencode-tmux-wrapper.sh
+
+set -euo pipefail
+
+if [ -n "${TMUX:-}" ]; then
+  exec tmux new-window -c "$PWD" opencode --auto -c "$@"
+fi
+
+exec tmux new-session -c "$PWD" opencode --auto -c "$@"

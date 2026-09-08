@@ -39,7 +39,9 @@ local override templates in this repository.
   workspace-relative `PATH` or an entrypoint symlink for these commands.
 - Keep tmux and the global `oc` wrapper in the default toolchain. `oc` starts
   `opencode --auto -c` in a new session, or a new window when already inside
-  tmux, without adding session-management behavior.
+  tmux, without adding session-management behavior. It sets the tmux server's
+  `set-clipboard` option to `on` so OpenCode can copy through OSC 52; document
+  that this permits application-originated clipboard updates in that server.
 - For this repository's configured `git.codegeist.ai` origin, use
   `git -c http.sslVerify=false ...` when its Caddy-issued certificate cannot be
   validated. Keep the exception command-local; never persist disabled TLS

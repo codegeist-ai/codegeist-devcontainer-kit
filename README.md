@@ -408,9 +408,12 @@ oc /path/to/project
 
 Outside tmux, each invocation creates and attaches to a new session. Inside
 tmux, it opens a new window in the current session instead of nesting tmux. The
-wrapper does not name or reuse sessions. Because `--auto` approves permissions
-that are not explicitly denied, use `oc` only in trusted workspaces with trusted
-OpenCode configuration.
+wrapper does not name or reuse sessions. It enables tmux's `set-clipboard on`
+server option so OpenCode's OSC 52 TUI copy action can update the outer terminal
+clipboard. This also allows other applications in that tmux server to request
+clipboard updates. Because of that behavior and because `--auto` approves
+permissions that are not explicitly denied, use `oc` only in trusted workspaces
+with trusted OpenCode configuration.
 
 ## UUID Generation
 

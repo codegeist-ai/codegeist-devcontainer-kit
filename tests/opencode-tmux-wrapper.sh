@@ -5,6 +5,8 @@
 # - The wrapper must preserve its working directory and argument boundaries.
 # - An isolated tmux server proves sessions and windows can be controlled from
 #   outside without touching the user's tmux state.
+# - OpenCode's OSC 52 copy path requires tmux to accept application-originated
+#   clipboard updates instead of its default external-only behavior.
 #
 # Related files:
 # - ../cmds/oc
@@ -31,6 +33,7 @@ outside_capture="$fixture_dir/outside.capture"
 inside_capture="$fixture_dir/inside.capture"
 expected_file="$fixture_dir/opencode.expected"
 launcher="$fixture_dir/launch-oc"
+expected_clipboard="oc clipboard test"
 attached_pid=""
 
 [ "$(command -v oc)" = "/usr/local/bin/oc" ] \
@@ -48,6 +51,7 @@ set -euo pipefail
   printf 'ARG=%s\n' "$@"
 } >"$OPENCODE_CAPTURE"
 
+printf '\033]52;c;b2MgY2xpcGJvYXJkIHRlc3Q=\a'
 exec sleep 30
 EOF
 chmod +x "$fake_bin/opencode"
@@ -72,6 +76,13 @@ EOF
 
   diff -u "$expected_file" "$capture_file" \
     || fail "oc did not preserve its OpenCode invocation"
+}
+
+assert_clipboard() {
+  [ "$(tmux_cmd show-options -s -v set-clipboard)" = "on" ] \
+    || fail "oc did not enable application clipboard updates"
+  [ "$(tmux_cmd show-buffer)" = "$expected_clipboard" ] \
+    || fail "tmux did not accept OpenCode's OSC 52 clipboard update"
 }
 
 tmux_cmd() {
@@ -122,6 +133,7 @@ wait_for_file "$outside_capture"
 [ "$(tmux_cmd list-sessions -F '#{session_name}' | wc -l)" -eq 1 ] \
   || fail "oc did not create exactly one tmux session"
 assert_capture "$outside_capture"
+assert_clipboard
 
 tmux_cmd kill-server
 wait "$attached_pid" 2>/dev/null || true
@@ -145,5 +157,6 @@ done
 [ "$(tmux_cmd list-windows -t wrapper-test -F '#{window_id}' | wc -l)" -eq 2 ] \
   || fail "oc did not add exactly one window to the existing tmux session"
 assert_capture "$inside_capture"
+assert_clipboard
 
-pass "oc creates controllable tmux sessions and windows with preserved arguments"
+pass "oc preserves arguments and enables TUI clipboard updates in tmux"

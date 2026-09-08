@@ -28,6 +28,10 @@ starts and attaches to a new session. Inside tmux, it opens a new window in the
 existing session instead of creating a nested session. It does not name, find,
 reuse, list, or otherwise manage sessions.
 
+After the first release, restarting OpenCode through `oc` exposed a clipboard
+regression: tmux defaults `set-clipboard` to `external`, which rejects OSC 52
+clipboard updates sent by applications such as the OpenCode TUI.
+
 ## Scope
 
 In scope:
@@ -62,6 +66,8 @@ Out of scope:
 - Both paths execute `opencode --auto -c` from the caller's working directory.
 - Additional arguments, including values containing spaces, reach OpenCode
   unchanged and after the required options.
+- OpenCode's OSC 52 copy action is accepted by tmux and reaches its clipboard
+  integration.
 - Tests can inspect and stop the created session and window through separate
   tmux client commands.
 - The wrapper contains no session lookup, reuse, cleanup, or custom naming
@@ -111,6 +117,10 @@ Out of scope:
   quoting helper is needed.
 - Use `exec` for the selected tmux call. Do not add dependency prechecks,
   session names, session lookup, retries, cleanup, or custom diagnostics.
+- Set the tmux server's `set-clipboard` option to `on` before OpenCode starts so
+  application-originated OSC 52 updates are accepted. This server-wide option
+  is required for TUI copy and permits other applications in that server to set
+  the outer terminal clipboard.
 - Test both branches against an isolated real tmux server in the built image.
   Replace only OpenCode with a recorder so no AI session starts.
 - Add `tmux` to the existing APT layer and verify command availability without
@@ -154,7 +164,7 @@ Out of scope:
    verification, close Issue `#14`, verify its canonical link and completed
    state, record the results here, and set this task to `solved`.
 
-## Verification Results
+## Previous Verification Results
 
 - `bash -n cmds/oc tests/opencode-tmux-wrapper.sh tests/devcontainer-up.sh
   tests/code-open-test.sh` passed.
@@ -168,6 +178,18 @@ Out of scope:
 - GitHub Issue `#14` was closed with reason `completed`; read-back confirmed its
   closed state, non-pull-request identity, and unique complete canonical task
   linkage.
+
+## Clipboard Regression Verification
+
+- `bash -n cmds/oc tests/opencode-tmux-wrapper.sh`,
+  `git --no-pager diff --check`, and `task check` passed.
+- A newly built image passed the real tmux integration test for both wrapper
+  branches. The simulated OpenCode process sent OSC 52, and tmux exposed the
+  decoded `oc clipboard test` value after the wrapper enabled
+  `set-clipboard on`.
+- `task tests-run` passed in 125 seconds.
+- GitHub Issue `#14` was closed again with reason `completed`; read-back
+  confirmed its closed state and complete canonical task linkage.
 
 ## Open Questions
 

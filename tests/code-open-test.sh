@@ -67,18 +67,20 @@ if [ "${CODE_OPEN_TEST_SKIP_UP:-false}" != "true" ]; then
     || fail "devcontainer CLI reported $remote_workspace_folder, expected $expected_remote_workspace_folder"
 
   if [ -n "$branch_name" ]; then
-    devcontainer_cli exec --workspace-folder "$expected_workspace_folder" bash -lc '
+    devcontainer_cli exec --workspace-folder "$expected_workspace_folder" bash -c '
       set -eu
       test "$(pwd -P)" = "'"$expected_workspace_folder"'"
       test "$DEVCONTAINER_WORKSPACE_FOLDER" = "'"$expected_workspace_folder"'"
+      test "$(command -v oc)" = "/usr/local/bin/oc"
       git rev-parse --is-inside-work-tree >/dev/null
       test "$(git rev-parse --abbrev-ref HEAD)" = "'"$branch_name"'"
     '
   else
-    devcontainer_cli exec --workspace-folder "$fixture_dir" bash -lc '
+    devcontainer_cli exec --workspace-folder "$fixture_dir" bash -c '
       set -eu
       test "$(pwd -P)" = "'"$expected_workspace_folder"'"
       test "$DEVCONTAINER_WORKSPACE_FOLDER" = "'"$expected_workspace_folder"'"
+      test "$(command -v oc)" = "/usr/local/bin/oc"
       git rev-parse --is-inside-work-tree >/dev/null
     '
   fi

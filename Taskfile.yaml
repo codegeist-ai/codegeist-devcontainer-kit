@@ -12,6 +12,7 @@
 #
 # Related files:
 # - Dockerfile.base
+# - cmds/
 # - entrypoint.sh
 # - scripts/code-open.sh
 # - scripts/release-build.sh
@@ -44,6 +45,7 @@ tasks:
     cmds:
       - >-
         bash -n
+        "{{.TASKFILE_DIR}}"/cmds/*
         "{{.TASKFILE_DIR}}/entrypoint.sh"
         "{{.TASKFILE_DIR}}/initialize.sh"
         "{{.TASKFILE_DIR}}"/scripts/*.sh

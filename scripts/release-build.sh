@@ -42,6 +42,7 @@ runtime_files=(
   ".local.env.example"
   ".oc_local.gitignore.example"
   ".oc_local.opencode.json.example"
+  "cmds/oc"
   "LICENSE"
   "Dockerfile.example"
   "compose.local.yml.example"

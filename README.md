@@ -395,6 +395,23 @@ with a Nerd Font. A broad dust scan walks the selected directory tree and can be
 expensive on large workspaces, mounted filesystems, or generated dependency
 trees; pass a focused path and depth when appropriate.
 
+## OpenCode In tmux
+
+The image installs `oc` globally at `/usr/local/bin/oc`. It starts
+`opencode --auto -c` in tmux and forwards additional OpenCode arguments:
+
+```bash
+oc
+oc --model provider/model
+oc /path/to/project
+```
+
+Outside tmux, each invocation creates and attaches to a new session. Inside
+tmux, it opens a new window in the current session instead of nesting tmux. The
+wrapper does not name or reuse sessions. Because `--auto` approves permissions
+that are not explicitly denied, use `oc` only in trusted workspaces with trusted
+OpenCode configuration.
+
 ## UUID Generation
 
 The image includes `uuidgen` from Debian's `uuid-runtime` package for generating
@@ -598,6 +615,7 @@ devcontainer.json
 docker-compose.yml
 entrypoint.sh
 initialize.sh
+cmds/oc
 scripts/chrome.sh
 ```
 
@@ -961,6 +979,8 @@ Expected target layout when consumed as a subtree at `.devcontainer/`:
   Dockerfile.example    # template for root .codegeist/Dockerfile
   entrypoint.sh
   initialize.sh
+  cmds/
+    oc
   scripts/
     chrome.sh
   .local.env.example
@@ -978,6 +998,8 @@ Roles:
   keep the same content as `Dockerfile.base`. Root `.codegeist/Dockerfile` can
   extend it through the generated `Dockerfile.merged.gen` file.
 - `entrypoint.sh` runs inside the container.
+- `cmds/` contains user-facing commands copied into `/usr/local/bin` during the
+  image build; `cmds/oc` provides the global `oc` command.
 - `entrypoint.sh` links `/usr/local/bin/chrome` to the mounted
   `.devcontainer/scripts/chrome.sh` in the selected workspace and prepends
   `$DEVCONTAINER_WORKSPACE_FOLDER/.devcontainer/scripts` to `PATH`; the launcher

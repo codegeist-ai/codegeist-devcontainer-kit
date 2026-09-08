@@ -72,12 +72,13 @@ done
 
 [[ -n "$workspace_ready" ]] || fail "devcontainer workspace did not expose nested Docker to the remote user"
 
-docker exec -u "$expected_user_name" "$container_id" bash -lc '
+docker exec -u "$expected_user_name" "$container_id" bash -c '
   set -euo pipefail
 
   test -d "'"$expected_workspace_folder"'/.oc_local"
   test -w "'"$expected_workspace_folder"'/.oc_local"
   test -f "'"$expected_workspace_folder"'/.oc_local/.gitignore"
+  test "$(command -v oc)" = "/usr/local/bin/oc"
 
   OPENCODE_CONFIG_DIR="'"$expected_workspace_folder"'/.oc_local" opencode --print-logs --log-level DEBUG debug startup
 ' >"$opencode_output_file" 2>&1

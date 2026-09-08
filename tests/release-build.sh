@@ -32,6 +32,7 @@ release_source_files=(
   ".local.env.example"
   ".oc_local.gitignore.example"
   ".oc_local.opencode.json.example"
+  "cmds/oc"
   "Dockerfile.base"
   "Dockerfile.example"
   "LICENSE"
@@ -107,6 +108,7 @@ cat >"$expected_files" <<'EOF'
 .local.env.example
 .oc_local.gitignore.example
 .oc_local.opencode.json.example
+cmds/oc
 Dockerfile
 Dockerfile.example
 LICENSE

@@ -34,6 +34,16 @@ local override templates in this repository.
 - Keep terminal capture tools in the default image: `vhs`, `ffmpeg`, and `ttyd`.
   They support deterministic CLI/TUI documentation-preview captures without
   requiring each consuming repository to install the same generic renderer stack.
+- Keep user-facing container commands under `cmds/` and copy the complete
+  directory into `/usr/local/bin` during the image build. Do not rely on a
+  workspace-relative `PATH` or an entrypoint symlink for these commands.
+- Keep tmux and the global `oc` wrapper in the default toolchain. `oc` starts
+  `opencode --auto -c` in a new session, or a new window when already inside
+  tmux, without adding session-management behavior.
+- For this repository's configured `git.codegeist.ai` origin, use
+  `git -c http.sslVerify=false ...` when its Caddy-issued certificate cannot be
+  validated. Keep the exception command-local; never persist disabled TLS
+  verification in repository, global, or system Git configuration.
 - Keep `uuidgen` from Debian's `uuid-runtime` package in the default image for
   generic UUID generation. Do not configure `uuidd` as a persistent service.
 - When changing default image tools, update the matching documentation and smoke

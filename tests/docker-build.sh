@@ -71,6 +71,7 @@ docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc '
   eza --version >/dev/null
   dust --version >/dev/null
   fzf --version >/dev/null
+  tmux -V >/dev/null
   uuidgen | grep -Eq "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
   tofu -version >/dev/null
   terraform version >/dev/null
@@ -93,4 +94,12 @@ docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc \
   '
 docker run --rm --entrypoint bash codegeist-devcontainer-kit:local -ic \
   '_completion_loader task >/dev/null 2>&1; status="$?"; { [ "$status" -eq 0 ] || [ "$status" -eq 124 ]; } && complete -p task | grep -F "complete -F _task task" >/dev/null'
+docker run --rm \
+  --entrypoint bash \
+  -e "DEVCONTAINER_PROJECT_ROOT=$project_root" \
+  -e "suite_tmp_dir=$suite_tmp_dir" \
+  --mount "type=bind,src=$project_root,dst=$project_root" \
+  -w "$project_root" \
+  codegeist-devcontainer-kit:local \
+  tests/opencode-tmux-wrapper.sh
 pass "docker image builds with terminal tools, Trivy scanning, shared commands, and Task completion available"

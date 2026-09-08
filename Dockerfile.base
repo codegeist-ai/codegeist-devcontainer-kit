@@ -8,7 +8,7 @@
 # - Adds the Nix package manager for later package migration work without
 #   switching the devcontainer setup to flakes yet.
 # - Includes JBang, Hugo, Kubernetes, Terraform, OpenTofu, Ansible, PowerShell,
-#   QEMU/KVM, password-store, speech, YAML, UUID generation, terminal
+#   QEMU/KVM, password-store, speech, YAML, UUID generation, tmux, terminal
 #   productivity and capture, network, security-scan, and FTP tools so the
 #   shared workspace can handle Java scripting, site, infrastructure,
 #   virtualization, deployment, docs previews, and external scan tasks.
@@ -32,6 +32,7 @@
 #   secret-scanner release.
 #
 # Related files:
+# - cmds/
 # - docker-compose.yml
 # - devcontainer.json
 # - entrypoint.sh
@@ -173,6 +174,7 @@ RUN apt-get update \
       terraform \
       testssl.sh \
       tigervnc-viewer \
+      tmux \
       tofu \
       unzip \
       uuid-runtime \
@@ -404,6 +406,7 @@ RUN printf '%s\n' \
       'export PATH' \
       > /etc/profile.d/codegeist-workspace-scripts.sh
 
+COPY --chmod=0755 .devcontainer/cmds/ /usr/local/bin/
 COPY .devcontainer/entrypoint.sh /usr/local/bin/devcontainer-entrypoint
 
 RUN chmod +x /usr/local/bin/devcontainer-entrypoint

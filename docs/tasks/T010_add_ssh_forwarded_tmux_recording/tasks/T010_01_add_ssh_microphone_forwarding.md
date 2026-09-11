@@ -45,8 +45,7 @@ Out of scope:
 - Editing `~/.ssh/config`, `sshd_config`, or system PipeWire configuration.
 - Adding scripts that create or monitor the SSH tunnel.
 - Changing `initialize.sh`, `docker-compose.yml`, or the image.
-- Adding the persistent recorder command or tmux shortcut owned by `T010_02` and
-  `T010_03`.
+- Adding the persistent recorder command or tmux shortcut owned by `T010_02`.
 - Supporting macOS, Windows, TCP-exposed Pulse servers, or non-Pulse transports.
 
 ## Acceptance Criteria
@@ -204,8 +203,7 @@ Out of scope:
    - Close the validated linked GitHub Issue with reason `completed` and read it
      back to verify the closed state and canonical linkage.
    - Change this task's status to `solved` only after that remote confirmation.
-   - Leave the parent task open until `T010_02` and `T010_03` complete their own
-     scopes.
+   - Leave the parent task open until `T010_02` completes its scope.
 
 ## Verification Results
 

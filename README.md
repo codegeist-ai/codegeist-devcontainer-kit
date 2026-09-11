@@ -415,6 +415,13 @@ clipboard updates. Because of that behavior and because `--auto` approves
 permissions that are not explicitly denied, use `oc` only in trusted workspaces
 with trusted OpenCode configuration.
 
+The wrapper also binds tmux `Prefix + R` (`Ctrl+B`, then uppercase `R`) to the
+workspace microphone recorder. The first press starts one mono, 48 kHz WAV
+recording; the second press stops FFmpeg with `SIGINT` and saves the finalized
+file under `.tmp/recordings/YYYYMMDD-HHMMSS.wav`. The shortcut requires the SSH
+microphone forward described below. A missing forward fails only recorder
+startup and reports the diagnostic log path in tmux.
+
 ## SSH Microphone Forwarding
 
 VS Code Remote SSH does not forward microphone audio. A local Linux client that

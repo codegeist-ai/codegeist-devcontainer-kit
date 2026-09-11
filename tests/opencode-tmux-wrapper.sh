@@ -7,6 +7,7 @@
 #   outside without touching the user's tmux state.
 # - OpenCode's OSC 52 copy path requires tmux to accept application-originated
 #   clipboard updates instead of its default external-only behavior.
+# - The same wrapper must register the fixed microphone recorder shortcut.
 #
 # Related files:
 # - ../cmds/oc
@@ -85,6 +86,12 @@ assert_clipboard() {
     || fail "tmux did not accept OpenCode's OSC 52 clipboard update"
 }
 
+assert_recorder_binding() {
+  tmux_cmd list-keys -T prefix R \
+    | grep -F 'oc-record \"#{pane_id}\"' >/dev/null \
+    || fail "oc did not bind Prefix + R to the microphone recorder"
+}
+
 tmux_cmd() {
   TMUX="" TMUX_TMPDIR="$tmux_tmp_dir" tmux "$@"
 }
@@ -134,6 +141,7 @@ wait_for_file "$outside_capture"
   || fail "oc did not create exactly one tmux session"
 assert_capture "$outside_capture"
 assert_clipboard
+assert_recorder_binding
 
 tmux_cmd kill-server
 wait "$attached_pid" 2>/dev/null || true
@@ -158,5 +166,6 @@ done
   || fail "oc did not add exactly one window to the existing tmux session"
 assert_capture "$inside_capture"
 assert_clipboard
+assert_recorder_binding
 
-pass "oc preserves arguments and enables TUI clipboard updates in tmux"
+pass "oc preserves arguments and configures clipboard and recording in tmux"

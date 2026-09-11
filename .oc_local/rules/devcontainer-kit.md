@@ -51,6 +51,21 @@ local override templates in this repository.
 - When changing default image tools, update the matching documentation and smoke
   coverage if the tool is part of the documented development contract.
 
+## Runtime Assumptions
+
+- Container-side code may assume that environment variables required by
+  `docker-compose.yml`, `entrypoint.sh`, and the devcontainer runtime contract
+  are set. In particular, use `DEVCONTAINER_WORKSPACE_FOLDER` directly instead
+  of adding fallback workspace discovery or presence checks.
+- Container-side code may invoke commands installed by `Dockerfile.base`
+  directly. Do not add `command -v`, `require_cmd`, or equivalent runtime guards
+  for those commands.
+- Verify required environment variables and installed commands once in the
+  appropriate image or integration tests instead of checking them on every
+  invocation.
+- These assumptions do not apply to host-side scripts or optional tools that are
+  explicitly intended to run outside the built devcontainer image.
+
 ## Compose Overrides
 
 - Keep `compose.local.yml` and `compose.local.yml.example` empty by default with
@@ -110,6 +125,12 @@ local override templates in this repository.
 - Keep normal devcontainer startup independent of microphone forwarding. A
   missing listener may fail recorder startup, but must not block ordinary
   container, OpenCode, or tmux use.
+- Keep `cmds/oc-record` as one workspace-local start/stop toggle for mono, 48 kHz
+  PCM WAV files under `.tmp/recordings/`. Do not add recording modes, source
+  selection, services, or multiple simultaneous recordings in one workspace.
+- Keep tmux `Prefix + R` as the fixed recorder binding registered by `cmds/oc`.
+  The binding must run `oc-record "#{pane_id}"` in the background and preserve
+  existing OpenCode argument, window, session, and clipboard behavior.
 - Keep `README.md` and `README_release.md` aligned on the socket path, endpoint,
   multiplexing behavior, reconnect requirement, SSH server prerequisites,
   client-use examples, end-to-end audio check, and loopback safety warning.

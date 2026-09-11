@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# oc-record - toggle microphone recording for the current devcontainer workspace
+#
+# Inputs:
+# - DEVCONTAINER_WORKSPACE_FOLDER is the guaranteed workspace root.
+# - One tmux pane target receives start, stop, and failure messages.
+#
+# Side effects:
+# - Records the fixed forwarded Pulse source to `.tmp/recordings/`.
+# - Keeps one workspace-local state file, lock, and FFmpeg diagnostic log.
+#
+# Related files:
+# - ../docs/tasks/T010_add_ssh_forwarded_tmux_recording/tasks/T010_02_add_microphone_recorder.md
+# - ../tests/oc-record.sh
+
+set -euo pipefail
+umask 077
+
+[ "$#" -eq 1 ] || {
+  printf 'Usage: oc-record <tmux-pane>\n' >&2
+  exit 2
+}
+
+pane="$1"
+recording_dir="$DEVCONTAINER_WORKSPACE_FOLDER/.tmp/recordings"
+state_file="$recording_dir/.oc-record.state"
+lock_file="$recording_dir/.oc-record.lock"
+log_file="$recording_dir/.oc-record.log"
+
+message() {
+  tmux display-message -t "$pane" "$1"
+}
+
+mkdir -p "$recording_dir"
+exec 9>"$lock_file"
+flock 9
+
+# A valid state identifies the only process this command may signal. Partial or
+# stale state is disposable because the recording directory itself is temporary.
+if [ -s "$state_file" ]; then
+  IFS=$'\t' read -r pid output <"$state_file" || true
+
+  if [[ "$pid" =~ ^[0-9]+$ ]] \
+    && [[ "$output" == "$recording_dir/"*.wav ]] \
+    && grep -Ezxq '(.*/)?ffmpeg' "/proc/$pid/cmdline" 2>/dev/null \
+    && grep -Fzxq -- "$output" "/proc/$pid/cmdline" 2>/dev/null; then
+    kill -INT "$pid" 2>/dev/null || true
+
+    for _ in {1..50}; do
+      kill -0 "$pid" 2>/dev/null || break
+      sleep 0.1
+    done
+
+    if kill -0 "$pid" 2>/dev/null; then
+      message "Microphone recording did not stop; try again"
+      exit 1
+    fi
+
+    rm -f "$state_file" "$log_file"
+    message "Microphone recording saved: $output"
+    exit 0
+  fi
+
+  rm -f "$state_file"
+fi
+
+output="$recording_dir/$(date +%Y%m%d-%H%M%S).wav"
+
+PULSE_SERVER=tcp:127.0.0.1:47130 \
+  ffmpeg -nostdin -hide_banner -loglevel error \
+    -f pulse -i default \
+    -ac 1 -ar 48000 -c:a pcm_s16le \
+    "$output" \
+    9>&- </dev/null 2>"$log_file" &
+
+pid="$!"
+sleep 0.2
+
+if ! kill -0 "$pid" 2>/dev/null; then
+  wait "$pid" 2>/dev/null || true
+  rm -f "$output"
+  message "Microphone recording failed; check $log_file"
+  exit 1
+fi
+
+printf '%s\t%s\n' "$pid" "$output" >"$state_file"
+message "Microphone recording started: $output"

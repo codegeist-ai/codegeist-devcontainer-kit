@@ -85,6 +85,7 @@ docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc \
     test ! -e /tmp/opencode
     test -d /tmp/ws-data
     test ! -e /usr/local/bin/chrome
+    test "$(command -v oc-record)" = "/usr/local/bin/oc-record"
     dpkg-query -W bash-completion >/dev/null
     test -s /usr/share/bash-completion/completions/task
     grep -F "function _task()" /usr/share/bash-completion/completions/task >/dev/null
@@ -102,4 +103,13 @@ docker run --rm \
   -w "$project_root" \
   codegeist-devcontainer-kit:local \
   tests/opencode-tmux-wrapper.sh
+docker run --rm \
+  --entrypoint bash \
+  -e "DEVCONTAINER_PROJECT_ROOT=$project_root" \
+  -e "suite_tmp_dir=$suite_tmp_dir" \
+  -e "OC_RECORD_BIN=/usr/local/bin/oc-record" \
+  --mount "type=bind,src=$project_root,dst=$project_root" \
+  -w "$project_root" \
+  codegeist-devcontainer-kit:local \
+  tests/oc-record.sh
 pass "docker image builds with terminal tools, Trivy scanning, shared commands, and Task completion available"

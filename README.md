@@ -415,6 +415,204 @@ clipboard updates. Because of that behavior and because `--auto` approves
 permissions that are not explicitly denied, use `oc` only in trusted workspaces
 with trusted OpenCode configuration.
 
+## SSH Microphone Forwarding
+
+VS Code Remote SSH does not forward microphone audio. A local Linux client that
+uses PipeWire's PulseAudio compatibility layer can expose its Pulse server to
+programs on the SSH host through an OpenSSH remote forward. The complete path is:
+
+```text
+Pulse-compatible client in the devcontainer
+  -> tcp:127.0.0.1:47130 on the SSH host
+  -> encrypted SSH remote-forward channel
+  -> /run/user/<uid>/pulse/native on the local Linux client
+  -> the local user's PipeWire microphone source
+```
+
+The TCP listener is remote, on the SSH host. The Unix socket is local, on the
+computer running the SSH client. OpenSSH opens that socket as the local user, so
+the numeric `<uid>` is the local user's UID, not the SSH account's UID.
+
+### Configure The Local Linux Client
+
+Run these commands in a terminal on the local Linux client, before starting the
+VS Code Remote SSH connection:
+
+```bash
+id -u
+test -S "/run/user/$(id -u)/pulse/native"
+```
+
+The socket check must return exit status zero. Replace `<uid>` below with the
+numeric output from `id -u`; OpenSSH configuration does not evaluate
+`$(id -u)` or other shell substitutions.
+
+Add the following options to the matching host in the local `~/.ssh/config`:
+
+```sshconfig
+Host <remote-host>
+  ControlMaster auto
+  ControlPath ~/.ssh/control-%C
+  ControlPersist 60
+
+  RemoteForward 127.0.0.1:47130 /run/user/<uid>/pulse/native
+  ExitOnForwardFailure yes
+```
+
+`RemoteForward` creates the `127.0.0.1:47130` TCP listener on the SSH host and
+forwards each accepted connection to the local Unix socket. The explicit
+`127.0.0.1` bind is required: do not replace it with an empty address, `*`,
+`0.0.0.0`, or another externally reachable address. Port `0` would ask OpenSSH
+to allocate a dynamic remote port, but clients would then need to discover that
+port for every connection. This kit deliberately keeps the stable endpoint
+`tcp:127.0.0.1:47130`.
+
+`ControlMaster auto` lets parallel VS Code and terminal sessions share one
+underlying SSH connection. `ControlPath ~/.ssh/control-%C` names its local Unix
+control socket with OpenSSH's hash of the effective connection tuple.
+`ControlPersist 60` keeps that SSH master alive for up to 60 seconds after its
+last multiplexed session exits; it does not install or start a separate system
+service.
+
+Only the master connection owns the remote listener. A later multiplexed SSH
+session recognizes the existing forwarding and reuses it. Without multiplexing,
+two independent connections using this same `RemoteForward` both try to bind
+remote port `47130`: the first succeeds and the second fails because the port is
+already occupied. With `ExitOnForwardFailure yes`, that second independent SSH
+connection terminates instead of continuing without its requested tunnel.
+
+When several host aliases resolve to the same SSH account and must share this
+forward, ensure they resolve to the same effective host, user, and port and use
+the same `ControlPath`. A literal shared `ControlPath` may be used across those
+specific host entries when their `%C` values would differ. Do not share one
+control path between unrelated SSH destinations.
+
+### Server Requirements And Connection Lifecycle
+
+The SSH server must permit remote TCP forwarding. Its effective configuration
+must allow `AllowTcpForwarding yes` or `AllowTcpForwarding remote`, must not set
+`DisableForwarding yes`, and, when `PermitListen` is restricted, must allow
+`127.0.0.1:47130`. Ask the SSH host administrator to change server policy when
+necessary. `ExitOnForwardFailure yes` makes a port conflict or rejected
+forwarding request fail the SSH connection instead of silently omitting the
+listener; it does not guarantee that later connections to the local Pulse socket
+will succeed.
+
+Fully reconnect the VS Code Remote SSH session after changing the client
+configuration. Restarting a VS Code window may reuse a pre-existing master that
+was created before the forwarding option was added. Close the affected remote
+windows and run the following on the local Linux client when an old master must
+be checked or stopped:
+
+```bash
+ssh -O check <remote-host>
+ssh -O exit <remote-host>
+```
+
+`ssh -O check` only inspects an existing master; it does not create a connection.
+A missing control socket therefore means no master currently exists, not that
+the configuration is invalid. After the final session closes, the listener
+exists only for the configured `ControlPersist` interval. A later VS Code
+connection creates a new master and listener.
+
+Validate the effective local configuration without opening a connection:
+
+```bash
+ssh -G <remote-host> |
+grep -E '^(hostname|user|controlmaster|controlpath|controlpersist|remoteforward|exitonforwardfailure) '
+```
+
+OpenSSH may display the listener as `[127.0.0.1]:47130`; this is the normalized
+form of the configured IPv4 loopback endpoint. For connection-level diagnosis,
+run `ssh -vvv <remote-host>` locally. Successful setup includes messages
+equivalent to `remote forward success`, while a reused multiplexed forward is
+reported as `found existing forwarding`. A debug destination ending in `:-2`
+is OpenSSH's internal representation for the Unix-socket target and is not an
+error when forwarding success is subsequently reported.
+
+### Verify The Remote Endpoint
+
+Run these checks directly on the SSH host or in a terminal already attached to
+the devcontainer:
+
+```bash
+ss -ltn '( sport = :47130 )'
+nc -vz -w 3 127.0.0.1 47130
+```
+
+The `ss` result must show `127.0.0.1:47130`, never `0.0.0.0:47130`,
+`[::]:47130`, or another non-loopback address. `nc` must report a successful TCP
+connection. Because the devcontainer uses host networking, the same loopback
+endpoint is available from inside the container.
+
+Do not run `ssh <remote-host>` from inside the remote devcontainer merely to
+perform these checks. The host alias and control socket belong to the local
+Linux client and may not exist in the container. Run `ss` and `nc` directly in
+the existing remote terminal. To invoke the checks remotely from the local
+computer instead, run:
+
+```bash
+ssh <remote-host> \
+  "ss -ltn '( sport = :47130 )' && nc -vz -w 3 127.0.0.1 47130"
+```
+
+The TCP check proves that the remote listener is reachable, but it does not
+prove that a Pulse-compatible client can read audio. The devcontainer image
+includes FFmpeg, so verify the complete protocol and audio path without writing
+an output file:
+
+```bash
+PULSE_SERVER=tcp:127.0.0.1:47130 \
+ffmpeg -hide_banner -loglevel info \
+  -f pulse -i default \
+  -t 5 -f null -
+```
+
+A successful run identifies a Pulse input, processes five seconds at real-time
+speed, and exits without connection, authentication, or input errors. The local
+default source may be stereo. Recorder commands that require mono can request
+one output channel independently with `-ac 1`.
+
+### Use The Forwarded Microphone
+
+Pulse-compatible programs on the SSH host or in the devcontainer select the
+forwarded server through `PULSE_SERVER`. Set it for one command:
+
+```bash
+PULSE_SERVER=tcp:127.0.0.1:47130 <pulse-compatible-command>
+```
+
+Alternatively, export it for the current shell:
+
+```bash
+export PULSE_SERVER=tcp:127.0.0.1:47130
+```
+
+For example, this direct FFmpeg command records the default source as mono,
+48 kHz WAV until `q` or `Ctrl+C` stops FFmpeg:
+
+```bash
+PULSE_SERVER=tcp:127.0.0.1:47130 \
+ffmpeg -f pulse -i default -ac 1 -ar 48000 microphone.wav
+```
+
+One SSH remote-forward listener accepts multiple TCP connections, so multiple
+Pulse-compatible clients and multiplexed VS Code sessions can use the endpoint
+concurrently. The SSH master that owns the listener must remain alive.
+
+### Security And Ownership
+
+The local SSH client opens the Unix socket as the local Linux user. Binding to
+loopback prevents access from other network hosts, but processes that can reach
+loopback on the SSH host may access the forwarded Pulse server with that local
+user's permissions. Use this forwarding only through a trusted SSH host and
+disconnect the SSH session when it is no longer needed.
+
+Microphone forwarding is an optional, manually managed prerequisite. Missing or
+failed forwarding does not affect normal devcontainer startup, OpenCode, or
+tmux. The kit does not modify client SSH configuration, server SSH policy,
+PipeWire configuration, initialization behavior, or Compose configuration.
+
 ## UUID Generation
 
 The image includes `uuidgen` from Debian's `uuid-runtime` package for generating

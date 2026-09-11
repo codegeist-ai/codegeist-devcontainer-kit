@@ -94,6 +94,26 @@ local override templates in this repository.
   translation, notifications, audio, and GPU acceleration unless a concrete task
   needs one of those services.
 
+## Microphone Forwarding
+
+- Keep SSH microphone forwarding an explicit Linux client prerequisite. Do not
+  modify client SSH configuration, remote `sshd_config`, PipeWire configuration,
+  `initialize.sh`, or Compose files to create or monitor the tunnel.
+- Keep the documented transport fixed to the local PipeWire Pulse socket
+  `/run/user/<uid>/pulse/native` and the remote loopback endpoint
+  `127.0.0.1:47130`. Do not add wildcard binds, fallback ports, TCP-exposed local
+  Pulse servers, or alternate transports without a concrete requirement.
+- Document OpenSSH connection multiplexing for parallel VS Code sessions that
+  target the same SSH account. One control master owns the fixed remote listener;
+  later multiplexed sessions reuse it instead of attempting a conflicting bind.
+  Keep control paths isolated between unrelated SSH destinations.
+- Keep normal devcontainer startup independent of microphone forwarding. A
+  missing listener may fail recorder startup, but must not block ordinary
+  container, OpenCode, or tmux use.
+- Keep `README.md` and `README_release.md` aligned on the socket path, endpoint,
+  multiplexing behavior, reconnect requirement, SSH server prerequisites,
+  client-use examples, end-to-end audio check, and loopback safety warning.
+
 ## Runtime Release Workflow
 
 - Keep `README_release.md` consumer-facing. It becomes `README.md` on the

@@ -9,6 +9,7 @@
 # - Creates a new attached tmux session outside tmux, or a new window inside it.
 # - Enables application-originated OSC 52 clipboard updates for the tmux server
 #   so OpenCode's TUI copy action reaches the outer terminal clipboard.
+# - Binds tmux Prefix + R to toggle the workspace microphone recorder.
 #
 # Related files:
 # - ../Dockerfile.base
@@ -18,8 +19,10 @@ set -euo pipefail
 
 if [ -n "${TMUX:-}" ]; then
   tmux set-option -s set-clipboard on
+  tmux bind-key R run-shell -b 'oc-record "#{pane_id}"'
   exec tmux new-window -c "$PWD" opencode --auto -c "$@"
 fi
 
 exec tmux start-server \; set-option -s set-clipboard on \; \
+  bind-key R run-shell -b 'oc-record "#{pane_id}"' \; \
   new-session -c "$PWD" opencode --auto -c "$@"

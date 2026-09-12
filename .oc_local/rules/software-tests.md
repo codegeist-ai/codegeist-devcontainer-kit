@@ -21,3 +21,19 @@ Use this rule when making code, script, or workflow changes in this repository.
 - If `task tests-run` cannot complete because the environment is blocked, for
   example Docker tmpfs exhaustion or missing host tooling, report the blocker
   explicitly and include the targeted tests that did pass.
+
+## Reality Over CI Compatibility
+
+- Prefer the real local command, service, device, protocol, and lifecycle path
+  when the repository provides that integration. CI compatibility is not a
+  project requirement by itself and does not justify replacing real behavior
+  with a fake, mock, or weaker assertion.
+- Do not create tests solely to make behavior runnable in CI. A test may require
+  documented local prerequisites such as Docker, KVM, a display server, or the
+  SSH-forwarded Pulse endpoint and should fail clearly when they are absent.
+- Use a fake or mock only when it proves a distinct behavior that cannot be
+  exercised safely or observably with the real dependency. Do not retain one
+  merely for speed, non-interactivity, or hypothetical CI portability.
+- Keep test side effects narrow and explicit. Real integration tests may create
+  disposable containers, recordings, screenshots, or VM fixtures under the
+  existing temporary test paths and must clean them after the run.

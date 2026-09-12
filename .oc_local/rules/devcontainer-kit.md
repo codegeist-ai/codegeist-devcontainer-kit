@@ -79,6 +79,12 @@ local override templates in this repository.
 
 ## Display Forwarding
 
+- Keep the narrow fake `npx` and `code` commands in `tests/code-open-args.sh`
+  for asserting the non-interactive `up`, `exec`, then `code` orchestration
+  order. Real Dev Containers lifecycle behavior remains covered by the
+  integration suite; do not replace this focused check with an Xvfb-driven VS
+  Code extension-host harness unless a concrete editor-runtime contract needs
+  that complexity.
 - Do not reserve, increment, or guess SSH X11 forwarding ports in
   `initialize.sh`; SSH and VS Code own forwarding listener allocation.
 - Preserve the host-side `DISPLAY` visible to `initializeCommand` by writing it
@@ -131,6 +137,10 @@ local override templates in this repository.
 - Keep tmux `Prefix + R` as the fixed recorder binding registered by `cmds/oc`.
   The binding must run `oc-record "#{pane_id}"` in the background and preserve
   existing OpenCode argument, window, session, and clipboard behavior.
+- Test the recorder with real tmux option inheritance, real FFmpeg/Pulse input,
+  real signals, and `ffprobe` output inspection. `task tests-run` requires the
+  SSH microphone forward and may record short disposable audio samples; do not
+  substitute fake tmux or FFmpeg implementations only for CI compatibility.
 - Keep `README.md` and `README_release.md` aligned on the socket path, endpoint,
   multiplexing behavior, reconnect requirement, SSH server prerequisites,
   client-use examples, end-to-end audio check, and loopback safety warning.

@@ -34,7 +34,8 @@ In scope:
 - Keep one state file, lock file, and diagnostic log in `.tmp/recordings/`.
 - Validate stale state before sending signals.
 - Report only start, saved output, and concise failures through tmux.
-- Add deterministic tests using a fake `ffmpeg` process.
+- Show a yellow tmux status bar while recording and restore its prior style.
+- Test with real isolated tmux sessions, real FFmpeg/Pulse input, and `ffprobe`.
 - Register tmux `Prefix + R` through the existing `oc` wrapper.
 - Add the recorder to the exact runtime release manifest.
 - Document the shortcut, output, and unavailable-forward behavior.
@@ -64,6 +65,8 @@ Out of scope:
 - Incomplete or stale state is removed without signaling an unrelated process.
 - Immediate `ffmpeg` failure removes active state and incomplete output and
   displays a concise error.
+- Start, stop, immediate failure, and stale-state recovery preserve the prior
+  tmux status style while using yellow as the active recording indicator.
 - Stop sends only `SIGINT`, waits briefly for WAV finalization, and never
   escalates to `SIGKILL`.
 - Outside and inside tmux, `oc` binds `Prefix + R` to background execution of
@@ -73,14 +76,15 @@ Out of scope:
 - The exact runtime release contains both `cmds/oc` and `cmds/oc-record`.
 - Consumer documentation explains `Ctrl+B`, uppercase `R`, the output path, and
   the missing-forward failure boundary.
-- The behavior is covered without requiring a real microphone or network
-  endpoint.
+- The success path requires the real SSH-forwarded microphone endpoint; the
+  unavailable-forward path runs real FFmpeg in a container without host
+  networking.
 
 ## Verification
 
 - `bash -n cmds/oc-record tests/oc-record.sh tests/docker-build.sh`
-- Run `tests/oc-record.sh` in the built image with fake `ffmpeg` and a tmux
-  message sink.
+- Run `tests/oc-record.sh` in the built image with the real forwarded Pulse
+  endpoint and an isolated real tmux server.
 - Verify start arguments and output, `SIGINT` handling, duplicate-start
   prevention, and stale-state safety.
 - Verify `command -v oc-record` returns `/usr/local/bin/oc-record` in the image.
@@ -89,8 +93,8 @@ Out of scope:
   binding in both wrapper branches.
 - Run `tests/release-build.sh`, `git diff --check`, `task check`, and
   `task tests-run`.
-- With the SSH forward active, record through the shortcut and inspect the WAV
-  with `ffprobe`.
+- Inspect each real test recording with `ffprobe` and require mono, 48 kHz
+  `pcm_s16le` audio.
 
 ## File Targets
 

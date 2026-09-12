@@ -27,11 +27,18 @@ fi
 fixture_dir="$suite_tmp_dir/code-open-args-fixture"
 capture_file="$suite_tmp_dir/code-open-args.capture"
 fake_code="$suite_tmp_dir/fake-code"
+fake_bin="$suite_tmp_dir/fake-bin"
 branch_name="develop0"
+
+mkdir -p "$fake_bin"
 
 cat >"$fake_code" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
+
+if [ -n "${CODE_OPEN_EVENT_FILE:-}" ]; then
+  printf 'code\n' >>"$CODE_OPEN_EVENT_FILE"
+fi
 
 {
   printf 'PWD=%s\n' "$PWD"
@@ -89,4 +96,42 @@ compose_config="$(cd "$fixture_dir" && env \
 [[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_WORKSPACE_SUFFIX="* ]] || fail "generated env does not reset workspace suffix"
 [[ "$(<"$fixture_dir/.devcontainer/devcontainer.json")" == *'"workspaceFolder": "${localWorkspaceFolder}/.worktrees/${localEnv:BRANCH:..}"'* ]] || fail "devcontainer workspaceFolder does not use BRANCH to select the workspace folder"
 
-pass "code-open-test prepares the selected worktree without leaking BRANCH to VS Code"
+# The manual reality test must not open VS Code until devcontainer creation and
+# its in-container smoke check have both succeeded.
+ordering_fixture="$suite_tmp_dir/code-open-ordering-fixture"
+ordering_events="$suite_tmp_dir/code-open-ordering.events"
+ordering_remote_workspace="$(expected_remote_workspace_folder "$ordering_fixture")"
+
+cat >"$fake_bin/npx" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+case " $* " in
+  *" @devcontainers/cli up "*)
+    printf 'up\n' >>"$CODE_OPEN_EVENT_FILE"
+    printf '{"remoteWorkspaceFolder":"%s"}\n' "$FAKE_REMOTE_WORKSPACE"
+    ;;
+  *" @devcontainers/cli exec "*)
+    printf 'exec\n' >>"$CODE_OPEN_EVENT_FILE"
+    ;;
+  *)
+    printf 'unexpected npx invocation: %s\n' "$*" >&2
+    exit 2
+    ;;
+esac
+EOF
+chmod +x "$fake_bin/npx"
+
+PATH="$fake_bin:$PATH" \
+  CODE_BIN="$fake_code" \
+  CODE_OPEN_CAPTURE="$capture_file" \
+  CODE_OPEN_EVENT_FILE="$ordering_events" \
+  FAKE_REMOTE_WORKSPACE="$ordering_remote_workspace" \
+  KEEP_CODE_FIXTURE_DIR="$ordering_fixture" \
+  task -t "$project_root/Taskfile.yaml" code-open-test >/dev/null
+
+printf 'up\nexec\ncode\n' >"$capture_file"
+diff -u "$capture_file" "$ordering_events" \
+  || fail "code-open-test opened VS Code before the devcontainer passed its smoke check"
+
+pass "code-open-test prepares worktrees and opens VS Code after devcontainer verification"

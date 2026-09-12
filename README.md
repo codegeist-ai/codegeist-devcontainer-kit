@@ -372,7 +372,9 @@ suite can pass.
 
 The image resolves and installs the latest official Linux x86_64 releases of
 Neovim (`nvim`), Gum, ripgrep (`rg`), bat, btop, eza, dust, and fzf during each
-image build. These commands cover editing, interactive shell prompts, fast text
+image build. Versioned asset names are derived from GitHub's normal latest-release
+redirects, so image builds do not consume the shared unauthenticated GitHub API
+quota. These commands cover editing, interactive shell prompts, fast text
 search, highlighted file output, resource monitoring, directory listings, disk
 usage inspection, and fuzzy selection:
 
@@ -418,7 +420,9 @@ with trusted OpenCode configuration.
 The wrapper also binds tmux `Prefix + R` (`Ctrl+B`, then uppercase `R`) to the
 workspace microphone recorder. The first press starts one mono, 48 kHz WAV
 recording; the second press stops FFmpeg with `SIGINT` and saves the finalized
-file under `.tmp/recordings/YYYYMMDD-HHMMSS.wav`. The shortcut requires the SSH
+file under `.tmp/recordings/YYYYMMDD-HHMMSS.wav`. While recording, the complete
+tmux status bar is yellow; stopping or a startup failure restores its previous
+style. The shortcut requires the SSH
 microphone forward described below. A missing forward fails only recorder
 startup and reports the diagnostic log path in tmux.
 
@@ -759,6 +763,12 @@ contract covered only by integration tests:
 task tests-run
 ```
 
+This suite prioritizes real local integrations over CI portability. It requires
+the documented SSH microphone forward at `tcp:127.0.0.1:47130` and records short
+disposable audio samples through real tmux, FFmpeg, Pulse audio, and `ffprobe`.
+Do not replace real dependencies with fakes or add weaker tests solely to make
+the suite runnable in CI.
+
 Open the current Git root with the real VS Code entrypoint:
 
 ```bash
@@ -778,8 +788,10 @@ task code-open-test
 task code-open-test -- develop0
 ```
 
-The reality test intentionally leaves its temporary fixture and VS Code-started
-container in place because VS Code is opened against that fixture.
+The reality test builds, starts, and verifies the temporary devcontainer before
+opening VS Code, preventing the editor from starting a competing image build.
+It intentionally leaves the fixture and running container in place because VS
+Code is opened against that fixture.
 
 Update the runtime-only `release` branch when consuming repositories should pin
 the kit as a stable `.devcontainer` submodule branch:
@@ -1112,6 +1124,11 @@ Dev Containers CLI. Prefer `devcontainer up` over only validating files or
 running `docker compose` directly, because `devcontainer up` exercises the same
 configuration model that VS Code uses.
 
+CI compatibility is not a test objective by itself. Prefer real local commands,
+services, devices, protocols, and lifecycle behavior even when they require
+documented host prerequisites. Do not introduce fakes, mocks, or extra tests
+solely to make a check deterministic, non-interactive, or runnable in CI.
+
 Primary smoke command:
 
 ```bash
@@ -1342,8 +1359,10 @@ task code-open -- develop0
 
 Use the manual reality test when you want to verify that same entrypoint through
 a temporary consuming repository. It creates a temporary Git repository, copies
-this kit into `.devcontainer/`, and then invokes the real `code-open` task
-against that fixture.
+this kit into `.devcontainer/`, builds and verifies its devcontainer, and only
+then invokes the real `code-open` task against that fixture. If VS Code offers
+`Dev Containers: Reopen in Container`, that action attaches to the container
+that already passed the test instead of triggering the initial build.
 
 ```bash
 task code-open-test
@@ -1356,9 +1375,9 @@ task code-open-test -- develop0
 ```
 
 `BRANCH=develop0 task code-open-test` is still accepted when an environment
-variable is more convenient. The helper prepares the worktree before invoking
-`code .` from that checkout, which stays stable even when an existing VS Code
-process handles the `code` request.
+variable is more convenient. The helper prepares the worktree and verifies its
+container before invoking `code .` from that checkout, which stays stable even
+when an existing VS Code process handles the `code` request.
 
 The temporary fixture is intentionally left on disk because VS Code is opened
 against it.

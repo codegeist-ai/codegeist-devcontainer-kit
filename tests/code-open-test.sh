@@ -4,6 +4,8 @@
 # Why this exists:
 # - Keeps `task code-open-test` as a manual reality-test helper without
 #   duplicating the production `task code-open` behavior.
+# - Opens VS Code only after the temporary devcontainer passes its smoke check,
+#   avoiding a second competing build from the Dev Containers extension.
 # - Leaves the temporary repository on disk for manual inspection and for the VS
 #   Code window that was just opened.
 #
@@ -38,19 +40,16 @@ fi
 create_git_fixture_repo "$fixture_dir"
 
 log "created VS Code fixture at $fixture_dir"
-
-if [ -n "$branch_name" ]; then
-  log "starting real code-open task from fixture root with BRANCH=$branch_name"
-  CODE_OPEN_WORKSPACE="$fixture_dir" task -t "$project_root/Taskfile.yaml" code-open -- "$branch_name"
-else
-  log "starting real code-open task from fixture root without BRANCH"
-  CODE_OPEN_WORKSPACE="$fixture_dir" task -t "$project_root/Taskfile.yaml" code-open
-fi
+expected_workspace_folder="$(expected_workspace_folder "$fixture_dir" "$branch_name")"
 
 if [ "${CODE_OPEN_TEST_SKIP_UP:-false}" != "true" ]; then
+  if [ -n "$branch_name" ]; then
+    log "preparing fixture worktree with BRANCH=$branch_name"
+    BRANCH="$branch_name" "$fixture_dir/.devcontainer/initialize.sh"
+  fi
+
   log "starting devcontainer CLI from fixture root"
   devcontainer_log="$fixture_dir/devcontainer-up.log"
-  expected_workspace_folder="$(expected_workspace_folder "$fixture_dir" "$branch_name")"
   if [ -n "$branch_name" ]; then
     expected_remote_workspace_folder="$(expected_remote_workspace_folder "$expected_workspace_folder")"
     prepare_devcontainer_home "$expected_workspace_folder"
@@ -84,6 +83,14 @@ if [ "${CODE_OPEN_TEST_SKIP_UP:-false}" != "true" ]; then
       git rev-parse --is-inside-work-tree >/dev/null
     '
   fi
+fi
+
+if [ -n "$branch_name" ]; then
+  log "opening verified fixture in VS Code with BRANCH=$branch_name"
+  CODE_OPEN_WORKSPACE="$fixture_dir" task -t "$project_root/Taskfile.yaml" code-open -- "$branch_name"
+else
+  log "opening verified fixture in VS Code without BRANCH"
+  CODE_OPEN_WORKSPACE="$fixture_dir" task -t "$project_root/Taskfile.yaml" code-open
 fi
 
 pass "started VS Code and devcontainer for temporary fixture: $fixture_dir"

@@ -37,8 +37,9 @@ In scope:
   installation.
 - Use direct `releases/latest/download` URLs when the upstream asset name is
   stable.
-- Use a short `curl` plus `jq` asset lookup when the latest artifact name
-  contains its release version.
+- Derive the latest tag from GitHub's normal release redirect when the artifact
+  name contains its release version, without consuming the unauthenticated API
+  quota shared by the build host.
 - Preserve Neovim's runtime files by installing its release tree under `/opt`
   and exposing its existing `bin` directory through `PATH`.
 - Add focused image smoke coverage for all eight commands.
@@ -93,7 +94,7 @@ Out of scope:
 
 ## Dependencies
 
-- GitHub release metadata and Linux x86_64 assets from the official upstream
+- GitHub release redirects and Linux x86_64 assets from the official upstream
   repositories for Neovim, Gum, ripgrep, bat, btop, eza, dust, and fzf.
 - Docker access for image-level verification.
 
@@ -102,8 +103,9 @@ Out of scope:
 - Resolve `latest` dynamically at image-build time; do not add version build
   arguments for these tools.
 - Prefer fixed `releases/latest/download/<asset>` URLs where upstream publishes
-  a stable asset filename. Otherwise select one exact Linux x86_64 asset URL
-  from the latest-release JSON with `jq`.
+  a stable asset filename. Otherwise extract the tag from the final URL of the
+  normal `releases/latest` redirect and construct the versioned Linux x86_64
+  asset URL. Do not require GitHub API quota or credentials for image builds.
 - Keep each download, extraction, installation, and cleanup sequence local to
   its tool. Let `curl -f`, `jq -e`, `tar`, and `install` surface their native
   failures rather than wrapping every command in custom error handling.

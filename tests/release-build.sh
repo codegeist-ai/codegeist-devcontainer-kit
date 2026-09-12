@@ -141,6 +141,10 @@ if git -C "$release_repo" show "$release_branch:Dockerfile.example" | grep -Eiq 
   fail "release branch Dockerfile.example must not contain FROM"
 fi
 
+if git -C "$release_repo" show "$release_branch:Dockerfile" | grep -Fq 'api.github.com/repos/'; then
+  fail "release branch Dockerfile uses rate-limited unauthenticated GitHub API lookups"
+fi
+
 if git -C "$release_repo" show "$release_branch:initialize.sh" | grep -q 'rev-parse --git-path info/exclude\|ensure_git_exclude_pattern'; then
   fail "release branch initializer still writes .git/info/exclude"
 fi

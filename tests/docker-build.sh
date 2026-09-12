@@ -96,6 +96,7 @@ docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc \
 docker run --rm --entrypoint bash codegeist-devcontainer-kit:local -ic \
   '_completion_loader task >/dev/null 2>&1; status="$?"; { [ "$status" -eq 0 ] || [ "$status" -eq 124 ]; } && complete -p task | grep -F "complete -F _task task" >/dev/null'
 docker run --rm \
+  --network host \
   --entrypoint bash \
   -e "DEVCONTAINER_PROJECT_ROOT=$project_root" \
   -e "suite_tmp_dir=$suite_tmp_dir" \
@@ -104,10 +105,21 @@ docker run --rm \
   codegeist-devcontainer-kit:local \
   tests/opencode-tmux-wrapper.sh
 docker run --rm \
+  --network host \
   --entrypoint bash \
   -e "DEVCONTAINER_PROJECT_ROOT=$project_root" \
   -e "suite_tmp_dir=$suite_tmp_dir" \
   -e "OC_RECORD_BIN=/usr/local/bin/oc-record" \
+  --mount "type=bind,src=$project_root,dst=$project_root" \
+  -w "$project_root" \
+  codegeist-devcontainer-kit:local \
+  tests/oc-record.sh
+docker run --rm \
+  --entrypoint bash \
+  -e "DEVCONTAINER_PROJECT_ROOT=$project_root" \
+  -e "suite_tmp_dir=$suite_tmp_dir" \
+  -e "OC_RECORD_BIN=/usr/local/bin/oc-record" \
+  -e "OC_RECORD_EXPECT_START_FAILURE=true" \
   --mount "type=bind,src=$project_root,dst=$project_root" \
   -w "$project_root" \
   codegeist-devcontainer-kit:local \

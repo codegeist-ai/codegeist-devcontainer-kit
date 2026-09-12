@@ -1,12 +1,19 @@
 #!/usr/bin/env bash
-# oc-record.sh - verify the recorder toggle without a real microphone endpoint
+# oc-record.sh - verify the recorder against real tmux, FFmpeg, and Pulse
 #
 # Why this exists:
-# - A fake FFmpeg process makes start, SIGINT stop, locking, and stale-state
-#   behavior deterministic while preserving the real command-line contract.
+# - The recorder coordinates real process identity, signals, tmux session state,
+#   and WAV finalization; replacing those integrations previously hid inherited
+#   tmux-option behavior that failed in a fresh session.
 #
 # Inputs:
 # - OC_RECORD_BIN selects the recorder, defaulting to the source command.
+# - OC_RECORD_EXPECT_START_FAILURE=true verifies the real unavailable-forward
+#   path. The normal path requires Pulse at tcp:127.0.0.1:47130.
+#
+# Side effects:
+# - Records short microphone samples below a cleanup-trapped test directory.
+# - Creates and removes an isolated tmux server without touching user sessions.
 #
 # Related files:
 # - ../cmds/oc-record
@@ -25,87 +32,44 @@ if [ -z "${suite_tmp_dir:-}" ]; then
   owns_suite=1
 fi
 
-fixture_dir="$suite_tmp_dir/oc-record"
-fake_bin="$fixture_dir/bin"
-capture_file="$fixture_dir/ffmpeg.capture"
-expected_file="$fixture_dir/ffmpeg.expected"
-message_file="$fixture_dir/tmux.messages"
-signal_file="$fixture_dir/ffmpeg.signals"
-pid_file="$fixture_dir/ffmpeg.pids"
+mode="success"
+if [ "${OC_RECORD_EXPECT_START_FAILURE:-false}" = "true" ]; then
+  mode="start-failure"
+fi
+
+fixture_dir="$suite_tmp_dir/oc-record-$mode"
 recorder="${OC_RECORD_BIN:-$project_root/cmds/oc-record}"
+socket_name="oc-record-${mode}-$$"
+session_name="recorder"
 unrelated_pid=""
 
-mkdir -p "$fake_bin"
-
-cat >"$fake_bin/tmux" <<'EOF'
-#!/usr/bin/env bash
-printf '%s\n' "${!#}" >>"$TMUX_MESSAGE_FILE"
-EOF
-
-cat >"$fake_bin/ffmpeg" <<'EOF'
-#!/usr/bin/env python3
-import os
-from pathlib import Path
-import signal
-import sys
-import time
-
-output = Path(sys.argv[-1])
-capture = Path(os.environ["FAKE_FFMPEG_CAPTURE"])
-capture.write_text(
-    f'PULSE_SERVER={os.environ["PULSE_SERVER"]}\n'
-    + "".join(f"ARG={argument}\n" for argument in sys.argv[1:])
-)
-output.touch()
-
-if os.environ.get("FAKE_FFMPEG_FAIL") == "1":
-    raise SystemExit(23)
-
-with Path(os.environ["FAKE_FFMPEG_PIDS"]).open("a") as stream:
-    stream.write(f"{os.getpid()}\n")
-
-
-def stop_recording(_signal, _frame):
-    with Path(os.environ["FAKE_FFMPEG_SIGNAL"]).open("a") as stream:
-        stream.write(f"{os.getpid()}\n")
-    with output.open("a") as stream:
-        stream.write("finalized\n")
-    raise SystemExit(0)
-
-
-signal.signal(signal.SIGINT, stop_recording)
-while True:
-    time.sleep(0.1)
-EOF
-
-chmod +x "$fake_bin/tmux" "$fake_bin/ffmpeg"
-
-run_recorder() {
-  local workspace="$1"
-  shift
-
-  DEVCONTAINER_WORKSPACE_FOLDER="$workspace" \
-    PATH="$fake_bin:$PATH" \
-    TMUX_MESSAGE_FILE="$message_file" \
-    FAKE_FFMPEG_CAPTURE="$capture_file" \
-    FAKE_FFMPEG_SIGNAL="$signal_file" \
-    FAKE_FFMPEG_PIDS="$pid_file" \
-    "$@" "$recorder" '%1'
-}
+mkdir -p "$fixture_dir"
+tmux -L "$socket_name" new-session -d -s "$session_name" -c "$fixture_dir"
+socket_path="$(tmux -L "$socket_name" display-message -p -t "$session_name" '#{socket_path}')"
+export TMUX="$socket_path,0,0"
+pane="$(tmux display-message -p -t "$session_name" '#{pane_id}')"
 
 cleanup() {
+  local output=""
   local pid=""
+  local state_file=""
 
-  if [ -f "$pid_file" ]; then
-    while IFS= read -r pid; do
-      kill -KILL "$pid" 2>/dev/null || true
-    done <"$pid_file"
-  fi
+  for state_file in "$fixture_dir"/*/.tmp/recordings/.oc-record.state; do
+    [ -f "$state_file" ] || continue
+    IFS=$'\t' read -r pid output <"$state_file" || true
+    if [[ "$pid" =~ ^[0-9]+$ ]] \
+      && grep -Ezxq '(.*/)?ffmpeg' "/proc/$pid/cmdline" 2>/dev/null \
+      && grep -Fzxq -- "$output" "/proc/$pid/cmdline" 2>/dev/null; then
+      kill -INT "$pid" 2>/dev/null || true
+    fi
+  done
 
   if [ -n "$unrelated_pid" ]; then
     kill "$unrelated_pid" 2>/dev/null || true
     wait "$unrelated_pid" 2>/dev/null || true
   fi
+
+  tmux -L "$socket_name" kill-server 2>/dev/null || true
 
   if [ "$owns_suite" -eq 1 ]; then
     cleanup_suite
@@ -114,10 +78,61 @@ cleanup() {
 
 trap cleanup EXIT
 
-# Start and stop use the exact Pulse/FFmpeg contract and finalize one WAV file.
+run_recorder() {
+  local workspace="$1"
+
+  DEVCONTAINER_WORKSPACE_FOLDER="$workspace" "$recorder" "$pane"
+}
+
+assert_wav_contract() {
+  local output="$1"
+  local actual=""
+  local expected=""
+
+  expected="codec_name=pcm_s16le
+sample_rate=48000
+channels=1"
+  actual="$(ffprobe -v error \
+    -select_streams a:0 \
+    -show_entries stream=codec_name,sample_rate,channels \
+    -of default=noprint_wrappers=1 \
+    "$output")"
+  [ "$actual" = "$expected" ] \
+    || fail "recorded WAV contract mismatch: expected [$expected], actual [$actual]"
+}
+
+if [ "$mode" = "start-failure" ]; then
+  workspace="$fixture_dir/workspace"
+  mkdir -p "$workspace"
+  tmux set-option -t "$pane" status-style "bg=blue,fg=white"
+
+  set +e
+  run_recorder "$workspace"
+  failure_status="$?"
+  set -e
+
+  recording_dir="$workspace/.tmp/recordings"
+  [ "$failure_status" -ne 0 ] || fail "missing Pulse forward did not fail recorder startup"
+  [ ! -e "$recording_dir/.oc-record.state" ] \
+    || fail "failed real FFmpeg startup left recorder state"
+  [ -z "$(find "$recording_dir" -maxdepth 1 -name '*.wav' -print -quit)" ] \
+    || fail "failed real FFmpeg startup left an incomplete WAV file"
+  [ "$(tmux show-options -A -t "$pane" -v status-style)" = "bg=blue,fg=white" ] \
+    || fail "failed real FFmpeg startup did not restore the tmux status style"
+  [ -s "$recording_dir/.oc-record.log" ] \
+    || fail "failed real FFmpeg startup did not retain a diagnostic log"
+
+  pass "oc-record reports a real unavailable Pulse forward safely"
+  exit 0
+fi
+
+# Start and stop record real Pulse audio, expose yellow through real tmux option
+# inheritance, and finalize the documented WAV format.
 workspace="$fixture_dir/start-stop workspace"
 mkdir -p "$workspace"
-run_recorder "$workspace" env
+tmux set-option -u -t "$pane" status-style 2>/dev/null || true
+initial_style="$(tmux show-options -A -t "$pane" -v status-style)"
+run_recorder "$workspace"
 
 recording_dir="$workspace/.tmp/recordings"
 state_file="$recording_dir/.oc-record.state"
@@ -126,50 +141,38 @@ IFS=$'\t' read -r recorder_pid output <"$state_file"
 [[ "$output" =~ /\.tmp/recordings/[0-9]{8}-[0-9]{6}\.wav$ ]] \
   || fail "recorder output does not use the timestamped workspace WAV path"
 kill -0 "$recorder_pid" 2>/dev/null \
-  || fail "recorder process did not remain active after startup"
+  || fail "real FFmpeg recorder did not remain active after startup"
+[ "$(tmux show-options -A -t "$pane" -v status-style)" = "bg=yellow,fg=black" ] \
+  || fail "recorder did not make the real tmux status bar yellow"
 
-{
-  printf 'PULSE_SERVER=tcp:127.0.0.1:47130\n'
-  printf 'ARG=%s\n' \
-    -nostdin -hide_banner -loglevel error \
-    -f pulse -i default \
-    -ac 1 -ar 48000 -c:a pcm_s16le \
-    "$output"
-} >"$expected_file"
+sleep 1
+run_recorder "$workspace"
 
-diff -u "$expected_file" "$capture_file" \
-  || fail "recorder did not preserve the FFmpeg invocation contract"
-grep -F "Microphone recording started: $output" "$message_file" >/dev/null \
-  || fail "recorder did not report the started output"
-
-run_recorder "$workspace" env
 [ ! -e "$state_file" ] || fail "recorder left active state after stopping"
-[ -s "$signal_file" ] || fail "recorder did not stop FFmpeg with SIGINT"
-grep -Fx "finalized" "$output" >/dev/null \
-  || fail "recorder reported success before the WAV was finalized"
-grep -F "Microphone recording saved: $output" "$message_file" >/dev/null \
-  || fail "recorder did not report the saved output"
+[ "$(tmux show-options -A -t "$pane" -v status-style)" = "$initial_style" ] \
+  || fail "recorder did not restore the inherited tmux status style"
+[ -s "$output" ] || fail "recorder did not finalize a non-empty WAV file"
+assert_wav_contract "$output"
 
-# Concurrent toggles serialize into one start and one stop, never two recorders.
+# Concurrent toggles serialize into one real FFmpeg start and one SIGINT stop.
 workspace="$fixture_dir/concurrent"
 mkdir -p "$workspace"
-: >"$capture_file"
-: >"$signal_file"
-run_recorder "$workspace" env &
+run_recorder "$workspace" &
 first_toggle_pid="$!"
-run_recorder "$workspace" env &
+run_recorder "$workspace" &
 second_toggle_pid="$!"
 wait "$first_toggle_pid"
 wait "$second_toggle_pid"
 
-[ "$(grep -c '^PULSE_SERVER=' "$capture_file")" -eq 1 ] \
-  || fail "concurrent toggles started more than one FFmpeg process"
 [ ! -e "$workspace/.tmp/recordings/.oc-record.state" ] \
-  || fail "concurrent start and stop left active state"
-[ "$(find "$workspace/.tmp/recordings" -maxdepth 1 -name '*.wav' | wc -l)" -eq 1 ] \
-  || fail "concurrent toggles created more than one WAV file"
+  || fail "concurrent toggles left active recorder state"
+mapfile -t concurrent_outputs < <(find "$workspace/.tmp/recordings" -maxdepth 1 -name '*.wav')
+[ "${#concurrent_outputs[@]}" -eq 1 ] \
+  || fail "concurrent toggles created ${#concurrent_outputs[@]} WAV files instead of one"
+assert_wav_contract "${concurrent_outputs[0]}"
 
-# A reused PID that does not identify FFmpeg is discarded without being signaled.
+# A reused PID that is not real FFmpeg is never signaled; the recovered style
+# becomes the base style for the new real recording.
 workspace="$fixture_dir/stale-state"
 recording_dir="$workspace/.tmp/recordings"
 mkdir -p "$recording_dir"
@@ -177,26 +180,17 @@ sleep 30 &
 unrelated_pid="$!"
 printf '%s\t%s\n' "$unrelated_pid" "$recording_dir/stale.wav" \
   >"$recording_dir/.oc-record.state"
+printf 'bg=magenta,fg=white\n' >"$recording_dir/.oc-record.status-style"
+tmux set-option -t "$pane" status-style "bg=yellow,fg=black"
 
-run_recorder "$workspace" env
+run_recorder "$workspace"
 kill -0 "$unrelated_pid" 2>/dev/null \
   || fail "stale recorder state signaled an unrelated process"
-run_recorder "$workspace" env
+[ "$(tmux show-options -A -t "$pane" -v status-style)" = "bg=yellow,fg=black" ] \
+  || fail "recovered recording did not activate the yellow tmux status style"
+sleep 1
+run_recorder "$workspace"
+[ "$(tmux show-options -A -t "$pane" -v status-style)" = "bg=magenta,fg=white" ] \
+  || fail "stale recorder state did not recover the saved tmux status style"
 
-# Immediate FFmpeg failure removes incomplete output and active state.
-workspace="$fixture_dir/start-failure"
-mkdir -p "$workspace"
-set +e
-run_recorder "$workspace" env FAKE_FFMPEG_FAIL=1
-failure_status="$?"
-set -e
-
-[ "$failure_status" -ne 0 ] || fail "immediate FFmpeg failure returned success"
-[ ! -e "$workspace/.tmp/recordings/.oc-record.state" ] \
-  || fail "immediate FFmpeg failure left active state"
-[ -z "$(find "$workspace/.tmp/recordings" -maxdepth 1 -name '*.wav' -print -quit)" ] \
-  || fail "immediate FFmpeg failure left an incomplete WAV file"
-grep -F "Microphone recording failed; check" "$message_file" >/dev/null \
-  || fail "immediate FFmpeg failure did not report its diagnostic log"
-
-pass "oc-record toggles one safe workspace WAV recording"
+pass "oc-record toggles safe real tmux and Pulse WAV recordings"

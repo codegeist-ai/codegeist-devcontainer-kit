@@ -7,7 +7,8 @@
 #
 # Side effects:
 # - Records the fixed forwarded Pulse source to `.tmp/recordings/`.
-# - Keeps one workspace-local state file, lock, and FFmpeg diagnostic log.
+# - Shows a yellow tmux status bar while recording and restores its prior style.
+# - Keeps workspace-local process, style, lock, and FFmpeg diagnostic state.
 #
 # Related files:
 # - ../docs/tasks/T010_add_ssh_forwarded_tmux_recording/tasks/T010_02_add_microphone_recorder.md
@@ -24,11 +25,24 @@ umask 077
 pane="$1"
 recording_dir="$DEVCONTAINER_WORKSPACE_FOLDER/.tmp/recordings"
 state_file="$recording_dir/.oc-record.state"
+status_style_file="$recording_dir/.oc-record.status-style"
 lock_file="$recording_dir/.oc-record.lock"
 log_file="$recording_dir/.oc-record.log"
 
 message() {
   tmux display-message -t "$pane" "$1"
+}
+
+restore_status_style() {
+  local status_style=""
+
+  if [ -s "$status_style_file" ]; then
+    IFS= read -r status_style <"$status_style_file" || true
+    if [ -n "$status_style" ]; then
+      tmux set-option -t "$pane" status-style "$status_style"
+    fi
+    rm -f "$status_style_file"
+  fi
 }
 
 mkdir -p "$recording_dir"
@@ -57,14 +71,22 @@ if [ -s "$state_file" ]; then
     fi
 
     rm -f "$state_file" "$log_file"
+    restore_status_style
     message "Microphone recording saved: $output"
     exit 0
   fi
 
   rm -f "$state_file"
+  restore_status_style
 fi
 
+# Recover the session style when a prior recorder disappeared before its state
+# could be cleaned. The new recording then captures the recovered base style.
+restore_status_style
+
 output="$recording_dir/$(date +%Y%m%d-%H%M%S).wav"
+tmux show-options -A -t "$pane" -v status-style >"$status_style_file"
+tmux set-option -t "$pane" status-style "bg=yellow,fg=black"
 
 PULSE_SERVER=tcp:127.0.0.1:47130 \
   ffmpeg -nostdin -hide_banner -loglevel error \
@@ -79,6 +101,7 @@ sleep 0.2
 if ! kill -0 "$pid" 2>/dev/null; then
   wait "$pid" 2>/dev/null || true
   rm -f "$output"
+  restore_status_style
   message "Microphone recording failed; check $log_file"
   exit 1
 fi

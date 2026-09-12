@@ -202,7 +202,9 @@ with trusted OpenCode configuration.
 The wrapper also binds tmux `Prefix + R` (`Ctrl+B`, then uppercase `R`) to the
 workspace microphone recorder. The first press starts one mono, 48 kHz WAV
 recording; the second press stops FFmpeg with `SIGINT` and saves the finalized
-file under `.tmp/recordings/YYYYMMDD-HHMMSS.wav`. The shortcut requires the SSH
+file under `.tmp/recordings/YYYYMMDD-HHMMSS.wav`. While recording, the complete
+tmux status bar is yellow; stopping or a startup failure restores its previous
+style. The shortcut requires the SSH
 microphone forward described below. A missing forward fails only recorder
 startup and reports the diagnostic log path in tmux.
 
@@ -686,6 +688,9 @@ eza --long --git --icons
 dust --depth 2 .
 printf '%s\n' alpha beta gamma | fzf
 ```
+
+Versioned asset names are derived from GitHub's normal latest-release redirects,
+so image builds do not consume the shared unauthenticated GitHub API quota.
 
 The release kit does not replace `vim`, `cat`, `ls`, or `du`, create command
 aliases or symlinks, enable fzf shell keybindings, or install Neovim and Gum user

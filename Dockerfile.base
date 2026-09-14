@@ -30,6 +30,9 @@
 # - TRIVY_VERSION pins the official Trivy security scanner release.
 # - GITLEAKS_VERSION and GITLEAKS_SHA256 pin and verify the official Gitleaks
 #   secret-scanner release.
+# - WHISPER_CPP_VERSION and WHISPER_CPP_SHA256 pin and verify the CPU-only
+#   transcription CLI used by `cmds/oc-record`; its model is downloaded at
+#   runtime and is not part of the image.
 #
 # Related files:
 # - cmds/
@@ -52,6 +55,8 @@ ARG TEA_VERSION=0.14.2
 ARG TRIVY_VERSION=0.74.0
 ARG GITLEAKS_VERSION=8.30.1
 ARG GITLEAKS_SHA256=551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+ARG WHISPER_CPP_VERSION=1.9.4
+ARG WHISPER_CPP_SHA256=57e280cee375ab02425b806ad5146b99f6eb9357e3c2b31357c8a6af2e2e44ae
 
 ENV LANG=C.UTF-8 \
     LC_CTYPE=C.UTF-8 \
@@ -142,6 +147,7 @@ RUN apt-get update \
       gnupg \
       bridge-utils \
       cloud-image-utils \
+      cmake \
       cpio \
       dnsmasq \
       expect \
@@ -201,6 +207,25 @@ RUN python3 -m pip install --break-system-packages --no-cache-dir \
       lxml_html_clean \
       ssh-audit==3.9.0 \
       trafilatura
+
+# Build only the portable CPU transcription CLI. The multilingual model remains
+# a runtime download under /tmp so image builds do not carry its 488 MB payload.
+RUN curl -fsSL "https://codeload.github.com/ggml-org/whisper.cpp/tar.gz/refs/tags/v${WHISPER_CPP_VERSION}" \
+      -o /tmp/whisper.cpp.tar.gz \
+ && printf '%s  %s\n' "$WHISPER_CPP_SHA256" /tmp/whisper.cpp.tar.gz | sha256sum -c - \
+ && install -d -m 0755 /tmp/whisper.cpp /tmp/whisper.cpp-build \
+ && tar -xzf /tmp/whisper.cpp.tar.gz --strip-components=1 -C /tmp/whisper.cpp \
+ && cmake -S /tmp/whisper.cpp -B /tmp/whisper.cpp-build \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DBUILD_SHARED_LIBS=OFF \
+      -DGGML_NATIVE=OFF \
+      -DWHISPER_BUILD_IS_DEV=OFF \
+      -DWHISPER_BUILD_SERVER=OFF \
+      -DWHISPER_BUILD_TESTS=OFF \
+ && cmake --build /tmp/whisper.cpp-build --target whisper-cli -j "$(nproc)" \
+ && install -m 0755 /tmp/whisper.cpp-build/bin/whisper-cli /usr/local/bin/whisper-cli \
+ && whisper-cli --version \
+ && rm -rf /tmp/whisper.cpp.tar.gz /tmp/whisper.cpp /tmp/whisper.cpp-build
 
 RUN curl -fsSL "https://github.com/boyter/scc/releases/latest/download/scc_Linux_x86_64.tar.gz" \
       -o /tmp/scc.tar.gz \

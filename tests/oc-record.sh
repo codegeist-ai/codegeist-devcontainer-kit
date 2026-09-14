@@ -5,6 +5,8 @@
 # - The recorder coordinates real process identity, signals, tmux session state,
 #   and WAV finalization; replacing those integrations previously hid inherited
 #   tmux-option behavior that failed in a fresh session.
+# - Recorder stop also exercises the real whisper.cpp model download and TXT
+#   output contract without introducing a separate transcription test harness.
 #
 # Inputs:
 # - OC_RECORD_BIN selects the recorder, defaulting to the source command.
@@ -42,6 +44,8 @@ recorder="${OC_RECORD_BIN:-$project_root/cmds/oc-record}"
 socket_name="oc-record-${mode}-$$"
 session_name="recorder"
 unrelated_pid=""
+whisper_model="/tmp/whisper.cpp/ggml-small.bin"
+whisper_model_sha256="1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b"
 
 mkdir -p "$fixture_dir"
 tmux -L "$socket_name" new-session -d -s "$session_name" -c "$fixture_dir"
@@ -121,6 +125,8 @@ if [ "$mode" = "start-failure" ]; then
     || fail "failed real FFmpeg startup did not restore the tmux status style"
   [ -s "$recording_dir/.oc-record.log" ] \
     || fail "failed real FFmpeg startup did not retain a diagnostic log"
+  [ ! -e "$whisper_model" ] \
+    || fail "failed recorder startup downloaded the Whisper model before transcription"
 
   pass "oc-record reports a real unavailable Pulse forward safely"
   exit 0
@@ -153,6 +159,11 @@ run_recorder "$workspace"
   || fail "recorder did not restore the inherited tmux status style"
 [ -s "$output" ] || fail "recorder did not finalize a non-empty WAV file"
 assert_wav_contract "$output"
+transcript="${output%.wav}.txt"
+[ -f "$transcript" ] || fail "recorder stop did not create the matching TXT transcript"
+[ -f "$whisper_model" ] || fail "recorder stop did not download the Whisper model"
+printf '%s  %s\n' "$whisper_model_sha256" "$whisper_model" | sha256sum -c - >/dev/null \
+  || fail "downloaded Whisper model checksum mismatch"
 
 # Concurrent toggles serialize into one real FFmpeg start and one SIGINT stop.
 workspace="$fixture_dir/concurrent"
@@ -170,6 +181,8 @@ mapfile -t concurrent_outputs < <(find "$workspace/.tmp/recordings" -maxdepth 1 
 [ "${#concurrent_outputs[@]}" -eq 1 ] \
   || fail "concurrent toggles created ${#concurrent_outputs[@]} WAV files instead of one"
 assert_wav_contract "${concurrent_outputs[0]}"
+[ -f "${concurrent_outputs[0]%.wav}.txt" ] \
+  || fail "concurrent recorder stop did not create the matching TXT transcript"
 
 # A reused PID that is not real FFmpeg is never signaled; the recovered style
 # becomes the base style for the new real recording.
@@ -188,9 +201,13 @@ kill -0 "$unrelated_pid" 2>/dev/null \
   || fail "stale recorder state signaled an unrelated process"
 [ "$(tmux show-options -A -t "$pane" -v status-style)" = "bg=yellow,fg=black" ] \
   || fail "recovered recording did not activate the yellow tmux status style"
+IFS=$'\t' read -r stale_recorder_pid stale_output \
+  <"$workspace/.tmp/recordings/.oc-record.state"
 sleep 1
 run_recorder "$workspace"
 [ "$(tmux show-options -A -t "$pane" -v status-style)" = "bg=magenta,fg=white" ] \
   || fail "stale recorder state did not recover the saved tmux status style"
+[ -f "${stale_output%.wav}.txt" ] \
+  || fail "recovered recorder stop did not create the matching TXT transcript"
 
-pass "oc-record toggles safe real tmux and Pulse WAV recordings"
+pass "oc-record toggles safe real tmux recordings with TXT transcripts"

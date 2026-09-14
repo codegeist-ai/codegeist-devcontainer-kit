@@ -7,11 +7,14 @@
 #
 # Side effects:
 # - Records the fixed forwarded Pulse source to `.tmp/recordings/`.
+# - Downloads the multilingual Whisper small model to `/tmp` when absent and
+#   writes a TXT transcript beside each finalized WAV before stop returns.
 # - Shows a yellow tmux status bar while recording and restores its prior style.
-# - Keeps workspace-local process, style, lock, and FFmpeg diagnostic state.
+# - Keeps workspace-local process, style, lock, and diagnostic state.
 #
 # Related files:
 # - ../docs/tasks/T010_add_ssh_forwarded_tmux_recording/tasks/T010_02_add_microphone_recorder.md
+# - ../docs/tasks/T011_transcribe_recordings_with_whisper_cpp.md
 # - ../tests/oc-record.sh
 
 set -euo pipefail
@@ -28,6 +31,10 @@ state_file="$recording_dir/.oc-record.state"
 status_style_file="$recording_dir/.oc-record.status-style"
 lock_file="$recording_dir/.oc-record.lock"
 log_file="$recording_dir/.oc-record.log"
+model_dir="/tmp/whisper.cpp"
+model="$model_dir/ggml-small.bin"
+model_url="https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-small.bin"
+model_sha256="1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b"
 
 message() {
   tmux display-message -t "$pane" "$1"
@@ -72,7 +79,54 @@ if [ -s "$state_file" ]; then
 
     rm -f "$state_file" "$log_file"
     restore_status_style
-    message "Microphone recording saved: $output"
+    transcript="${output%.wav}.txt"
+
+    if [ ! -f "$model" ]; then
+      mkdir -p "$model_dir"
+      model_tmp="$(mktemp "$model_dir/ggml-small.bin.XXXXXX")"
+      message "Microphone recording saved; downloading Whisper model"
+
+      if ! curl -fL "$model_url" -o "$model_tmp" 2>"$log_file"; then
+        rm -f "$model_tmp"
+        message "Recording saved but Whisper model download failed; check $log_file"
+        exit 1
+      fi
+
+      if ! printf '%s  %s\n' "$model_sha256" "$model_tmp" \
+        | sha256sum -c - >>"$log_file" 2>&1; then
+        rm -f "$model_tmp"
+        message "Recording saved but Whisper model verification failed; check $log_file"
+        exit 1
+      fi
+
+      if ! mv "$model_tmp" "$model" 2>>"$log_file"; then
+        rm -f "$model_tmp"
+        message "Recording saved but Whisper model installation failed; check $log_file"
+        exit 1
+      fi
+    fi
+
+    rm -f "$transcript"
+    message "Microphone recording saved; transcribing"
+    if ! whisper-cli \
+      --model "$model" \
+      --file "$output" \
+      --language auto \
+      --output-txt \
+      --output-file "${output%.wav}" \
+      </dev/null >>"$log_file" 2>&1; then
+      rm -f "$transcript"
+      message "Recording saved but transcription failed; check $log_file"
+      exit 1
+    fi
+
+    # A rapid start-stop can produce a valid WAV header without audio frames.
+    # whisper-cli returns success without creating output, so represent that
+    # successful empty recording with an empty transcript.
+    [ -f "$transcript" ] || : >"$transcript"
+
+    rm -f "$log_file"
+    message "Microphone recording saved: $output; transcript: $transcript"
     exit 0
   fi
 

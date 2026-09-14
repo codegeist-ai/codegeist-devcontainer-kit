@@ -60,7 +60,7 @@ docker run --rm --entrypoint jbang codegeist-devcontainer-kit:local --version >/
 docker run --rm --entrypoint tea codegeist-devcontainer-kit:local --version >/dev/null
 docker run --rm --entrypoint gitleaks codegeist-devcontainer-kit:local version >/dev/null
 docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc \
-  'ffmpeg -version >/dev/null && vhs --version >/dev/null && ttyd --version >/dev/null'
+  'ffmpeg -version >/dev/null && whisper-cli --version | grep -F "1.9.4" >/dev/null && vhs --version >/dev/null && ttyd --version >/dev/null'
 docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc '
   set -e
   nvim --headless "+quit"

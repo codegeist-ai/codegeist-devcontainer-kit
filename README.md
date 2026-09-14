@@ -420,11 +420,20 @@ with trusted OpenCode configuration.
 The wrapper also binds tmux `Prefix + R` (`Ctrl+B`, then uppercase `R`) to the
 workspace microphone recorder. The first press starts one mono, 48 kHz WAV
 recording; the second press stops FFmpeg with `SIGINT` and saves the finalized
-file under `.tmp/recordings/YYYYMMDD-HHMMSS.wav`. While recording, the complete
-tmux status bar is yellow; stopping or a startup failure restores its previous
-style. The shortcut requires the SSH
-microphone forward described below. A missing forward fails only recorder
-startup and reports the diagnostic log path in tmux.
+file under `.tmp/recordings/YYYYMMDD-HHMMSS.wav`. It then waits for the CPU-only
+`whisper-cli` transcription and writes the detected-language text to the matching
+`.tmp/recordings/YYYYMMDD-HHMMSS.txt` file. The tmux client remains responsive
+because the binding runs the recorder command in the background.
+
+The first transcription in a container downloads the approximately 488 MB
+multilingual `small` model to `/tmp/whisper.cpp/ggml-small.bin`. A later
+transcription reuses the file while it exists; a container restart may discard
+it, so the next transcription requires network access and downloads it again.
+While recording, the complete tmux status bar is yellow; stopping or a startup
+failure restores its previous style. The shortcut requires the SSH microphone
+forward described below. A missing forward fails only recorder startup. A model
+download or transcription failure preserves the finalized WAV and reports the
+`.tmp/recordings/.oc-record.log` diagnostic path in tmux.
 
 ## SSH Microphone Forwarding
 
@@ -769,29 +778,32 @@ disposable audio samples through real tmux, FFmpeg, Pulse audio, and `ffprobe`.
 Do not replace real dependencies with fakes or add weaker tests solely to make
 the suite runnable in CI.
 
-Open the current Git root with the real VS Code entrypoint:
+Run the fixture-backed reality test when you need to exercise the current kit
+source as a temporary consuming repository:
 
 ```bash
-task code-open
-task code-open -- develop0
+task devcontainer-reality-test
+task devcontainer-reality-test -- develop0
 ```
 
-`BRANCH=develop0 task code-open` is still accepted for shell-driven runs. When a
-branch is selected, the command prepares `.worktrees/<branch>` and opens VS Code
-from that worktree without forwarding `BRANCH` into the opened VS Code process.
-
-Run the fixture-backed reality test when you need to exercise the same command
-against a temporary consuming repository:
+The reality test copies the current source worktree, including uncommitted
+changes, into the fixture's `.devcontainer/`. It builds, starts, and verifies the
+temporary devcontainer through the Dev Containers CLI. It does not open VS Code:
+when invoked from this repository's own devcontainer, a nested `code` request
+would reuse the older caller runtime instead of attaching to the verified
+fixture. The fixture and running container remain available for manual CLI
+inspection after the command returns. To launch OpenCode in that exact runtime,
+use the command reported by the test, shaped as:
 
 ```bash
-task code-open-test
-task code-open-test -- develop0
+devcontainer exec --container-id <reported-container-id> env -u TMUX oc <reported-fixture-workspace>
 ```
 
-The reality test builds, starts, and verifies the temporary devcontainer before
-opening VS Code, preventing the editor from starting a competing image build.
-It intentionally leaves the fixture and running container in place because VS
-Code is opened against that fixture.
+Do not use only `cd <reported-fixture> && oc`: that changes the directory but
+still runs the source container's installed tools. `env -u TMUX` also prevents
+the nested `oc` command from opening a window in the source container's tmux
+server. The final workspace argument is also required because container-ID
+execution otherwise starts commands in the container user's home directory.
 
 Update the runtime-only `release` branch when consuming repositories should pin
 the kit as a stable `.devcontainer` submodule branch:
@@ -1276,15 +1288,7 @@ the repository root can be opened directly and the devcontainer opens the
 matching worktree as the remote workspace. If `BRANCH` matches the branch already
 checked out at the repository root, `initialize.sh` creates
 `.worktrees/<branch>` as a symlink alias back to that root instead of asking Git
-for a second checkout of the same branch. The helper flow below is still useful
-for local `code` invocations where an already running VS Code process may not
-inherit a newly exported `BRANCH` value.
-
-From this repository, use the helper task:
-
-```bash
-task code-open -- develop0
-```
+for a second checkout of the same branch.
 
 For a consuming repository that only has the runtime kit at `.devcontainer/`, a
 Remote SSH host alias can select the worktree while the user opens the repository
@@ -1346,41 +1350,35 @@ Changing branches after a container already exists does not automatically remoun
 the running container. Rebuild or remove the existing devcontainer first, then
 open the desired checkout again.
 
-## VS Code Reality Test
+## Devcontainer Reality Test
 
-Use `code-open` as the real editor entrypoint from a repository root. It refuses
-to run outside Git, from a Git subdirectory, or without
-`.devcontainer/devcontainer.json`.
-
-```bash
-task code-open
-task code-open -- develop0
-```
-
-Use the manual reality test when you want to verify that same entrypoint through
-a temporary consuming repository. It creates a temporary Git repository, copies
-this kit into `.devcontainer/`, builds and verifies its devcontainer, and only
-then invokes the real `code-open` task against that fixture. If VS Code offers
-`Dev Containers: Reopen in Container`, that action attaches to the container
-that already passed the test instead of triggering the initial build.
+Use the manual reality test to verify the current source worktree through a
+temporary consuming repository. It creates a temporary Git repository, copies
+the current kit files into `.devcontainer/`, builds and verifies its devcontainer,
+and checks the resulting workspace through `devcontainer exec`. It deliberately
+does not invoke `code`: from this source repository's own devcontainer, VS Code
+would open the fixture inside the older caller runtime rather than attach to the
+nested container that passed verification.
 
 ```bash
-task code-open-test
+task devcontainer-reality-test
 ```
 
 To verify branch selection through the normal helper flow:
 
 ```bash
-task code-open-test -- develop0
+task devcontainer-reality-test -- develop0
 ```
 
-`BRANCH=develop0 task code-open-test` is still accepted when an environment
-variable is more convenient. The helper prepares the worktree and verifies its
-container before invoking `code .` from that checkout, which stays stable even
-when an existing VS Code process handles the `code` request.
+`BRANCH=develop0 task devcontainer-reality-test` is still accepted when an
+environment variable is more convenient. The helper prepares the worktree and
+verifies that exact checkout inside its temporary container.
 
-The temporary fixture is intentionally left on disk because VS Code is opened
-against it.
+The temporary fixture and running container are intentionally left in place for
+manual inspection after the command reports their path. Use its reported
+`devcontainer exec --container-id ... env -u TMUX oc <workspace>` command when
+manually checking runtime behavior; changing into the fixture directory alone
+does not enter its container.
 
 ## Local Generated Files
 

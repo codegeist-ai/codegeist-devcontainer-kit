@@ -134,12 +134,18 @@ local override templates in this repository.
 - Keep normal devcontainer startup independent of microphone forwarding. A
   missing listener may fail recorder startup, but must not block ordinary
   container, OpenCode, or tmux use.
+- Treat microphone input gain as local Linux client state. Clipping that occurs
+  before the PipeWire Pulse stream crosses the SSH tunnel cannot be repaired by
+  recorder-side attenuation, so adjust the local source to leave headroom and
+  do not make the reusable kit mutate or hard-code host microphone volume.
 - Keep `cmds/oc-record` as one workspace-local start/stop toggle for mono, 48 kHz
   PCM WAV files under `.tmp/recordings/`. Do not add recording modes, source
   selection, services, or multiple simultaneous recordings in one workspace.
-- Keep tmux `Prefix + R` as the fixed recorder binding registered by `cmds/oc`.
-  The binding must run `oc-record "#{pane_id}"` in the background and preserve
-  existing OpenCode argument, window, session, and clipboard behavior.
+- Keep both tmux `Prefix + R` and direct `Alt+R` as recorder bindings registered
+  by `cmds/oc`. Both bindings must run `oc-record "#{pane_id}"` in the background
+  and preserve existing OpenCode argument, window, session, and clipboard
+  behavior; document that direct `Alt+R` is captured globally in those tmux
+  sessions.
 - Test the recorder with real tmux option inheritance, real FFmpeg/Pulse input,
   real signals, and `ffprobe` output inspection. `task tests-run` requires the
   SSH microphone forward and may record short disposable audio samples; do not

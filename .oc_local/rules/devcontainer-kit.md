@@ -46,6 +46,11 @@ local override templates in this repository.
   `git -c http.sslVerify=false ...` when its Caddy-issued certificate cannot be
   validated. Keep the exception command-local; never persist disabled TLS
   verification in repository, global, or system Git configuration.
+- Require a non-empty `GITEA_TOKEN` for authenticated Git operations against
+  that origin. Supply it non-interactively through a temporary `GIT_ASKPASS`
+  helper outside the workspace; never print it, put it in a remote URL or
+  command argument, or persist it in Git configuration. Remove the helper after
+  the operation.
 - Keep `uuidgen` from Debian's `uuid-runtime` package in the default image for
   generic UUID generation. Do not configure `uuidd` as a persistent service.
 - When changing default image tools, update the matching documentation and smoke
@@ -79,12 +84,10 @@ local override templates in this repository.
 
 ## Display Forwarding
 
-- Keep the narrow fake `npx` and `code` commands in `tests/code-open-args.sh`
-  for asserting the non-interactive `up`, `exec`, then `code` orchestration
-  order. Real Dev Containers lifecycle behavior remains covered by the
-  integration suite; do not replace this focused check with an Xvfb-driven VS
-  Code extension-host harness unless a concrete editor-runtime contract needs
-  that complexity.
+- Use `task devcontainer-reality-test` for manual current-source verification in
+  a temporary consuming repository. It must enter the reported container by ID
+  and pass the fixture workspace explicitly; do not add a parallel fake-CLI
+  contract test for this manual helper.
 - Do not reserve, increment, or guess SSH X11 forwarding ports in
   `initialize.sh`; SSH and VS Code own forwarding listener allocation.
 - Preserve the host-side `DISPLAY` visible to `initializeCommand` by writing it

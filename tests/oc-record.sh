@@ -7,6 +7,9 @@
 #   tmux-option behavior that failed in a fresh session.
 # - Recorder stop also exercises the real whisper.cpp model download and TXT
 #   output contract without introducing a separate transcription test harness.
+# - A deterministic Whisper output additionally proves that tmux receives exact
+#   transcript bytes without a trailing Enter; real tmux, Pulse, and FFmpeg stay
+#   in that insertion path.
 #
 # Inputs:
 # - OC_RECORD_BIN selects the recorder, defaulting to the source command.
@@ -20,6 +23,7 @@
 # Related files:
 # - ../cmds/oc-record
 # - ../docs/tasks/T010_add_ssh_forwarded_tmux_recording/tasks/T010_02_add_microphone_recorder.md
+# - ../docs/tasks/T012_insert_transcript_into_opencode_input.md
 
 set -euo pipefail
 
@@ -46,6 +50,9 @@ session_name="recorder"
 unrelated_pid=""
 whisper_model="/tmp/whisper.cpp/ggml-small.bin"
 whisper_model_sha256="1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b"
+insertion_text='Review $(literal); keep symbols
+and internal lines'
+insertion_bracketed_text="$(printf '\033[200~%s\033[201~' "$insertion_text")"
 
 mkdir -p "$fixture_dir"
 tmux -L "$socket_name" new-session -d -s "$session_name" -c "$fixture_dir"
@@ -165,6 +172,72 @@ transcript="${output%.wav}.txt"
 printf '%s  %s\n' "$whisper_model_sha256" "$whisper_model" | sha256sum -c - >/dev/null \
   || fail "downloaded Whisper model checksum mismatch"
 
+# Use deterministic Whisper output for the pane-input assertion while keeping
+# the preceding download and transcription path real. The pane requests
+# bracketed paste through a real PTY and captures the exact resulting bytes.
+workspace="$fixture_dir/transcript-insertion"
+recording_dir="$workspace/.tmp/recordings"
+capture_file="$fixture_dir/transcript-pane-input"
+expected_capture="$fixture_dir/expected-transcript-pane-input"
+fake_bin="$fixture_dir/fake-whisper-bin"
+mkdir -p "$workspace" "$fake_bin"
+
+cat >"$fake_bin/whisper-cli" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+output_prefix=""
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = "--output-file" ]; then
+    shift
+    output_prefix="$1"
+  fi
+  shift
+done
+
+[ -n "$output_prefix" ]
+if [ "${OC_RECORD_FAKE_EMPTY:-false}" = "true" ]; then
+  : >"${output_prefix}.txt"
+else
+  printf 'Review $(literal); keep symbols\nand internal lines\r\n' >"${output_prefix}.txt"
+fi
+EOF
+chmod +x "$fake_bin/whisper-cli"
+
+tmux respawn-pane -k -t "$pane" \
+  "printf '\\033[?2004h'; stty raw -echo; dd bs=1 count=${#insertion_bracketed_text} of='$capture_file' status=none; exec sleep 300"
+sleep 0.2
+PATH="$fake_bin:$PATH" run_recorder "$workspace"
+sleep 1
+PATH="$fake_bin:$PATH" run_recorder "$workspace"
+
+for _ in {1..20}; do
+  [ -f "$capture_file" ] && [ "$(wc -c <"$capture_file")" -ge "${#insertion_bracketed_text}" ] \
+    && break
+  sleep 0.1
+done
+
+printf '%s' "$insertion_bracketed_text" >"$expected_capture"
+cmp -s "$expected_capture" "$capture_file" \
+  || fail "recorder did not bracket-paste the exact transcript without Enter"
+insertion_output="$(find "$recording_dir" -maxdepth 1 -name '*.wav' -print -quit)"
+[ -s "$insertion_output" ] || fail "transcript insertion did not retain its WAV"
+[ -f "${insertion_output%.wav}.txt" ] || fail "transcript insertion did not retain its TXT"
+
+# A successful empty transcript must leave pane input untouched.
+workspace="$fixture_dir/empty-transcript"
+empty_capture="$fixture_dir/empty-transcript-pane-input"
+tmux respawn-pane -k -t "$pane" \
+  "printf '\\033[?2004h'; stty raw -echo; cat >'$empty_capture'"
+sleep 0.2
+OC_RECORD_FAKE_EMPTY=true PATH="$fake_bin:$PATH" run_recorder "$workspace"
+sleep 1
+OC_RECORD_FAKE_EMPTY=true PATH="$fake_bin:$PATH" run_recorder "$workspace"
+sleep 0.2
+[ ! -s "$empty_capture" ] \
+  || fail "empty transcript unexpectedly changed pane input"
+tmux respawn-pane -k -t "$pane" 'sleep 300'
+
 # Concurrent toggles serialize into one real FFmpeg start and one SIGINT stop.
 workspace="$fixture_dir/concurrent"
 mkdir -p "$workspace"
@@ -210,4 +283,31 @@ run_recorder "$workspace"
 [ -f "${stale_output%.wav}.txt" ] \
   || fail "recovered recorder stop did not create the matching TXT transcript"
 
-pass "oc-record toggles safe real tmux recordings with TXT transcripts"
+# If the invoking pane disappears during recording, stop still finalizes and
+# transcribes before reporting that insertion could not be completed.
+workspace="$fixture_dir/missing-pane"
+recording_dir="$workspace/.tmp/recordings"
+PATH="$fake_bin:$PATH" run_recorder "$workspace"
+IFS=$'\t' read -r missing_pane_pid missing_pane_output \
+  <"$recording_dir/.oc-record.state"
+kill -0 "$missing_pane_pid" 2>/dev/null \
+  || fail "missing-pane recorder did not remain active before target removal"
+sleep 1
+tmux new-window -d -t "$session_name:" 'sleep 300'
+tmux kill-pane -t "$pane"
+
+set +e
+PATH="$fake_bin:$PATH" run_recorder "$workspace" >/dev/null 2>&1
+missing_pane_status="$?"
+set -e
+
+[ "$missing_pane_status" -ne 0 ] \
+  || fail "missing target pane did not fail transcript insertion"
+[ -s "$missing_pane_output" ] \
+  || fail "missing target pane did not retain the finalized WAV"
+[ -f "${missing_pane_output%.wav}.txt" ] \
+  || fail "missing target pane did not retain the completed TXT transcript"
+[ -s "$recording_dir/.oc-record.log" ] \
+  || fail "missing target pane did not retain insertion diagnostics"
+
+pass "oc-record toggles safe real tmux recordings and inserts TXT transcripts"

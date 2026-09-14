@@ -204,8 +204,12 @@ workspace microphone recorder. The first press starts one mono, 48 kHz WAV
 recording; the second press stops FFmpeg with `SIGINT` and saves the finalized
 file under `.tmp/recordings/YYYYMMDD-HHMMSS.wav`. It then waits for the CPU-only
 `whisper-cli` transcription and writes the detected-language text to the matching
-`.tmp/recordings/YYYYMMDD-HHMMSS.txt` file. The tmux client remains responsive
-because the binding runs the recorder command in the background.
+`.tmp/recordings/YYYYMMDD-HHMMSS.txt` file. A non-empty transcript is then pasted
+at the cursor in the OpenCode pane where the recording was stopped. It is not
+submitted automatically, so it can be reviewed and edited before pressing Enter.
+Trailing line endings are removed before insertion; internal line breaks remain.
+An empty transcript leaves the pane input unchanged. The tmux client remains
+responsive because the binding runs the recorder command in the background.
 
 The first transcription in a container downloads the approximately 488 MB
 multilingual `small` model to `/tmp/whisper.cpp/ggml-small.bin`. A later
@@ -215,7 +219,9 @@ While recording, the complete tmux status bar is yellow; stopping or a startup
 failure restores its previous style. The shortcut requires the SSH microphone
 forward described below. A missing forward fails only recorder startup. A model
 download or transcription failure preserves the finalized WAV and reports the
-`.tmp/recordings/.oc-record.log` diagnostic path in tmux.
+`.tmp/recordings/.oc-record.log` diagnostic path in tmux. If the target pane
+disappears before insertion, the finalized WAV and TXT remain available and the
+recorder retains the same diagnostic log.
 
 ## SSH Microphone Forwarding
 

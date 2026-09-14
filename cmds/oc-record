@@ -7,14 +7,16 @@
 #
 # Side effects:
 # - Records the fixed forwarded Pulse source to `.tmp/recordings/`.
-# - Downloads the multilingual Whisper small model to `/tmp` when absent and
-#   writes a TXT transcript beside each finalized WAV before stop returns.
+# - Downloads the multilingual Whisper small model to `/tmp` when absent, writes
+#   a TXT transcript beside each finalized WAV, and inserts non-empty text into
+#   the invoking pane without submitting it.
 # - Shows a yellow tmux status bar while recording and restores its prior style.
 # - Keeps workspace-local process, style, lock, and diagnostic state.
 #
 # Related files:
 # - ../docs/tasks/T010_add_ssh_forwarded_tmux_recording/tasks/T010_02_add_microphone_recorder.md
 # - ../docs/tasks/T011_transcribe_recordings_with_whisper_cpp.md
+# - ../docs/tasks/T012_insert_transcript_into_opencode_input.md
 # - ../tests/oc-record.sh
 
 set -euo pipefail
@@ -37,7 +39,9 @@ model_url="https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e
 model_sha256="1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b"
 
 message() {
-  tmux display-message -t "$pane" "$1"
+  if ! tmux display-message -t "$pane" "$1" 2>>"$log_file"; then
+    printf '%s\n' "$1" >&2
+  fi
 }
 
 restore_status_style() {
@@ -46,7 +50,8 @@ restore_status_style() {
   if [ -s "$status_style_file" ]; then
     IFS= read -r status_style <"$status_style_file" || true
     if [ -n "$status_style" ]; then
-      tmux set-option -t "$pane" status-style "$status_style"
+      tmux set-option -t "$pane" status-style "$status_style" 2>>"$log_file" \
+        || true
     fi
     rm -f "$status_style_file"
   fi
@@ -125,8 +130,31 @@ if [ -s "$state_file" ]; then
     # successful empty recording with an empty transcript.
     [ -f "$transcript" ] || : >"$transcript"
 
+    transcript_text="$(<"$transcript")"
+    while [[ "$transcript_text" == *$'\r' || "$transcript_text" == *$'\n' ]]; do
+      transcript_text="${transcript_text%?}"
+    done
+
+    if [ -n "$transcript_text" ]; then
+      buffer_name="oc-record-transcript-$$"
+      if ! tmux set-buffer -b "$buffer_name" -- "$transcript_text" 2>>"$log_file"; then
+        message "Recording and transcript saved but tmux buffer creation failed; check $log_file"
+        exit 1
+      fi
+
+      if ! tmux paste-buffer -p -r -d -b "$buffer_name" -t "$pane" 2>>"$log_file"; then
+        tmux delete-buffer -b "$buffer_name" 2>>"$log_file" || true
+        message "Recording and transcript saved but pane insertion failed; check $log_file"
+        exit 1
+      fi
+    fi
+
     rm -f "$log_file"
-    message "Microphone recording saved: $output; transcript: $transcript"
+    if [ -n "$transcript_text" ]; then
+      message "Microphone recording saved: $output; transcript inserted without submitting: $transcript"
+    else
+      message "Microphone recording saved: $output; transcript is empty: $transcript"
+    fi
     exit 0
   fi
 

@@ -213,6 +213,17 @@ Trailing line endings are removed before insertion; internal line breaks remain.
 An empty transcript leaves the pane input unchanged. The tmux client remains
 responsive because the binding runs the recorder command in the background.
 
+The recorder uses automatic language detection when `OC_RECORD_LANGUAGE` is
+unset or empty. To select a known spoken language, add a whisper.cpp language
+code such as the following to the ignored `.codegeist/.local.env` file:
+
+```dotenv
+OC_RECORD_LANGUAGE=de
+```
+
+Compose reads this file when it creates the container. Recreate the existing
+devcontainer after changing the value so `oc-record` receives the new language.
+
 The first transcription in a container downloads the approximately 488 MB
 multilingual `small` model to `/tmp/whisper.cpp/ggml-small.bin`. A later
 transcription reuses the file while it exists; a container restart may discard

@@ -15,6 +15,8 @@
 # - OC_RECORD_BIN selects the recorder, defaulting to the source command.
 # - OC_RECORD_EXPECT_START_FAILURE=true verifies the real unavailable-forward
 #   path. The normal path requires Pulse at tcp:127.0.0.1:47130.
+# - The suite controls OC_RECORD_LANGUAGE internally so caller configuration
+#   cannot change the fallback assertions.
 #
 # Side effects:
 # - Records short microphone samples below a cleanup-trapped test directory.
@@ -53,6 +55,8 @@ whisper_model_sha256="1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fff
 insertion_text='Review $(literal); keep symbols
 and internal lines'
 insertion_bracketed_text="$(printf '\033[200~%s\033[201~' "$insertion_text")"
+
+unset OC_RECORD_LANGUAGE OC_RECORD_EXPECT_LANGUAGE
 
 mkdir -p "$fixture_dir"
 tmux -L "$socket_name" new-session -d -s "$session_name" -c "$fixture_dir"
@@ -187,15 +191,23 @@ cat >"$fake_bin/whisper-cli" <<'EOF'
 set -euo pipefail
 
 output_prefix=""
+language=""
 while [ "$#" -gt 0 ]; do
-  if [ "$1" = "--output-file" ]; then
-    shift
-    output_prefix="$1"
-  fi
+  case "$1" in
+    --language)
+      shift
+      language="$1"
+      ;;
+    --output-file)
+      shift
+      output_prefix="$1"
+      ;;
+  esac
   shift
 done
 
 [ -n "$output_prefix" ]
+[ "$language" = "${OC_RECORD_EXPECT_LANGUAGE:-auto}" ]
 if [ "${OC_RECORD_FAKE_EMPTY:-false}" = "true" ]; then
   : >"${output_prefix}.txt"
 else
@@ -207,9 +219,11 @@ chmod +x "$fake_bin/whisper-cli"
 tmux respawn-pane -k -t "$pane" \
   "printf '\\033[?2004h'; stty raw -echo; dd bs=1 count=${#insertion_bracketed_text} of='$capture_file' status=none; exec sleep 300"
 sleep 0.2
-PATH="$fake_bin:$PATH" run_recorder "$workspace"
+OC_RECORD_LANGUAGE=de OC_RECORD_EXPECT_LANGUAGE=de \
+  PATH="$fake_bin:$PATH" run_recorder "$workspace"
 sleep 1
-PATH="$fake_bin:$PATH" run_recorder "$workspace"
+OC_RECORD_LANGUAGE=de OC_RECORD_EXPECT_LANGUAGE=de \
+  PATH="$fake_bin:$PATH" run_recorder "$workspace"
 
 for _ in {1..20}; do
   [ -f "$capture_file" ] && [ "$(wc -c <"$capture_file")" -ge "${#insertion_bracketed_text}" ] \
@@ -230,9 +244,11 @@ empty_capture="$fixture_dir/empty-transcript-pane-input"
 tmux respawn-pane -k -t "$pane" \
   "printf '\\033[?2004h'; stty raw -echo; cat >'$empty_capture'"
 sleep 0.2
-OC_RECORD_FAKE_EMPTY=true PATH="$fake_bin:$PATH" run_recorder "$workspace"
+OC_RECORD_FAKE_EMPTY=true OC_RECORD_LANGUAGE= OC_RECORD_EXPECT_LANGUAGE=auto \
+  PATH="$fake_bin:$PATH" run_recorder "$workspace"
 sleep 1
-OC_RECORD_FAKE_EMPTY=true PATH="$fake_bin:$PATH" run_recorder "$workspace"
+OC_RECORD_FAKE_EMPTY=true OC_RECORD_LANGUAGE= OC_RECORD_EXPECT_LANGUAGE=auto \
+  PATH="$fake_bin:$PATH" run_recorder "$workspace"
 sleep 0.2
 [ ! -s "$empty_capture" ] \
   || fail "empty transcript unexpectedly changed pane input"

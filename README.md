@@ -199,10 +199,12 @@ clipboard updates. Because of that behavior and because `--auto` approves
 permissions that are not explicitly denied, use `oc` only in trusted workspaces
 with trusted OpenCode configuration.
 
-The wrapper also binds tmux `Prefix + R` (`Ctrl+B`, then uppercase `R`) to the
-workspace microphone recorder. The first press starts one mono, 48 kHz WAV
-recording; the second press stops FFmpeg with `SIGINT` and saves the finalized
-file under `.tmp/recordings/YYYYMMDD-HHMMSS.wav`. It then waits for the CPU-only
+The wrapper binds both tmux `Prefix + R` (`Ctrl+B`, then uppercase `R`) and
+direct `Alt+R` to the workspace microphone recorder. The direct binding is
+global within these tmux sessions, so applications inside a pane do not receive
+`Alt+R`. The first press starts one mono, 48 kHz WAV recording; the second press
+stops FFmpeg with `SIGINT` and saves the finalized file under
+`.tmp/recordings/YYYYMMDD-HHMMSS.wav`. It then waits for the CPU-only
 `whisper-cli` transcription and writes the detected-language text to the matching
 `.tmp/recordings/YYYYMMDD-HHMMSS.txt` file. A non-empty transcript is then pasted
 at the cursor in the OpenCode pane where the recording was stopped. It is not
@@ -210,6 +212,17 @@ submitted automatically, so it can be reviewed and edited before pressing Enter.
 Trailing line endings are removed before insertion; internal line breaks remain.
 An empty transcript leaves the pane input unchanged. The tmux client remains
 responsive because the binding runs the recorder command in the background.
+
+The recorder uses automatic language detection when `OC_RECORD_LANGUAGE` is
+unset or empty. To select a known spoken language, add a whisper.cpp language
+code such as the following to the ignored `.codegeist/.local.env` file:
+
+```dotenv
+OC_RECORD_LANGUAGE=de
+```
+
+Compose reads this file when it creates the container. Recreate the existing
+devcontainer after changing the value so `oc-record` receives the new language.
 
 The first transcription in a container downloads the approximately 488 MB
 multilingual `small` model to `/tmp/whisper.cpp/ggml-small.bin`. A later

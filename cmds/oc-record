@@ -3,6 +3,8 @@
 #
 # Inputs:
 # - DEVCONTAINER_WORKSPACE_FOLDER is the guaranteed workspace root.
+# - OC_RECORD_LANGUAGE optionally selects the whisper.cpp language; unset or
+#   empty values preserve automatic detection.
 # - One tmux pane target receives start, stop, and failure messages.
 #
 # Side effects:
@@ -37,6 +39,7 @@ model_dir="/tmp/whisper.cpp"
 model="$model_dir/ggml-small.bin"
 model_url="https://huggingface.co/ggerganov/whisper.cpp/resolve/5359861c739e955e79d9a303bcbc70fb988958b1/ggml-small.bin"
 model_sha256="1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b"
+language="${OC_RECORD_LANGUAGE:-auto}"
 
 message() {
   if ! tmux display-message -t "$pane" "$1" 2>>"$log_file"; then
@@ -116,7 +119,7 @@ if [ -s "$state_file" ]; then
     if ! whisper-cli \
       --model "$model" \
       --file "$output" \
-      --language auto \
+      --language "$language" \
       --output-txt \
       --output-file "${output%.wav}" \
       </dev/null >>"$log_file" 2>&1; then

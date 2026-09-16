@@ -573,6 +573,44 @@ cp .devcontainer/compose.local.yml.example .codegeist/compose.local.yml
 generated bridge is an empty `services: {}` file by default, or a copy of
 `.codegeist/compose.local.yml` when that on-demand override exists.
 
+## Docker Registry Credentials
+
+The release image includes `pass`, GnuPG, and the verified official
+`docker-credential-pass` helper. Docker looks for this helper by default on
+Linux, so registry credentials can be kept in the user's encrypted password
+store instead of as base64-encoded values in `~/.docker/config.json`.
+
+The kit does not create a GPG key, initialize `pass`, change Docker
+configuration, or perform a registry login. Set up that personal state once
+inside the devcontainer:
+
+```bash
+gpg --list-secret-keys --keyid-format=long
+pass init <gpg-key-id>
+docker login
+```
+
+`docker login` uses Docker Hub's browser-based device flow by default. For
+another registry, pass only its host and optional port, for example
+`docker login registry.example.com`. Credentials entered during that login are
+then available to later Docker commands without putting a token or password in
+`.codegeist/.local.env`.
+
+Docker normally discovers `docker-credential-pass` automatically on Linux. To
+select it explicitly, merge this property into the user-owned
+`~/.docker/config.json` without discarding any existing settings:
+
+```json
+{
+  "credsStore": "pass"
+}
+```
+
+If credentials were saved before the helper was available, run `docker logout`
+for the affected registry and then `docker login` again after initializing
+`pass`. Keep the GPG private key, password store, and Docker configuration in
+the user's home directory and out of the repository.
+
 ## Browser Support
 
 The release kit includes Google Chrome for visible, headless, and automated UI

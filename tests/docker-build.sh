@@ -55,6 +55,12 @@ printf '%s' "$trivy_config_output" \
   || fail "Trivy config scan did not report the expected DS-0002 root-user finding"
 
 docker run --rm --entrypoint pass codegeist-devcontainer-kit:local --version >/dev/null
+docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc '
+  test "$(command -v docker-credential-pass)" = "/usr/local/bin/docker-credential-pass"
+  test -x /usr/local/bin/docker-credential-pass
+  docker-credential-pass version \
+    | grep -Fx "docker-credential-pass (github.com/docker/docker-credential-helpers) v0.9.9" >/dev/null
+'
 docker run --rm --entrypoint codegeist -w /tmp codegeist-devcontainer-kit:local --version >/dev/null
 docker run --rm --entrypoint jbang codegeist-devcontainer-kit:local --version >/dev/null
 docker run --rm --entrypoint tea codegeist-devcontainer-kit:local --version >/dev/null

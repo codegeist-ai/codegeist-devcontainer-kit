@@ -27,6 +27,8 @@
 # - VHS_VERSION and TTYD_VERSION select terminal-rendering tools used by
 #   documentation capture workflows in consuming repositories.
 # - TEA_VERSION pins the official Gitea CLI binary installed from dl.gitea.com.
+# - DOCKER_CREDENTIAL_PASS_VERSION and DOCKER_CREDENTIAL_PASS_SHA256 pin and
+#   verify the pass-backed Docker registry credential helper.
 # - TRIVY_VERSION pins the official Trivy security scanner release.
 # - GITLEAKS_VERSION and GITLEAKS_SHA256 pin and verify the official Gitleaks
 #   secret-scanner release.
@@ -52,6 +54,8 @@ ARG HUGO_VERSION=0.147.9
 ARG VHS_VERSION=0.11.0
 ARG TTYD_VERSION=1.7.7
 ARG TEA_VERSION=0.14.2
+ARG DOCKER_CREDENTIAL_PASS_VERSION=0.9.9
+ARG DOCKER_CREDENTIAL_PASS_SHA256=ae80a143101672b53c65cd5aa05028897068d39e2649adff83a520ef3218355d
 ARG TRIVY_VERSION=0.74.0
 ARG GITLEAKS_VERSION=8.30.1
 ARG GITLEAKS_SHA256=551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
@@ -309,6 +313,16 @@ RUN lazygit_tag="$(curl -fsSLI -o /dev/null -w '%{url_effective}' \
  && tar -xzf /tmp/lazygit.tar.gz -C /usr/local/bin lazygit \
  && chmod +x /usr/local/bin/lazygit \
  && rm -f /tmp/lazygit.tar.gz
+
+RUN docker_credential_pass_asset="docker-credential-pass-v${DOCKER_CREDENTIAL_PASS_VERSION}.linux-amd64" \
+ && curl -fsSL \
+      "https://github.com/docker/docker-credential-helpers/releases/download/v${DOCKER_CREDENTIAL_PASS_VERSION}/${docker_credential_pass_asset}" \
+      -o "/tmp/${docker_credential_pass_asset}" \
+ && printf '%s  %s\n' "$DOCKER_CREDENTIAL_PASS_SHA256" "/tmp/${docker_credential_pass_asset}" \
+      | sha256sum -c - \
+ && install -m 0755 "/tmp/${docker_credential_pass_asset}" /usr/local/bin/docker-credential-pass \
+ && rm -f "/tmp/${docker_credential_pass_asset}" \
+ && docker-credential-pass version
 
 RUN tea_asset="tea-${TEA_VERSION}-linux-amd64" \
  && curl -fsSL "https://dl.gitea.com/tea/${TEA_VERSION}/${tea_asset}" \

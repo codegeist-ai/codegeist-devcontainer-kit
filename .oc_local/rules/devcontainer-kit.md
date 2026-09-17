@@ -42,15 +42,6 @@ local override templates in this repository.
   tmux, without adding session-management behavior. It sets the tmux server's
   `set-clipboard` option to `on` so OpenCode can copy through OSC 52; document
   that this permits application-originated clipboard updates in that server.
-- For this repository's configured `git.codegeist.ai` origin, use
-  `git -c http.sslVerify=false ...` when its Caddy-issued certificate cannot be
-  validated. Keep the exception command-local; never persist disabled TLS
-  verification in repository, global, or system Git configuration.
-- Require a non-empty `GITEA_TOKEN` for authenticated Git operations against
-  that origin. Supply it non-interactively through a temporary `GIT_ASKPASS`
-  helper outside the workspace; never print it, put it in a remote URL or
-  command argument, or persist it in Git configuration. Remove the helper after
-  the operation.
 - Keep `uuidgen` from Debian's `uuid-runtime` package in the default image for
   generic UUID generation. Do not configure `uuidd` as a persistent service.
 - When changing default image tools, update the matching documentation and smoke
@@ -192,33 +183,33 @@ local override templates in this repository.
 
 ## Gitea Git Authentication
 
-- For Git fetches and pushes to this repository's
-  `https://git.codegeist.ai/` origin, use the non-empty `GITEA_TOKEN`
-  environment variable without asking the user which credential is required.
-- Pass the token only as a process-local `Authorization: token` HTTP header.
-  Never print or inspect its value, embed it in a remote URL, write it to Git
-  configuration, or persist it in a repository file.
-- The Gitea server currently requires certificate verification to be disabled.
-  Scope that exception to `https://git.codegeist.ai/` for the individual Git
-  process; never set global `http.sslVerify=false`.
-- Use this command environment for authenticated root-repository Git operations,
-  replacing `<git-command>` with `git fetch ...`, `git push ...`, or another
-  required Git command:
+- Authenticate this repository's `https://git.codegeist.ai/` origin through
+  Tea's interactive OAuth2 flow and register Tea as the HTTPS Git credential
+  helper. This is user-owned setup because it opens a browser and stores the
+  resulting token in Tea's local login configuration:
 
-  ```bash
-  test -n "${GITEA_TOKEN:-}" && \
-    GIT_TERMINAL_PROMPT=0 \
-    GIT_CONFIG_COUNT=2 \
-    GIT_CONFIG_KEY_0=http.https://git.codegeist.ai/.sslVerify \
-    GIT_CONFIG_VALUE_0=false \
-    GIT_CONFIG_KEY_1=http.extraHeader \
-    GIT_CONFIG_VALUE_1="Authorization: token ${GITEA_TOKEN}" \
-    <git-command>
+  ```text
+  tea login add --url https://git.codegeist.ai --oauth --git-credentials --insecure
   ```
 
-- Stop with a concise non-secret error when `GITEA_TOKEN` is missing or the
-  authenticated operation fails. Do not fall back to an interactive username or
-  password prompt.
+- When the Tea login already exists, register its stored token with Git by
+  running `tea login helper setup`; do not require another OAuth login only to
+  restore the helper configuration.
+- Never print, inspect, copy, or persist Tea's stored token in repository files,
+  remote URLs, command arguments, logs, or chat. Git operations should consume
+  it only through the registered Tea credential helper.
+- The Gitea server currently requires certificate verification to be disabled.
+  Tea's `--insecure` option applies only to Tea API requests; Git commands must
+  independently use command-local `git -c http.sslVerify=false ...`. This form is
+  legitimate for this repository's configured Gitea origin, including fetch,
+  pull, and push operations.
+- Never persist disabled TLS verification through repository, global, or system
+  Git configuration. Keep `http.sslVerify=false` on the individual Git command.
+- Run automated Git operations non-interactively, for example
+  `GIT_TERMINAL_PROMPT=0 git -c http.sslVerify=false fetch origin main`. If the
+  Tea credential helper is unavailable or authentication fails, stop with a
+  concise non-secret error and ask the user to complete the Tea setup instead of
+  requesting a token or password in chat.
 - `.devcontainer` and `.opencode` use public GitHub repositories. Fetch those
   submodules anonymously with `GIT_TERMINAL_PROMPT=0` and
-  `git -c credential.helper= ...`; they do not require `GITEA_TOKEN`.
+  `git -c credential.helper= ...`; they do not require the Tea login.

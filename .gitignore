@@ -13,7 +13,6 @@
 /.devcontainer/.Xauthority.gen.*
 /.codegeist/.local.env
 /.codegeist/secrets/
-/.oc_local/
 /.worktrees/
 /.tmp
 /.local.env

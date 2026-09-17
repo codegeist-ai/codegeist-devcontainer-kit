@@ -86,6 +86,9 @@ expected_project_name="$(expected_compose_project_name "$repo_dir" "$branch_name
 [[ "$(<"$repo_dir/.devcontainer/compose.local.gen.yml")" == *"CONTAINER_USER: $expected_user_name"* ]] || fail "generated compose file does not set worktree build user"
 [[ "$(<"$repo_dir/.devcontainer/compose.local.gen.yml")" == *"user: \"$expected_user\""* ]] || fail "generated compose file does not set worktree user"
 [[ "$(docker inspect --format '{{ index .Config.Labels "com.docker.compose.project" }}' "$root_container_id")" = "$expected_project_name" ]] || fail "worktree container has wrong Compose project label"
+docker exec -u "$expected_user_name" "$root_container_id" bash -lc \
+  'test "$BITWARDENCLI_APPDATA_DIR" = "'"$repo_dir"'/.codegeist/secrets/bitwarden-cli"' \
+  || fail "worktree container did not share the repository-scoped Bitwarden CLI data path"
 
 for _ in 1 2 3 4 5 6 7 8 9 10; do
   if docker exec -w "$expected_workspace_folder" -u "$expected_user_name" "$root_container_id" bash -lc 'test "$(id -un)" = "'"$expected_user_name"'" && test "$(hostname)" = "'"$expected_hostname"'" && test "$DEVCONTAINER_HOSTNAME" = "'"$expected_hostname"'" && test "$DEVCONTAINER_USER" = "'"$expected_user_name"'" && test "$DEVCONTAINER_UID:$DEVCONTAINER_GID" = "'"$expected_user"'" && test "$DEVCONTAINER_WORKSPACE_FOLDER" = "'"$expected_workspace_folder"'" && test "$PWD" = "'"$expected_workspace_folder"'" && docker ps >/dev/null && git rev-parse --is-inside-work-tree >/dev/null && test "$(git rev-parse --abbrev-ref HEAD)" = "feature/test-worktree" && test -d "'"$repo_dir"'/.git"'; then

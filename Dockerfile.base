@@ -27,6 +27,8 @@
 # - VHS_VERSION and TTYD_VERSION select terminal-rendering tools used by
 #   documentation capture workflows in consuming repositories.
 # - TEA_VERSION pins the official Gitea CLI binary installed from dl.gitea.com.
+# - BITWARDEN_CLI_VERSION and BITWARDEN_CLI_SHA256 pin and verify the official
+#   native Linux x64 Bitwarden CLI archive.
 # - DOCKER_CREDENTIAL_PASS_VERSION and DOCKER_CREDENTIAL_PASS_SHA256 pin and
 #   verify the pass-backed Docker registry credential helper.
 # - TRIVY_VERSION pins the official Trivy security scanner release.
@@ -54,6 +56,8 @@ ARG HUGO_VERSION=0.147.9
 ARG VHS_VERSION=0.11.0
 ARG TTYD_VERSION=1.7.7
 ARG TEA_VERSION=0.14.2
+ARG BITWARDEN_CLI_VERSION=2026.8.0
+ARG BITWARDEN_CLI_SHA256=367f618e9fcccaac4980ec12c7bafd01df739b5f3cb1af31bc9045cf75eea1d6
 ARG DOCKER_CREDENTIAL_PASS_VERSION=0.9.9
 ARG DOCKER_CREDENTIAL_PASS_SHA256=ae80a143101672b53c65cd5aa05028897068d39e2649adff83a520ef3218355d
 ARG TRIVY_VERSION=0.74.0
@@ -323,6 +327,20 @@ RUN docker_credential_pass_asset="docker-credential-pass-v${DOCKER_CREDENTIAL_PA
  && install -m 0755 "/tmp/${docker_credential_pass_asset}" /usr/local/bin/docker-credential-pass \
  && rm -f "/tmp/${docker_credential_pass_asset}" \
  && docker-credential-pass version
+
+RUN bitwarden_cli_archive="bw-linux-${BITWARDEN_CLI_VERSION}.zip" \
+ && curl -fsSL \
+      "https://github.com/bitwarden/clients/releases/download/cli-v${BITWARDEN_CLI_VERSION}/${bitwarden_cli_archive}" \
+      -o "/tmp/${bitwarden_cli_archive}" \
+ && printf '%s  %s\n' "$BITWARDEN_CLI_SHA256" "/tmp/${bitwarden_cli_archive}" \
+      | sha256sum -c - \
+ && unzip -q "/tmp/${bitwarden_cli_archive}" -d /tmp/bitwarden-cli \
+ && install -m 0755 /tmp/bitwarden-cli/bw /usr/local/bin/bw \
+ && rm -rf "/tmp/${bitwarden_cli_archive}" /tmp/bitwarden-cli \
+ && install -d -m 0700 /tmp/bitwarden-cli-appdata \
+ && printf '%s\n' '{}' > /tmp/bitwarden-cli-appdata/data.json \
+ && BITWARDENCLI_APPDATA_DIR=/tmp/bitwarden-cli-appdata bw --version \
+ && rm -rf /tmp/bitwarden-cli-appdata
 
 RUN tea_asset="tea-${TEA_VERSION}-linux-amd64" \
  && curl -fsSL "https://dl.gitea.com/tea/${TEA_VERSION}/${tea_asset}" \

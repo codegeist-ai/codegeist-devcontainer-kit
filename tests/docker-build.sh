@@ -64,6 +64,15 @@ docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc '
 docker run --rm --entrypoint codegeist -w /tmp codegeist-devcontainer-kit:local --version >/dev/null
 docker run --rm --entrypoint jbang codegeist-devcontainer-kit:local --version >/dev/null
 docker run --rm --entrypoint tea codegeist-devcontainer-kit:local --version >/dev/null
+docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc '
+  export BITWARDENCLI_APPDATA_DIR=/tmp/bitwarden-cli-test
+  install -d -m 0700 "$BITWARDENCLI_APPDATA_DIR"
+  printf "%s\n" "{}" >"$BITWARDENCLI_APPDATA_DIR/data.json"
+  test "$(command -v bw)" = "/usr/local/bin/bw"
+  test -x /usr/local/bin/bw
+  test "$(bw --version)" = "2026.8.0"
+  rm -rf "$BITWARDENCLI_APPDATA_DIR"
+'
 docker run --rm --entrypoint gitleaks codegeist-devcontainer-kit:local version >/dev/null
 docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc \
   'ffmpeg -version >/dev/null && whisper-cli --version | grep -F "1.9.4" >/dev/null && vhs --version >/dev/null && ttyd --version >/dev/null'

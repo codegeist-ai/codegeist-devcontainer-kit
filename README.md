@@ -737,6 +737,63 @@ Use `GITEA_SERVER_TOKEN`, not `GITEA_TOKEN`; the latter is not a `tea` login
 environment variable. Keep the token only in the ignored machine-local env file,
 never in shell history or tracked repository files.
 
+## Bitwarden CLI
+
+The image includes the official Bitwarden CLI as `bw` for user-initiated access
+to Bitwarden-compatible servers such as Vaultwarden. The kit does not configure
+a server, log in, unlock a vault, or provide credentials. Point the CLI at the
+self-hosted server before the first login:
+
+The CLI stores its project-local configuration, account metadata, login state,
+and encrypted cache under
+`$DEVCONTAINER_REPO_ROOT/.codegeist/secrets/bitwarden-cli`. The repository root
+is mounted persistently, the parent secrets directory is ignored by Git, and
+managed worktrees share this state. The first `bw` invocation creates the
+directory and `data.json`; the kit does not migrate an existing
+`~/.config/Bitwarden CLI` directory.
+
+```bash
+bw config server https://vault.example.com
+```
+
+Choose one login method. A normal interactive login prompts for the email,
+master password, and any supported two-step login code. Personal API-key login
+prompts for the client ID and client secret so they do not need to appear in the
+command or shell history:
+
+```bash
+bw login
+bw login --apikey
+```
+
+Browser-based login is available when the Vaultwarden deployment has compatible
+OpenID Connect SSO enabled and the devcontainer can open a usable browser:
+
+```bash
+bw login --sso
+```
+
+API-key and SSO login authenticate the CLI but normally do not decrypt vault
+contents. Unlock explicitly, keep the returned session key only in the current
+shell, and synchronize before reading items:
+
+```bash
+export BW_SESSION="$(bw unlock --raw)"
+bw sync
+bw list items
+```
+
+Do not put a client secret, master password, or `BW_SESSION` in tracked files,
+Docker build arguments, or shell command arguments. Lock the vault and remove
+the session variable when finished; use `bw logout` instead when the saved login
+itself should be removed:
+
+```bash
+bw lock
+unset BW_SESSION
+# bw logout
+```
+
 ## Infrastructure As Code CLIs
 
 The image includes both Terraform as `terraform` and OpenTofu as `tofu`.

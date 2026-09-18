@@ -13,6 +13,8 @@
 # Inputs:
 # - The requested container command from Docker, Compose, or Dev Containers CLI.
 # - CONTAINER_GROUP controls the dockerd socket group.
+# - DEVCONTAINER_WAYLAND_RUNTIME_DIR identifies the generated Wayland and IPC
+#   runtime directory when local host Wayland forwarding is active.
 #
 # Related files:
 # - Dockerfile.base
@@ -23,6 +25,20 @@ set -euo pipefail
 dockerd_log_file="/tmp/dockerd.log"
 dockerd_pid_file="/var/run/docker.pid"
 dbus_socket_file="/run/dbus/system_bus_socket"
+
+ensure_wayland_runtime_dir() {
+  local runtime_dir="${DEVCONTAINER_WAYLAND_RUNTIME_DIR:-}"
+  local runtime_uid="${DEVCONTAINER_UID:-$(id -u)}"
+  local runtime_gid="${DEVCONTAINER_GID:-$(id -g)}"
+
+  [ -n "$runtime_dir" ] || return 0
+  [ "${XDG_RUNTIME_DIR:-}" = "$runtime_dir" ] || return 0
+
+  # Docker creates the parent of the socket bind mount as root. XDG clients,
+  # including VS Code's agent host, must be able to create private IPC sockets
+  # in this directory as the configured container user.
+  sudo -n install -d -o "$runtime_uid" -g "$runtime_gid" -m 0700 "$runtime_dir"
+}
 
 ensure_chrome_launcher() {
   local launcher=""
@@ -111,6 +127,7 @@ ensure_docker_daemon() {
   return 1
 }
 
+ensure_wayland_runtime_dir
 ensure_system_dbus
 prepend_workspace_scripts_path
 ensure_chrome_launcher

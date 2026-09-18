@@ -85,6 +85,10 @@ local override templates in this repository.
   to generated `.devcontainer/.env` as `DEVCONTAINER_DISPLAY`, then pass that
   value into the container as `DISPLAY` from `docker-compose.yml`. Treat it as a
   candidate, not proof that a host-local X11 socket is mounted.
+- Keep the generated `/tmp/codegeist-wayland` XDG runtime directory owned by the
+  configured workspace user with mode `0700`. VS Code and other XDG clients must
+  be able to create private IPC sockets there when local Wayland forwarding is
+  active; do not apply ownership changes to arbitrary user-provided runtime paths.
 - In visible Chrome, prefer Wayland only when
   `$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY` is a real socket, and force
   `--ozone-platform=wayland` while removing an inherited invalid `DISPLAY`.

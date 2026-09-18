@@ -4,6 +4,7 @@
 # Why this exists:
 # - proves generated runtime user and KVM settings reach the real container
 # - verifies a host Wayland socket is mounted at the generated container path
+# - proves the workspace user can create IPC sockets in the Wayland runtime path
 # - verifies Xauthority is read from reconnect-refreshable workspace state
 #
 # Related files:
@@ -81,5 +82,19 @@ container_config="$(docker inspect "$container_id")"
 [[ "$container_config" == *'"Destination": "/tmp/codegeist-wayland/'"$wayland_display"'"'* ]] || fail "workspace container did not expose Wayland socket at generated target"
 docker exec "$container_id" test -S "/tmp/codegeist-wayland/$wayland_display" \
   || fail "workspace container Wayland target is not a Unix socket"
+[[ "$(docker exec "$container_id" stat -c '%u:%g:%a' /tmp/codegeist-wayland)" = "$(id -u):$(id -g):700" ]] \
+  || fail "workspace Wayland runtime directory did not use runtime-user ownership and mode 0700"
+docker exec "$container_id" node -e '
+  const net = require("node:net");
+  const path = `${process.env.XDG_RUNTIME_DIR}/devcontainer-ipc-test.sock`;
+  const server = net.createServer();
+  server.on("error", (error) => {
+    console.error(error);
+    process.exit(1);
+  });
+  server.listen(path, () => server.close((error) => {
+    if (error) throw error;
+  }));
+' || fail "workspace user could not create an IPC socket in the Wayland runtime directory"
 
-pass "compose config mounts generated Wayland and reconnect-safe Xauthority state"
+pass "compose config mounts writable Wayland and reconnect-safe Xauthority state"

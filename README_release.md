@@ -629,9 +629,12 @@ transport before starting Google Chrome. During `initializeCommand`,
 and `XDG_RUNTIME_DIR` (or `/run/user/<uid>/wayland-0`) and adds a generated bind
 for only that socket. When the mounted socket is reachable, the launcher prefers
 it, removes inherited `DISPLAY`, and starts Chrome with
-`--ozone-platform=wayland`. A local X11 value such as `DISPLAY=:0` is usable only
-when `/tmp/.X11-unix/X0` exists; the shared Compose config does not mount local
-X11 sockets by default.
+`--ozone-platform=wayland`. The container entrypoint keeps the generated
+`/tmp/codegeist-wayland` runtime directory owned by the workspace user with mode
+`0700`, allowing VS Code and other XDG clients to create private IPC sockets
+there. A local X11 value such as `DISPLAY=:0` is usable only when
+`/tmp/.X11-unix/X0` exists; the shared Compose config does not mount local X11
+sockets by default.
 
 VS Code SSH reconnects can allocate a new loopback display number while reusing
 an existing container. Each initialize run atomically refreshes the selected

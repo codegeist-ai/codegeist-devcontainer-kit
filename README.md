@@ -799,7 +799,21 @@ unset BW_SESSION
 
 ## Infrastructure As Code CLIs
 
-The image includes both Terraform as `terraform` and OpenTofu as `tofu`.
+The image includes Terraform as `terraform`, OpenTofu as `tofu`, and the
+HashiCorp Vault CLI as `vault`. Vault is installed from HashiCorp's official
+signed Debian repository alongside Terraform; the kit does not configure a
+Vault server, address, authentication method, or token. Point the CLI at your
+Vault server and authenticate through the method required by that server:
+
+```bash
+export VAULT_ADDR=https://vault.example.com
+vault status
+vault login
+```
+
+Keep Vault tokens and other credentials out of tracked files and shell command
+arguments.
+
 OpenTofu is installed from its official signed Debian repository and remains a
 separate native command rather than replacing or aliasing Terraform. From a
 project with OpenTofu configuration, use the normal CLI workflow:

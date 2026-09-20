@@ -90,6 +90,7 @@ docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc '
   uuidgen | grep -Eq "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
   tofu -version >/dev/null
   terraform version >/dev/null
+  vault version >/dev/null
   test ! -L /usr/local/bin/bat
   ! dpkg-query -W ripgrep >/dev/null 2>&1
 '

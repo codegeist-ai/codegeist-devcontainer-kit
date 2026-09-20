@@ -7,8 +7,8 @@
 # - Provides a system Maven installation so the app does not need a wrapper.
 # - Adds the Nix package manager for later package migration work without
 #   switching the devcontainer setup to flakes yet.
-# - Includes JBang, Hugo, Kubernetes, Terraform, OpenTofu, Ansible, PowerShell,
-#   QEMU/KVM, password-store, speech, YAML, UUID generation, tmux, terminal
+# - Includes JBang, Hugo, Kubernetes, Terraform, OpenTofu, Vault, Ansible,
+#   PowerShell, QEMU/KVM, password-store, speech, YAML, UUID generation, tmux, terminal
 #   productivity and capture, network, security-scan, and FTP tools so the
 #   shared workspace can handle Java scripting, site, infrastructure,
 #   virtualization, deployment, docs previews, and external scan tasks.
@@ -129,7 +129,9 @@ RUN install -m 0755 -d /etc/apt/keyrings \
        > /etc/apt/sources.list.d/opentofu.list \
  && chmod a+r /etc/apt/sources.list.d/opentofu.list
 
-# Install the shared development toolchain in one APT transaction.
+# Install the shared development toolchain in one APT transaction. Vault's
+# package grants IPC_LOCK for server mlock support; remove it because this image
+# provides the CLI and file capabilities block execution in unprivileged containers.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       build-essential \
@@ -190,6 +192,7 @@ RUN apt-get update \
       tigervnc-viewer \
       tmux \
       tofu \
+      vault \
       unzip \
       uuid-runtime \
       wget \
@@ -199,6 +202,7 @@ RUN apt-get update \
       xvfb \
       xz-utils \
       zlib1g-dev \
+  && setcap -r /usr/bin/vault \
   && rm -rf /var/lib/apt/lists/*
 
 RUN curl -LsSf https://astral.sh/uv/install.sh \

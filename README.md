@@ -798,16 +798,33 @@ GITEA_SERVER_URL=https://git.codegeist.ai
 GITEA_SERVER_TOKEN=your-application-token
 ```
 
-Add the login once, then use the stored active login to work with repositories,
-issues, and pull requests:
+Add the login once. This command reads the token from
+`GITEA_SERVER_TOKEN`, stores it in Tea's user-owned login configuration, and
+registers Tea as Git's HTTPS credential helper without placing the token in the
+command or remote URL:
 
 ```bash
-tea login add
+tea login add --name codegeist --url "$GITEA_SERVER_URL" \
+  --insecure --git-credentials --no-version-check
 tea login list
 tea repos ls
 tea issues ls
 tea pulls ls
 ```
+
+Use `--oauth` instead of the environment token when an interactive browser login
+is preferred. For this repository's Gitea server, `--insecure` applies to Tea
+only. Git operations require their own command-local TLS exception while the
+server's certificate chain cannot be verified:
+
+```bash
+GIT_TERMINAL_PROMPT=0 git -c http.sslVerify=false fetch origin main
+GIT_TERMINAL_PROMPT=0 git -c http.sslVerify=false push origin main
+```
+
+Never persist `http.sslVerify=false` in Git configuration. Use these commands
+only for the known `git.codegeist.ai` origin; servers with a valid certificate
+chain should omit both `--insecure` and the Git TLS exception.
 
 Run `tea --help` or `tea <command> --help` for the available commands and flags.
 Use `GITEA_SERVER_TOKEN`, not `GITEA_TOKEN`; the latter is not a `tea` login
@@ -873,7 +890,21 @@ unset BW_SESSION
 
 ## Infrastructure As Code CLIs
 
-The image includes both Terraform as `terraform` and OpenTofu as `tofu`.
+The image includes Terraform as `terraform`, OpenTofu as `tofu`, and the
+HashiCorp Vault CLI as `vault`. Vault is installed from HashiCorp's official
+signed Debian repository alongside Terraform; the release kit does not configure
+a Vault server, address, authentication method, or token. Point the CLI at your
+Vault server and authenticate through the method required by that server:
+
+```bash
+export VAULT_ADDR=https://vault.example.com
+vault status
+vault login
+```
+
+Keep Vault tokens and other credentials out of tracked files and shell command
+arguments.
+
 OpenTofu is installed from its official signed Debian repository and remains a
 separate native command rather than replacing or aliasing Terraform. From a
 project with OpenTofu configuration, use the normal CLI workflow:

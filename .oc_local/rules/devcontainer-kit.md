@@ -189,11 +189,14 @@ local override templates in this repository.
 ## Gitea Git Authentication
 
 - Authenticate this repository's `https://git.codegeist.ai/` origin through
-  Tea's interactive OAuth2 flow and register Tea as the HTTPS Git credential
-  helper. This is user-owned setup because it opens a browser and stores the
-  resulting token in Tea's local login configuration:
+  Tea and register Tea as the HTTPS Git credential helper. When
+  `GITEA_SERVER_URL` and `GITEA_SERVER_TOKEN` are available, let `tea login add`
+  read them natively so the token is not placed in command arguments. Use OAuth2
+  as the interactive alternative. Both paths store the token in Tea's user-owned
+  login configuration:
 
   ```text
+  tea login add --name codegeist --url "$GITEA_SERVER_URL" --insecure --git-credentials --no-version-check
   tea login add --url https://git.codegeist.ai --oauth --git-credentials --insecure
   ```
 

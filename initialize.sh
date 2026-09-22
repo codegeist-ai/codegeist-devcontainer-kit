@@ -37,6 +37,9 @@
 #   directory instead of temporary storage.
 # - The script runs as a Dev Containers `initializeCommand` on the host and must
 #   stay idempotent, non-interactive, and safe for repeated starts.
+# - After kit setup, a selected workspace may extend host initialization with
+#   `.codegeist/extensions/custom_initialize.sh`. The trusted consumer hook runs
+#   with Bash from that workspace and its failure stops initialization.
 #
 # Related files:
 # - devcontainer.json
@@ -627,6 +630,7 @@ main() {
   local workspace_folder=""
   local workspace_env_file=""
   local workspace_xauthority_file=""
+  local custom_initialize=""
 
   case "${1:-}" in
     "")
@@ -667,6 +671,13 @@ main() {
         "$(generated_hostname "$root_dir" "$branch_name")" \
         "$(generated_compose_project_name "$root_dir" "${branch_name:-$(current_branch_name "$root_dir")}")"
       write_user_compose_bridge "$root_dir"
+      custom_initialize="$workspace_folder/.codegeist/extensions/custom_initialize.sh"
+      if [ -f "$custom_initialize" ]; then
+        (
+          cd "$workspace_folder"
+          bash "$custom_initialize"
+        )
+      fi
       ;;
     *)
       printf 'Usage: %s\n' "$0" >&2

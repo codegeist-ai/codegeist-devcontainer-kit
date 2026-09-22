@@ -48,6 +48,9 @@ apply without being duplicated in this runtime tree.
 
 ## Release Notes
 
+- Consuming repositories can add an optional tracked
+  `.codegeist/extensions/custom_initialize.sh` Bash hook for host-side setup
+  after normal kit initialization, including in the selected managed worktree.
 - Documented optional Linux PipeWire microphone forwarding through a fixed
   loopback-only OpenSSH remote forward, including connection multiplexing for
   parallel VS Code sessions, client usage, verification, and security limits.
@@ -522,6 +525,20 @@ overrides are intentional repository state.
 and compute generated workspace values, but it does not persist `BRANCH=` into
 `.devcontainer/.env`; later starts without `BRANCH` resolve back to the current
 checkout.
+
+## Custom Initialize Hook
+
+A consuming repository can extend host-side initialization with an optional
+`.codegeist/extensions/custom_initialize.sh` Bash script. After the normal kit
+setup completes, `initialize.sh` runs the hook from the selected workspace. A
+`BRANCH` start therefore uses the hook from that managed worktree.
+
+The file does not need to be executable. A missing hook is ignored, while a
+failing hook fails `initializeCommand`. The hook runs on the host outside
+container isolation and may run repeatedly, so keep tracked hook code trusted,
+non-interactive, idempotent, and bounded. Environment exports made by the hook do
+not survive after initialization; write required runtime values through an
+existing documented file contract instead.
 
 ## Local Dockerfile Extensions
 

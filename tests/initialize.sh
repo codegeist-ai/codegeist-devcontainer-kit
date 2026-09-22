@@ -37,6 +37,8 @@ expected_user_name="$(expected_container_user)"
 expected_kvm_gid="$(stat -c %g /dev/kvm 2>/dev/null || id -g)"
 worktree_path=""
 worktree_local_env=""
+custom_initialize=""
+custom_initialize_result=""
 current_branch=""
 current_branch_alias=""
 parallel_worktree_path=""
@@ -153,10 +155,21 @@ worktree_path="$fixture_dir/.worktrees/feature/initialize-test"
 [[ -f "$worktree_path/.devcontainer/.Xauthority.gen" ]] || fail "selected worktree did not receive generated Xauthority"
 assert_ignored_by_root_gitignore "$fixture_dir" ".worktrees/feature/initialize-test/.devcontainer/.Xauthority.gen"
 
+custom_initialize="$worktree_path/.codegeist/extensions/custom_initialize.sh"
+custom_initialize_result="$worktree_path/.codegeist/custom-initialize.result"
+mkdir -p "$(dirname "$custom_initialize")"
+cat >"$custom_initialize" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+printf '%s\n' "$PWD" >.codegeist/custom-initialize.result
+EOF
+
 printf 'workspace-a-authority\n' >"$host_xauthority"
 env -u WAYLAND_DISPLAY -u XDG_RUNTIME_DIR \
   HOME="$fixture_dir" XAUTHORITY="$host_xauthority" DISPLAY=localhost:44.0 \
   BRANCH=feature/initialize-test "$fixture_dir/.devcontainer/initialize.sh"
+[[ "$(<"$custom_initialize_result")" = "$worktree_path" ]] || fail "custom initialize hook did not run in the selected worktree"
 printf 'workspace-b-authority\n' >"$host_xauthority"
 env -u WAYLAND_DISPLAY -u XDG_RUNTIME_DIR \
   HOME="$fixture_dir" XAUTHORITY="$host_xauthority" DISPLAY=localhost:45.0 \
@@ -242,5 +255,14 @@ expected_hostname="$(expected_generated_hostname "$worktree_path" "feature/initi
 [[ "$(<"$fixture_dir/.codegeist/.local.env")" = "CUSTOM_ENV=1" ]] || fail ".codegeist/.local.env was overwritten when BRANCH was unset"
 [[ "$(<"$worktree_path/.devcontainer/compose.local.gen.yml")" == *"hostname: $expected_hostname"* ]] || fail "generated compose hostname was not refreshed for worktree start"
 [[ "$(<"$worktree_path/.devcontainer/compose.local.gen.yml")" == *"\"$expected_hostname:127.0.0.1\""* ]] || fail "generated compose hostname resolution was not refreshed for worktree start"
+
+cat >"$custom_initialize" <<'EOF'
+#!/usr/bin/env bash
+exit 23
+EOF
+
+if HOME="$fixture_dir" BRANCH=feature/initialize-test "$fixture_dir/.devcontainer/initialize.sh"; then
+  fail "failing custom initialize hook did not fail initializeCommand"
+fi
 
 pass "initialize creates .codegeist local files and selected BRANCH worktrees without owning compose mounts"

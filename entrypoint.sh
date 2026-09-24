@@ -9,6 +9,9 @@
 #   `.devcontainer/scripts/chrome.sh` do not require an image rebuild.
 # - The Dockerfile sets USER to the workspace user, so dockerd is started through
 #   passwordless sudo configured during image build.
+# - A workspace-root `secrets.hcl` is passed directly to Vault Agent before the
+#   requested command starts. The workspace configuration owns render targets
+#   and errors stop container startup.
 #
 # Inputs:
 # - The requested container command from Docker, Compose, or Dev Containers CLI.
@@ -132,6 +135,11 @@ ensure_system_dbus
 prepend_workspace_scripts_path
 ensure_chrome_launcher
 ensure_docker_daemon
+
+secrets_config="$DEVCONTAINER_WORKSPACE_FOLDER/secrets.hcl"
+if [ -f "$secrets_config" ]; then
+  vault agent -config="$secrets_config"
+fi
 
 if [ "$#" -eq 0 ]; then
   set -- bash

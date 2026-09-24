@@ -17,6 +17,8 @@
 # - Passes `/dev/kvm` through explicitly and adds its numeric group so the
 #   workspace user can run KVM-accelerated QEMU without regenerating old local
 #   compose overlays on the common host group id.
+# - Provides `/run/secrets` as an in-memory filesystem for workspace-managed
+#   secret rendering without requiring a host-side secret directory.
 #
 # Inputs:
 # - CONTAINER_USER, CONTAINER_GROUP, CONTAINER_UID, and CONTAINER_GID customize
@@ -82,6 +84,8 @@ services:
       - "${DEVCONTAINER_KVM_GID:-${KVM_GID:-993}}"
     init: true
     network_mode: host
+    tmpfs:
+      - /run/secrets
     # Chrome and other browser processes need more than Docker's tiny default /dev/shm.
     shm_size: '1gb'
     extra_hosts:

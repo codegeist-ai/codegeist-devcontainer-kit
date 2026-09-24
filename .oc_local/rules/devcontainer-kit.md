@@ -189,11 +189,13 @@ local override templates in this repository.
 ## Gitea Git Authentication
 
 - Authenticate this repository's `https://git.codegeist.ai/` origin through
-  Tea and register Tea as the HTTPS Git credential helper. When
-  `GITEA_SERVER_URL` and `GITEA_SERVER_TOKEN` are available, let `tea login add`
-  read them natively so the token is not placed in command arguments. Use OAuth2
-  as the interactive alternative. Both paths store the token in Tea's user-owned
-  login configuration:
+  Tea and register Tea as the HTTPS Git credential helper. Before a Gitea fetch
+  or push, inspect `tea login list`. When no usable login exists and both
+  `GITEA_SERVER_URL` and `GITEA_SERVER_TOKEN` are available, run the non-interactive
+  `tea login add` command below instead of creating a temporary Askpass helper.
+  Tea reads the token natively so it is not placed in command arguments. Use
+  OAuth2 only as the interactive alternative. Both paths store the token in
+  Tea's user-owned login configuration:
 
   ```text
   tea login add --name codegeist --url "$GITEA_SERVER_URL" --insecure --git-credentials --no-version-check
@@ -202,7 +204,8 @@ local override templates in this repository.
 
 - When the Tea login already exists, register its stored token with Git by
   running `tea login helper setup`; do not require another OAuth login only to
-  restore the helper configuration.
+  restore the helper configuration. Prefer repairing this persistent documented
+  Tea setup over bypassing it with an ad hoc credential helper for one command.
 - Never print, inspect, copy, or persist Tea's stored token in repository files,
   remote URLs, command arguments, logs, or chat. Git operations should consume
   it only through the registered Tea credential helper.
@@ -215,9 +218,10 @@ local override templates in this repository.
   Git configuration. Keep `http.sslVerify=false` on the individual Git command.
 - Run automated Git operations non-interactively, for example
   `GIT_TERMINAL_PROMPT=0 git -c http.sslVerify=false fetch origin main`. If the
-  Tea credential helper is unavailable or authentication fails, stop with a
-  concise non-secret error and ask the user to complete the Tea setup instead of
-  requesting a token or password in chat.
+  documented Tea setup cannot be created because its environment is incomplete,
+  or authentication still fails after setup, stop with a concise non-secret
+  error and ask the user to complete the Tea setup instead of requesting a token
+  or password in chat.
 - `.devcontainer` and `.opencode` use public GitHub repositories. Fetch those
   submodules anonymously with `GIT_TERMINAL_PROMPT=0` and
   `git -c credential.helper= ...`; they do not require the Tea login.

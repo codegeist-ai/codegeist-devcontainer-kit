@@ -15,11 +15,11 @@ Codegeist/planner-style toolchain, including Docker CE, Node 24, VS Code,
 GitHub CLI, the Gitea `tea` CLI, Maven, GraalVM, JBang, Hugo, Nix, PowerShell
 through `pwsh`, Task
 with Bash completion, OpenCode tooling, the Codegeist CLI installed through the
-upstream Linux installer, Repomix, Kubernetes and infrastructure CLIs, QEMU/KVM
-virtualization tools, terminal productivity and capture tools, `espeak-ng`,
-network diagnostics, security scan tools including Trivy, password-store tooling
-through `pass`, and related CLI tools. The release build publishes this file as
-`.devcontainer/Dockerfile` for consuming repositories.
+upstream Linux installer, Renovate, Repomix, Kubernetes and infrastructure CLIs,
+QEMU/KVM virtualization tools, terminal productivity and capture tools,
+`espeak-ng`, network diagnostics, security scan tools including Trivy,
+password-store tooling through `pass`, and related CLI tools. The release build
+publishes this file as `.devcontainer/Dockerfile` for consuming repositories.
 
 Project work is tracked through
 [GitHub Issues](https://github.com/codegeist-ai/codegeist-devcontainer-kit/issues),

@@ -63,6 +63,7 @@ docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc '
 '
 docker run --rm --entrypoint codegeist -w /tmp codegeist-devcontainer-kit:local --version >/dev/null
 docker run --rm --entrypoint jbang codegeist-devcontainer-kit:local --version >/dev/null
+docker run --rm --entrypoint renovate codegeist-devcontainer-kit:local --version >/dev/null
 docker run --rm --entrypoint tea codegeist-devcontainer-kit:local --version >/dev/null
 docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc '
   export BITWARDENCLI_APPDATA_DIR=/tmp/bitwarden-cli-test

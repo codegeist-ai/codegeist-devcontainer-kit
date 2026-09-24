@@ -11,6 +11,9 @@ local override templates in this repository.
 - Keep `tiktoken-cli` in the default image npm toolchain. It supports AI and
   documentation workflows that need token counting without requiring
   per-project installation.
+- Keep the native Renovate CLI in the default image npm toolchain. Do not add a
+  kit-owned wrapper, repository configuration, credential mapping, scheduling,
+  or automatic execution unless a separate requirement explicitly needs it.
 - Keep `yq`, `iproute2`, `iputils-ping`, `socat`, and `direnv` in the default
   image toolchain. They support YAML/config editing, network diagnostics,
   socket debugging, and `.envrc`-based project workflows without per-project

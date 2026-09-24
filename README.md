@@ -845,6 +845,18 @@ vault login
 Keep Vault tokens and other credentials out of tracked files and shell command
 arguments.
 
+### Workspace Vault Agent Configuration
+
+When `secrets.hcl` exists at the selected workspace root, the container entrypoint
+runs `vault agent -config=<workspace>/secrets.hcl` before the requested container
+command. A missing file is ignored, while an invalid configuration or another
+Vault Agent failure stops container startup. The configuration owns its render
+destinations and must let the Agent exit when rendering is complete.
+
+The workspace service always provides `/run/secrets` as a `tmpfs` for
+configurations that choose to render secrets there. Using that path is optional;
+the kit does not inspect or modify `secrets.hcl`.
+
 OpenTofu is installed from its official signed Debian repository and remains a
 separate native command rather than replacing or aliasing Terraform. From a
 project with OpenTofu configuration, use the normal CLI workflow:

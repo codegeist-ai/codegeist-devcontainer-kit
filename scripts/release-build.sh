@@ -13,6 +13,8 @@
 # Inputs:
 # - Optional positional argument: release branch name, default `release`.
 # - Optional `--push`: push the release branch to `origin` after updating it.
+# - A configured Tea login is required for `--push`; Tea is registered as the
+#   host-specific Git credential helper before the non-interactive Gitea push.
 # - `.test-tmp/release-verification` must attest that `task tests-run` passed for
 #   the current commit, including the real DISPLAY=:0 Wayland browser regression.
 #
@@ -173,7 +175,15 @@ release_commit="$(git -C "$repo_root" commit-tree "$runtime_tree" \
 git -C "$repo_root" update-ref "refs/heads/$release_branch" "$release_commit"
 
 if [ "$push_branch" -eq 1 ]; then
-  git -C "$repo_root" push origin "refs/heads/$release_branch"
+  # Repair the persistent host-specific helper before suppressing every
+  # interactive fallback. The token remains in Tea's user-owned login state.
+  tea login helper setup >/dev/null \
+    || fail "Tea Git credential setup failed; configure a Tea login for the Gitea origin"
+  GIT_TERMINAL_PROMPT=0 \
+    GIT_ASKPASS=/bin/false \
+    SSH_ASKPASS=/bin/false \
+    git -C "$repo_root" -c http.sslVerify=false \
+      push origin "refs/heads/$release_branch"
 fi
 
 trap - EXIT

@@ -581,7 +581,10 @@ ensure_worktree() {
   fi
 
   if [ -f "$worktree_path/.gitmodules" ]; then
-    if ! GIT_TERMINAL_PROMPT=0 git -C "$worktree_path" \
+    if ! GIT_TERMINAL_PROMPT=0 \
+      GIT_ASKPASS=/bin/false \
+      SSH_ASKPASS=/bin/false \
+      git -C "$worktree_path" \
       -c credential.helper= \
       -c protocol.file.allow=always \
       submodule update --init --recursive >&2; then

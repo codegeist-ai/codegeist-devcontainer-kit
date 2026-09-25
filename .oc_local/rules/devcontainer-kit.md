@@ -209,6 +209,11 @@ local override templates in this repository.
   running `tea login helper setup`; do not require another OAuth login only to
   restore the helper configuration. Prefer repairing this persistent documented
   Tea setup over bypassing it with an ad hoc credential helper for one command.
+- For normal root-repository Gitea operations, suppress interactive and VS Code
+  Askpass fallbacks with `GIT_TERMINAL_PROMPT=0`, `GIT_ASKPASS=/bin/false`, and
+  `SSH_ASKPASS=/bin/false`. If Tea cannot supply the credential, stop instead of
+  trying a browser login, username/password prompt, temporary helper, or token
+  header.
 - Never print, inspect, copy, or persist Tea's stored token in repository files,
   remote URLs, command arguments, logs, or chat. Git operations should consume
   it only through the registered Tea credential helper.
@@ -220,11 +225,12 @@ local override templates in this repository.
 - Never persist disabled TLS verification through repository, global, or system
   Git configuration. Keep `http.sslVerify=false` on the individual Git command.
 - Run automated Git operations non-interactively, for example
-  `GIT_TERMINAL_PROMPT=0 git -c http.sslVerify=false fetch origin main`. If the
-  documented Tea setup cannot be created because its environment is incomplete,
-  or authentication still fails after setup, stop with a concise non-secret
-  error and ask the user to complete the Tea setup instead of requesting a token
-  or password in chat.
+  `GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/false SSH_ASKPASS=/bin/false git -c
+  http.sslVerify=false fetch origin main`. If the documented Tea setup cannot be
+  created because its environment is incomplete, or authentication still fails
+  after setup, stop with a concise non-secret error and ask the user to complete
+  the Tea setup instead of requesting a token or password in chat.
 - `.devcontainer` and `.opencode` use public GitHub repositories. Fetch those
-  submodules anonymously with `GIT_TERMINAL_PROMPT=0` and
+  submodules anonymously with `GIT_TERMINAL_PROMPT=0`,
+  `GIT_ASKPASS=/bin/false`, `SSH_ASKPASS=/bin/false`, and
   `git -c credential.helper= ...`; they do not require the Tea login.

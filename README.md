@@ -738,7 +738,9 @@ GITEA_SERVER_URL=https://git.codegeist.ai
 GITEA_SERVER_TOKEN=your-application-token
 ```
 
-Add the login once. This command reads the token from
+Add the login once per persistent container user configuration. After a container
+rebuild, repeat the setup when `tea login list` no longer shows the login. This
+command reads the token from
 `GITEA_SERVER_TOKEN`, stores it in Tea's user-owned login configuration, and
 registers Tea as Git's HTTPS credential helper without placing the token in the
 command or remote URL:
@@ -758,9 +760,17 @@ only. Git operations require their own command-local TLS exception while the
 server's certificate chain cannot be verified:
 
 ```bash
-GIT_TERMINAL_PROMPT=0 git -c http.sslVerify=false fetch origin main
-GIT_TERMINAL_PROMPT=0 git -c http.sslVerify=false push origin main
+GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/false SSH_ASKPASS=/bin/false \
+  git -c http.sslVerify=false fetch origin main
+GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/false SSH_ASKPASS=/bin/false \
+  git -c http.sslVerify=false push origin main
 ```
+
+Disabling inherited VS Code Askpass fallbacks makes a missing Tea credential
+fail instead of opening another authentication path. If the Tea login still
+exists but its Git integration is missing, restore the host-specific helper with
+`tea login helper setup`. Do not replace Tea with a temporary credential helper,
+an authorization header, or credentials in the remote URL.
 
 Never persist `http.sslVerify=false` in Git configuration. Use these commands
 only for the known `git.codegeist.ai` origin; servers with a valid certificate

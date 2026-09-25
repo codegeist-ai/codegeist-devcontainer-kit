@@ -22,19 +22,26 @@ Then:
    browser smoke starts non-headless Chrome with `DISPLAY=:0`, no X0 socket, and
    a real Wayland compositor.
 5. Run `tests/release-build.sh`.
-6. Run `task release-build -- release --push`.
+6. Confirm `tea login list` contains the Gitea login, repair its persistent Git
+   integration with `tea login helper setup`, and run
+   `task release-build -- release --push`. The release script suppresses Askpass
+   and uses only Tea's host-specific credential helper for the Gitea push.
 7. Verify the remote release branch exists with
-   `git ls-remote --heads origin refs/heads/release`.
+   `GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/false SSH_ASKPASS=/bin/false git -c
+   http.sslVerify=false ls-remote --heads origin refs/heads/release`.
 8. Verify the release branch commit contains only runtime files with
      `git ls-tree -r --name-only release`.
 9. Verify the release branch publishes the consumer guide as its primary README
    with `git show release:README.md` and compare it to `README_release.md`.
 10. Record the pushed release commit with
    `git rev-parse release` and
-   `git ls-remote --heads origin refs/heads/release`.
+   `GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/false SSH_ASKPASS=/bin/false git -c
+   http.sslVerify=false ls-remote --heads origin refs/heads/release`.
 11. Update the local `.devcontainer/` submodule checkout to the pushed release.
 12. Fetch the release branch inside the `.devcontainer` submodule with
-     `git -C .devcontainer fetch origin release`.
+     `GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/false SSH_ASKPASS=/bin/false git -c
+     credential.helper= -C .devcontainer fetch origin release`. This public
+     GitHub fetch is intentionally anonymous and does not use Tea.
 13. Check out the just-pushed release commit in the `.devcontainer` submodule with
      `git -C .devcontainer checkout origin/release`.
 14. Verify `.devcontainer` points at the same release commit with

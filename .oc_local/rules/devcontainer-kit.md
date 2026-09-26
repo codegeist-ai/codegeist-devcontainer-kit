@@ -50,6 +50,10 @@ local override templates in this repository.
   generic UUID generation. Do not configure `uuidd` as a persistent service.
 - When changing default image tools, update the matching documentation and smoke
   coverage if the tool is part of the documented development contract.
+- When adding an image tool, start with the minimum requested package and verify
+  its real user-facing command before adding recommended companion packages,
+  configuration, or persistent storage. Add those only for a reproduced failure
+  or an explicit runtime requirement.
 
 ## Runtime Assumptions
 

@@ -18,7 +18,8 @@ tests, and local AI workflow support. The image toolchain includes PowerShell as
 the official Gitea `tea` CLI, Renovate, shared terminal productivity and capture
 tools, Terraform and OpenTofu, plus shared QEMU and security-scan tools for
 infrastructure checks inside consuming devcontainers, including Trivy for
-project, configuration, and container-image scans.
+project, configuration, and container-image scans. It also includes Podman as a
+daemonless alternative alongside the existing Docker toolchain.
 The runtime tree includes the repository's [`LICENSE`](LICENSE) and is
 distributed under the Zero-Clause BSD (`0BSD`) license.
 
@@ -590,6 +591,24 @@ cp .devcontainer/compose.local.yml.example .codegeist/compose.local.yml
 generated bridge is an empty `services: {}` file by default, or a copy of
 `.codegeist/compose.local.yml` when that on-demand override exists.
 
+## Container Engines
+
+The release image provides both the existing Docker toolchain and Podman. Docker
+remains the default engine: the container entrypoint starts the nested Docker
+daemon, and Docker CLI, Compose, and Buildx continue to use it without
+redirection.
+
+Podman is an additional daemonless option. The normal workspace user can run a
+fully qualified image without `sudo`:
+
+```bash
+podman run --rm docker.io/library/hello-world
+```
+
+The image includes the `uidmap` and `slirp4netns` prerequisites required by this
+rootless path. It does not start a Podman API service, replace the `docker`
+command, or persist Podman storage across devcontainer recreation.
+
 ## Docker Registry Credentials
 
 The release image includes `pass`, GnuPG, and the verified official
@@ -815,7 +834,9 @@ GITEA_SERVER_URL=https://git.codegeist.ai
 GITEA_SERVER_TOKEN=your-application-token
 ```
 
-Add the login once. This command reads the token from
+Add the login once per persistent container user configuration. After a container
+rebuild, repeat the setup when `tea login list` no longer shows the login. This
+command reads the token from
 `GITEA_SERVER_TOKEN`, stores it in Tea's user-owned login configuration, and
 registers Tea as Git's HTTPS credential helper without placing the token in the
 command or remote URL:
@@ -835,9 +856,17 @@ only. Git operations require their own command-local TLS exception while the
 server's certificate chain cannot be verified:
 
 ```bash
-GIT_TERMINAL_PROMPT=0 git -c http.sslVerify=false fetch origin main
-GIT_TERMINAL_PROMPT=0 git -c http.sslVerify=false push origin main
+GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/false SSH_ASKPASS=/bin/false \
+  git -c http.sslVerify=false fetch origin main
+GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/false SSH_ASKPASS=/bin/false \
+  git -c http.sslVerify=false push origin main
 ```
+
+Disabling inherited VS Code Askpass fallbacks makes a missing Tea credential
+fail instead of opening another authentication path. If the Tea login still
+exists but its Git integration is missing, restore the host-specific helper with
+`tea login helper setup`. Do not replace Tea with a temporary credential helper,
+an authorization header, or credentials in the remote URL.
 
 Never persist `http.sslVerify=false` in Git configuration. Use these commands
 only for the known `git.codegeist.ai` origin; servers with a valid certificate

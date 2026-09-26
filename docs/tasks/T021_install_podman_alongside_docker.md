@@ -2,7 +2,7 @@
 
 - ID: `T021`
 - Type: `feature`
-- Status: `planned`
+- Status: `solved`
 - Parent: `none`
 - Public Tracking: `not requested`
 - Tracking Key: `e662058f-1335-4644-9a24-73bbbca42e84`
@@ -31,6 +31,28 @@ and a rootless storage driver. Do not configure those facilities preemptively.
 Run the real container smoke test first, diagnose any observed failure, and add
 only the smallest dependency or configuration justified by that failure.
 
+The initial runtime probe after installing only `podman` failed before pulling
+the image because Podman found multiple subordinate IDs but could not execute
+`newuidmap`:
+
+```text
+Error: command required for rootless mode with multiple IDs: exec: "newuidmap": executable file not found in $PATH
+```
+
+This observed failure justifies adding Debian's `uidmap` package. No other
+companion package or configuration is justified unless the next real run exposes
+another failure.
+
+After adding `uidmap`, Podman pulled the hello-world image successfully and then
+failed while creating its rootless network namespace:
+
+```text
+Error: could not find slirp4netns, the network namespace can't be configured: exec: "slirp4netns": executable file not found in $PATH
+```
+
+This second observed failure justifies adding Debian's `slirp4netns` package.
+The run had not demonstrated a need for any storage helper or configuration.
+
 ## Scope
 
 In scope:
@@ -52,8 +74,8 @@ In scope:
 
 Out of scope unless the initial smoke test proves a concrete need:
 
-- Adding `uidmap`, `fuse-overlayfs`, `slirp4netns`, `passt`, Buildah, Skopeo, or
-  other recommended companion packages explicitly.
+- Adding `fuse-overlayfs`, `passt`, Buildah, Skopeo, or other recommended
+  companion packages explicitly.
 - Writing `/etc/subuid` or `/etc/subgid` entries for the workspace user.
 - Adding `containers.conf`, `storage.conf`, registry configuration, aliases, or
   wrapper scripts.
@@ -78,6 +100,10 @@ Out of scope for this task:
 
 - `Dockerfile.base` installs `podman` from the configured Debian Bookworm
   repositories.
+- `Dockerfile.base` installs `uidmap` because the initial rootless run proved
+  that `newuidmap` is required by the generated subordinate ID mapping.
+- `Dockerfile.base` installs `slirp4netns` because the next rootless run proved
+  that it is required to configure the container network namespace.
 - The existing `docker` executable, nested Docker daemon, Compose, and Buildx
   remain installed and functional.
 - No Docker command, symlink, alias, socket, or environment variable is redirected
@@ -125,7 +151,9 @@ demonstrates that the current target list is insufficient.
 
 ## Implementation Plan
 
-1. Add only `podman` to the main APT package list in `Dockerfile.base`.
+1. Add `podman` to the main APT package list in `Dockerfile.base`, run the real
+   smoke test, and add `uidmap` and `slirp4netns` for their separately reproduced
+   rootless runtime failures.
 2. Extend the built-image smoke test with command-path and version checks.
 3. Extend the real devcontainer smoke path to run a fully qualified hello-world
    image through Podman as the workspace user without `sudo`.
@@ -156,7 +184,23 @@ demonstrates that the current target list is insufficient.
 
 ## Verification Results
 
-Not run; this task currently documents the agreed implementation plan only.
+- `bash -n tests/docker-build.sh tests/devcontainer-up.sh` passed.
+- `task check` passed, including the focused release-copy contract test.
+- `task docker-build` passed with Podman, `uidmap`, and `slirp4netns` installed
+  from Debian Bookworm packages.
+- The built-image smoke path found `/usr/bin/podman` and accepted
+  `podman --version`.
+- A direct privileged image probe ran
+  `podman run --rm docker.io/library/hello-world` successfully as the image's
+  normal `dev` user without `sudo`.
+- `task tests-run` passed all generic devcontainer kit tests in 151 seconds. Its
+  real `devcontainer up` path ran the same fully qualified hello-world image
+  with Podman as the generated workspace user and retained the nested Docker
+  smoke contract.
+- `tests/release-build.sh` passed through `task check` and `task tests-run`.
+- `git diff --check` passed.
+- No Podman API service, Docker redirection, persistent Podman volume, explicit
+  storage driver, or subordinate-ID configuration was added.
 
 ## Cancellation Reason
 

@@ -18,7 +18,8 @@ tests, and local AI workflow support. The image toolchain includes PowerShell as
 the official Gitea `tea` CLI, Renovate, shared terminal productivity and capture
 tools, Terraform and OpenTofu, plus shared QEMU and security-scan tools for
 infrastructure checks inside consuming devcontainers, including Trivy for
-project, configuration, and container-image scans.
+project, configuration, and container-image scans. It also includes Podman as a
+daemonless alternative alongside the existing Docker toolchain.
 The runtime tree includes the repository's [`LICENSE`](LICENSE) and is
 distributed under the Zero-Clause BSD (`0BSD`) license.
 
@@ -589,6 +590,24 @@ cp .devcontainer/compose.local.yml.example .codegeist/compose.local.yml
 `initialize.sh` writes `.devcontainer/compose.user.gen.yml` on every start. The
 generated bridge is an empty `services: {}` file by default, or a copy of
 `.codegeist/compose.local.yml` when that on-demand override exists.
+
+## Container Engines
+
+The release image provides both the existing Docker toolchain and Podman. Docker
+remains the default engine: the container entrypoint starts the nested Docker
+daemon, and Docker CLI, Compose, and Buildx continue to use it without
+redirection.
+
+Podman is an additional daemonless option. The normal workspace user can run a
+fully qualified image without `sudo`:
+
+```bash
+podman run --rm docker.io/library/hello-world
+```
+
+The image includes the `uidmap` and `slirp4netns` prerequisites required by this
+rootless path. It does not start a Podman API service, replace the `docker`
+command, or persist Podman storage across devcontainer recreation.
 
 ## Docker Registry Credentials
 

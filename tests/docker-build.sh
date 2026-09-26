@@ -66,6 +66,10 @@ docker run --rm --entrypoint jbang codegeist-devcontainer-kit:local --version >/
 docker run --rm --entrypoint renovate codegeist-devcontainer-kit:local --version >/dev/null
 docker run --rm --entrypoint tea codegeist-devcontainer-kit:local --version >/dev/null
 docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc '
+  test "$(command -v podman)" = "/usr/bin/podman"
+  podman --version | grep -E "^podman version " >/dev/null
+'
+docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc '
   export BITWARDENCLI_APPDATA_DIR=/tmp/bitwarden-cli-test
   install -d -m 0700 "$BITWARDENCLI_APPDATA_DIR"
   printf "%s\n" "{}" >"$BITWARDENCLI_APPDATA_DIR/data.json"

@@ -2,7 +2,8 @@
 #
 # Why this exists:
 # - Matches the planner devcontainer toolchain for product work.
-# - Keeps Docker available inside the container via the custom entrypoint.
+# - Keeps Docker available inside the container via the custom entrypoint and
+#   installs Podman as an additional daemonless container engine.
 # - Installs the Java 25 and GraalVM toolchain needed by `app/codegeist`.
 # - Provides a system Maven installation so the app does not need a wrapper.
 # - Adds the Nix package manager for later package migration work without
@@ -174,6 +175,7 @@ RUN apt-get update \
       openssh-client \
       pass \
       powershell \
+      podman \
       procps \
       pwgen \
       python3 \
@@ -183,6 +185,7 @@ RUN apt-get update \
       qemu-system-x86 \
       qemu-utils \
       rsync \
+      slirp4netns \
       sslscan \
       sshpass \
       socat \
@@ -194,6 +197,7 @@ RUN apt-get update \
       tofu \
       vault \
       unzip \
+      uidmap \
       uuid-runtime \
       wget \
       x11-apps \

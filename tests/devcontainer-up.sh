@@ -72,6 +72,10 @@ done
 
 [[ -n "$workspace_ready" ]] || fail "devcontainer workspace did not expose nested Docker to the remote user"
 
+docker exec -u "$expected_user_name" "$container_id" \
+  podman run --rm docker.io/library/hello-world >/dev/null \
+  || fail "workspace user could not run a hello-world container with Podman"
+
 docker exec -u "$expected_user_name" "$container_id" bash -c '
   set -euo pipefail
 
@@ -90,4 +94,4 @@ case "$(<"$opencode_output_file")" in
     ;;
 esac
 
-pass "devcontainer up starts a workspace with nested Docker and OpenCode available"
+pass "devcontainer up starts a workspace with Docker, Podman, and OpenCode available"

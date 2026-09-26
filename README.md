@@ -247,6 +247,23 @@ cp .devcontainer/compose.local.yml.example .codegeist/compose.local.yml
 generated bridge is an empty `services: {}` file by default, or a copy of
 `.codegeist/compose.local.yml` when that on-demand override exists.
 
+## Container Engines
+
+The image provides both the existing Docker toolchain and Podman. Docker remains
+the default engine: the container entrypoint starts the nested Docker daemon,
+and Docker CLI, Compose, and Buildx continue to use it without redirection.
+
+Podman is an additional daemonless option. The normal workspace user can run a
+fully qualified image without `sudo`:
+
+```bash
+podman run --rm docker.io/library/hello-world
+```
+
+The image includes the `uidmap` and `slirp4netns` prerequisites required by this
+rootless path. It does not start a Podman API service, replace the `docker`
+command, or persist Podman storage across devcontainer recreation.
+
 ## Docker Registry Credentials
 
 The image includes `pass`, GnuPG, and the verified official

@@ -46,7 +46,7 @@
 # - entrypoint.sh
 # - initialize.sh
 # - scripts/release-build.sh
-FROM debian:bookworm-slim
+FROM ubuntu:26.04
 
 ARG CONTAINER_USER=vscode
 ARG CONTAINER_GROUP=vscode
@@ -66,6 +66,7 @@ ARG GITLEAKS_VERSION=8.30.1
 ARG GITLEAKS_SHA256=551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
 ARG WHISPER_CPP_VERSION=1.9.4
 ARG WHISPER_CPP_SHA256=57e280cee375ab02425b806ad5146b99f6eb9357e3c2b31357c8a6af2e2e44ae
+ARG POWERSHELL_VERSION=7.6.6
 
 ENV LANG=C.UTF-8 \
     LC_CTYPE=C.UTF-8 \
@@ -98,19 +99,16 @@ RUN install -m 0755 -d /etc/apt/keyrings \
  && chmod a+r /etc/apt/keyrings/fury-nushell.gpg \
  && printf 'deb [signed-by=/etc/apt/keyrings/fury-nushell.gpg] https://apt.fury.io/nushell/ /\n' \
       > /etc/apt/sources.list.d/fury-nushell.list \
- && curl -fsSL https://download.docker.com/linux/debian/gpg \
-      -o /etc/apt/keyrings/docker.asc \
+ && curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+       -o /etc/apt/keyrings/docker.asc \
  && chmod a+r /etc/apt/keyrings/docker.asc \
- && . /etc/os-release \
- && printf 'Types: deb\nURIs: https://download.docker.com/linux/debian\nSuites: %s\nComponents: stable\nSigned-By: /etc/apt/keyrings/docker.asc\n' \
-      "${VERSION_CODENAME}" > /etc/apt/sources.list.d/docker.sources \
+ && printf 'Types: deb\nURIs: https://download.docker.com/linux/ubuntu\nSuites: %s\nComponents: stable\nSigned-By: /etc/apt/keyrings/docker.asc\n' \
+      'resolute' > /etc/apt/sources.list.d/docker.sources \
  && curl -fsSL https://packages.microsoft.com/keys/microsoft.asc \
       | gpg --dearmor -o /etc/apt/keyrings/microsoft.gpg \
  && chmod a+r /etc/apt/keyrings/microsoft.gpg \
  && printf 'Types: deb\nURIs: https://packages.microsoft.com/repos/code\nSuites: stable\nComponents: main\nSigned-By: /etc/apt/keyrings/microsoft.gpg\n' \
       > /etc/apt/sources.list.d/vscode.sources \
- && printf 'Types: deb\nURIs: https://packages.microsoft.com/debian/12/prod\nSuites: bookworm\nComponents: main\nSigned-By: /etc/apt/keyrings/microsoft.gpg\n' \
-      > /etc/apt/sources.list.d/microsoft-prod.sources \
  && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
        -o /etc/apt/keyrings/githubcli-archive-keyring.gpg \
   && chmod a+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
@@ -120,7 +118,7 @@ RUN install -m 0755 -d /etc/apt/keyrings \
       | gpg --dearmor -o /etc/apt/keyrings/hashicorp-archive-keyring.gpg \
  && chmod a+r /etc/apt/keyrings/hashicorp-archive-keyring.gpg \
  && printf 'Types: deb\nURIs: https://apt.releases.hashicorp.com\nSuites: %s\nComponents: main\nSigned-By: /etc/apt/keyrings/hashicorp-archive-keyring.gpg\n' \
-       "${VERSION_CODENAME}" > /etc/apt/sources.list.d/hashicorp.sources \
+       'resolute' > /etc/apt/sources.list.d/hashicorp.sources \
  && curl -fsSL https://get.opentofu.org/opentofu.gpg \
        -o /etc/apt/keyrings/opentofu.gpg \
  && curl -fsSL https://packages.opentofu.org/opentofu/tofu/gpgkey \
@@ -151,6 +149,7 @@ RUN apt-get update \
       espeak-ng \
       ffmpeg \
       ftp \
+      fuse-overlayfs \
       gh \
       git \
       jq \
@@ -174,14 +173,13 @@ RUN apt-get update \
       nushell \
       openssh-client \
       pass \
-      powershell \
+      passt \
       podman \
       procps \
       pwgen \
       python3 \
       python3-dev \
       python3-pip \
-      qemu-kvm \
       qemu-system-x86 \
       qemu-utils \
       rsync \
@@ -208,6 +206,17 @@ RUN apt-get update \
       zlib1g-dev \
   && setcap -r /usr/bin/vault \
   && rm -rf /var/lib/apt/lists/*
+
+# Ubuntu 26.04 is supported by PowerShell, but its Microsoft product feed does
+# not publish PowerShell. Install Microsoft's supported universal package.
+RUN curl -fsSL \
+      "https://github.com/PowerShell/PowerShell/releases/download/v${POWERSHELL_VERSION}/powershell_${POWERSHELL_VERSION}-1.deb_amd64.deb" \
+      -o /tmp/powershell.deb \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends /tmp/powershell.deb \
+ && rm -f /tmp/powershell.deb \
+ && rm -rf /var/lib/apt/lists/* \
+ && pwsh -NoLogo -NoProfile -Command 'exit 0'
 
 RUN curl -LsSf https://astral.sh/uv/install.sh \
   | env UV_UNMANAGED_INSTALL=/usr/local/bin sh
@@ -446,7 +455,8 @@ RUN curl -Ls https://sh.jbang.dev \
  && ln -sf /opt/jbang/bin/jbang /usr/local/bin/jbang \
  && jbang --version
 
-RUN groupadd --gid "$CONTAINER_GID" "$CONTAINER_GROUP" \
+RUN userdel --remove ubuntu \
+ && groupadd --gid "$CONTAINER_GID" "$CONTAINER_GROUP" \
  && useradd --uid "$CONTAINER_UID" --gid "$CONTAINER_GID" --create-home --shell /bin/bash "$CONTAINER_USER" \
  && install -d -m 0755 /data/Projects \
  && install -d -m 0755 /host \
@@ -470,7 +480,7 @@ RUN groupadd --gid "$CONTAINER_GID" "$CONTAINER_GROUP" \
 RUN su - "$CONTAINER_USER" -c 'curl -L https://nixos.org/nix/install | sh -s -- --no-daemon --no-modify-profile'
 
 # Make login shells pick up the single-user Nix profile and Neovim as well. The
-# plain PATH env is not enough because login shells reset Debian's default PATH.
+# plain PATH env is not enough because login shells reset Ubuntu's default PATH.
 RUN printf '%s\n' \
       'if [ -e "/home/'"$CONTAINER_USER"'/.nix-profile/etc/profile.d/nix.sh" ]; then' \
       '  . "/home/'"$CONTAINER_USER"'/.nix-profile/etc/profile.d/nix.sh"' \

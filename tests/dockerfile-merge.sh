@@ -45,7 +45,7 @@ rm -f "$merged_dockerfile" "$root_dockerfile"
 
 [[ ! -e "$root_dockerfile" ]] || fail "root .codegeist/Dockerfile was created without an on-demand extension"
 [[ -f "$merged_dockerfile" ]] || fail "merged Dockerfile was not generated"
-[[ "$(<"$merged_dockerfile")" == *"FROM debian:bookworm-slim"* ]] || fail "merged Dockerfile does not include the kit Dockerfile"
+[[ "$(<"$merged_dockerfile")" == *"FROM ubuntu:26.04"* ]] || fail "merged Dockerfile does not include the Ubuntu kit base image"
 [[ "$(<"$merged_dockerfile")" != *"Local project Dockerfile extension from ../.codegeist/Dockerfile"* ]] || fail "merged Dockerfile includes a local extension marker without an extension file"
 [[ -z "$(git -C "$fixture_dir" status --porcelain -- .devcontainer/Dockerfile.merged.gen)" ]] || fail "merged Dockerfile is not ignored"
 compose_config="$(cd "$fixture_dir/.devcontainer" && docker compose -f docker-compose.yml -f compose.local.gen.yml -f compose.user.gen.yml config)"

@@ -10,8 +10,8 @@ repositories at `.devcontainer/`, either as a Git subtree or as a Git submodule.
 The `main` branch is the canonical source and contribution target. The generated
 `release` branch is the runtime-only tree intended for consuming
 `.devcontainer/` submodules and is not an implementation target.
-The source `Dockerfile.base` intentionally carries the full
-Codegeist/planner-style toolchain, including Docker CE, Node 24, VS Code,
+The source `Dockerfile.base` uses Ubuntu 26.04 LTS and intentionally carries the
+full Codegeist/planner-style toolchain, including Docker CE, Node 24, VS Code,
 GitHub CLI, the Gitea `tea` CLI, Maven, GraalVM, JBang, Hugo, Nix, PowerShell
 through `pwsh`, Task
 with Bash completion, OpenCode tooling, the Codegeist CLI installed through the
@@ -260,9 +260,10 @@ fully qualified image without `sudo`:
 podman run --rm docker.io/library/hello-world
 ```
 
-The image includes the `uidmap` and `slirp4netns` prerequisites required by this
-rootless path. It does not start a Podman API service, replace the `docker`
-command, or persist Podman storage across devcontainer recreation.
+The image includes the `uidmap`, `slirp4netns`, `fuse-overlayfs`, and `passt`
+prerequisites required by this rootless path on the containerized workspace
+filesystem. It does not start a Podman API service, replace the `docker` command,
+or persist Podman storage across devcontainer recreation.
 
 ## Docker Registry Credentials
 
@@ -419,7 +420,7 @@ in the disposable test fixture, not in the released image.
 ## QEMU Support
 
 The devcontainer image includes QEMU/KVM tooling for local VM and ISO workflows:
-`qemu-system-x86_64`, `qemu-img`, `qemu-kvm`, `cloud-localds`, bridge/network
+`qemu-system-x86_64`, `qemu-img`, `cloud-localds`, bridge/network
 utilities, and small automation helpers such as `expect`, `sshpass`, and
 `pwgen`. The Compose runtime is privileged, maps `/dev/kvm` explicitly, and adds
 the numeric KVM device group so QEMU can use host virtualization devices when the
@@ -726,7 +727,7 @@ PipeWire configuration, initialization behavior, or Compose configuration.
 
 ## UUID Generation
 
-The image includes `uuidgen` from Debian's `uuid-runtime` package for generating
+The image includes `uuidgen` from Ubuntu's `uuid-runtime` package for generating
 UUIDs from scripts or the terminal:
 
 ```bash
@@ -859,7 +860,7 @@ unset BW_SESSION
 
 The image includes Terraform as `terraform`, OpenTofu as `tofu`, and the
 HashiCorp Vault CLI as `vault`. Vault is installed from HashiCorp's official
-signed Debian repository alongside Terraform; the kit does not configure a
+signed Ubuntu repository alongside Terraform; the kit does not configure a
 Vault server, address, authentication method, or token. Point the CLI at your
 Vault server and authenticate through the method required by that server:
 
@@ -884,7 +885,7 @@ The workspace service always provides `/run/secrets` as a `tmpfs` for
 configurations that choose to render secrets there. Using that path is optional;
 the kit does not inspect or modify `secrets.hcl`.
 
-OpenTofu is installed from its official signed Debian repository and remains a
+OpenTofu is installed from its official signed APT repository and remains a
 separate native command rather than replacing or aliasing Terraform. From a
 project with OpenTofu configuration, use the normal CLI workflow:
 
@@ -1049,6 +1050,7 @@ docker-compose.yml
 entrypoint.sh
 initialize.sh
 cmds/oc
+cmds/oc-record
 scripts/chrome.sh
 ```
 

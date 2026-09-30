@@ -11,7 +11,7 @@
 
 Update the explicitly pinned GraalVM, Hugo, VHS, and Tea installations in the
 base devcontainer image to their current compatible releases while preserving
-the existing Java, operating-system, Node.js, and Helm major-version contracts.
+the existing Java, Ubuntu 26.04, Node.js, and Helm major-version contracts.
 
 ## Context
 
@@ -34,11 +34,6 @@ JDK version value. The Linux x64 archive is published under tag
 `graalvm-community-jdk-25i3-25.0.4.1_linux-x64_bin.tar.gz`. Hugo likewise
 changed its Linux archive suffix from `Linux-64bit` to `linux-amd64`.
 
-The parent repository currently has an intentional uncommitted `.devcontainer`
-gitlink update from the preceding release workflow. This task must not absorb,
-reset, or otherwise change that existing user state unless a later explicit
-save instruction includes it.
-
 ## Scope
 
 In scope:
@@ -58,7 +53,7 @@ In scope:
 
 Out of scope:
 
-- Migrating `debian:bookworm-slim` to Debian 13 `trixie`.
+- Changing the Ubuntu 26.04 base-image contract owned by T023.
 - Moving Node.js from the `node_24.x` channel to Node.js 26.
 - Moving from Helm 3 to Helm 4.
 - Pinning every currently floating APT, npm, PyPI, installer-script, or
@@ -83,11 +78,9 @@ Out of scope:
   VHS, and Tea through the existing built-image smoke path.
 - Existing image tools, devcontainer lifecycle behavior, browser support,
   QEMU/KVM, microphone recording, and release-copy behavior remain functional.
-- Debian Bookworm, Node.js 24, and Helm 3 remain unchanged.
+- Ubuntu 26.04, Node.js 24, and Helm 3 remain unchanged.
 - Any affected exact-version documentation is current, while historical solved
   task records remain unchanged.
-- The pre-existing parent `.devcontainer` gitlink change is preserved and is
-  not included accidentally in implementation-only edits.
 
 ## Verification
 

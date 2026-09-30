@@ -12,7 +12,36 @@ script_dir="$(dirname "$(readlink -f "$0")")"
 # shellcheck source=./helpers.sh
 source "$script_dir/helpers.sh"
 
+local_suite=0
+if [ -z "${suite_tmp_dir:-}" ]; then
+  setup_suite
+  local_suite=1
+fi
+
+if [ "$local_suite" -eq 1 ]; then
+  trap cleanup_suite EXIT
+fi
+
 task_project docker-build
+
+docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc '
+  set -eu
+  . /etc/os-release
+  test "$ID" = ubuntu
+  test "$VERSION_ID" = 26.04
+  test "$VERSION_CODENAME" = resolute
+  grep -F "URIs: https://download.docker.com/linux/ubuntu" /etc/apt/sources.list.d/docker.sources >/dev/null
+  grep -F "Suites: resolute" /etc/apt/sources.list.d/docker.sources >/dev/null
+  ! grep -R -E "download\.docker\.com/linux/debian|packages\.microsoft\.com/debian/12|bookworm" /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null
+  docker compose version >/dev/null
+  docker buildx version >/dev/null
+  pwsh -NoLogo -NoProfile -Command "exit 0"
+  code --version >/dev/null
+  python3 -c "import graphify, lxml_html_clean, trafilatura"
+  ddgr --version >/dev/null
+  ssh-audit -h >/dev/null
+  qemu-system-x86_64 --version >/dev/null
+'
 
 trivy_fixture_dir="$suite_tmp_dir/trivy-config"
 mkdir -p "$trivy_fixture_dir"

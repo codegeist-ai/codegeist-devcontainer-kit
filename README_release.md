@@ -3,7 +3,7 @@
 This document explains how consuming projects should use this repository's
 runtime-only `release` branch as a `.devcontainer` Git submodule. It also gives
 coding agents the rules they need when maintaining projects that consume this
-kit.
+kit. The image uses Ubuntu 26.04 LTS.
 
 ## Purpose
 
@@ -605,9 +605,10 @@ fully qualified image without `sudo`:
 podman run --rm docker.io/library/hello-world
 ```
 
-The image includes the `uidmap` and `slirp4netns` prerequisites required by this
-rootless path. It does not start a Podman API service, replace the `docker`
-command, or persist Podman storage across devcontainer recreation.
+The image includes the `uidmap`, `slirp4netns`, `fuse-overlayfs`, and `passt`
+prerequisites required by this rootless path on the containerized workspace
+filesystem. It does not start a Podman API service, replace the `docker` command,
+or persist Podman storage across devcontainer recreation.
 
 ## Docker Registry Credentials
 
@@ -737,7 +738,7 @@ belong in consuming-repository overrides or future focused kit work.
 ## QEMU Support
 
 The release kit includes QEMU/KVM tooling for local VM and ISO workflows:
-`qemu-system-x86_64`, `qemu-img`, `qemu-kvm`, `cloud-localds`, bridge/network
+`qemu-system-x86_64`, `qemu-img`, `cloud-localds`, bridge/network
 utilities, and small automation helpers such as `expect`, `sshpass`, and
 `pwgen`. The Compose runtime is privileged, maps `/dev/kvm` explicitly, and adds
 the numeric KVM device group so QEMU can use host virtualization devices when the
@@ -806,7 +807,7 @@ dependency trees, so prefer a focused path and depth when appropriate.
 
 ## UUID Generation
 
-The image includes `uuidgen` from Debian's `uuid-runtime` package for generating
+The image includes `uuidgen` from Ubuntu's `uuid-runtime` package for generating
 UUIDs from scripts or the terminal:
 
 ```bash
@@ -938,7 +939,7 @@ unset BW_SESSION
 
 The image includes Terraform as `terraform`, OpenTofu as `tofu`, and the
 HashiCorp Vault CLI as `vault`. Vault is installed from HashiCorp's official
-signed Debian repository alongside Terraform; the release kit does not configure
+signed Ubuntu repository alongside Terraform; the release kit does not configure
 a Vault server, address, authentication method, or token. Point the CLI at your
 Vault server and authenticate through the method required by that server:
 
@@ -963,7 +964,7 @@ The workspace service always provides `/run/secrets` as a `tmpfs` for
 configurations that choose to render secrets there. Using that path is optional;
 the kit does not inspect or modify `secrets.hcl`.
 
-OpenTofu is installed from its official signed Debian repository and remains a
+OpenTofu is installed from its official signed APT repository and remains a
 separate native command rather than replacing or aliasing Terraform. From a
 project with OpenTofu configuration, use the normal CLI workflow:
 

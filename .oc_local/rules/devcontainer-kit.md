@@ -28,9 +28,10 @@ local override templates in this repository.
   repository later records a version-pinning policy.
 - Keep Podman installed alongside Docker without replacing the `docker` command,
   redirecting Docker clients, starting a Podman service, or adding persistent
-  Podman storage. Verify it with a real rootless hello-world run as the workspace
-  user, and add companion packages or configuration only for reproduced failures.
-- Keep QEMU/KVM and related VM utility tools in the default image: `qemu-kvm`,
+  Podman storage. Keep `uidmap`, `slirp4netns`, `fuse-overlayfs`, and `passt` for
+  the tested rootless path, and verify it with a real hello-world run as the
+  workspace user.
+- Keep QEMU/KVM and related VM utility tools in the default image:
   `qemu-system-x86`, `qemu-utils`, `cloud-image-utils`, `bridge-utils`, `kmod`,
   `iptables`, `dnsmasq`, `cpio`, `sshpass`, `pwgen`, `expect`, and
   `tigervnc-viewer`. Verify QEMU with the Alpine ISO smoke test and keep that
@@ -50,7 +51,7 @@ local override templates in this repository.
   tmux, without adding session-management behavior. It sets the tmux server's
   `set-clipboard` option to `on` so OpenCode can copy through OSC 52; document
   that this permits application-originated clipboard updates in that server.
-- Keep `uuidgen` from Debian's `uuid-runtime` package in the default image for
+- Keep `uuidgen` from Ubuntu's `uuid-runtime` package in the default image for
   generic UUID generation. Do not configure `uuidd` as a persistent service.
 - When changing default image tools, update the matching documentation and smoke
   coverage if the tool is part of the documented development contract.

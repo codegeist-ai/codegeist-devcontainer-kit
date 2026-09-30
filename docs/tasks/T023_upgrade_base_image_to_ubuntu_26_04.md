@@ -2,7 +2,7 @@
 
 - ID: `T023`
 - Type: `build`
-- Status: `planned`
+- Status: `solved`
 - Parent: `none`
 - Public Tracking: `not requested`
 - Tracking Key: `1a7b2d81-18ad-4cf3-a351-5e2cfe6559cd`
@@ -20,7 +20,7 @@ or considering the migration complete.
 
 ## Context
 
-`Dockerfile.base` currently starts from `debian:bookworm-slim`. Its main APT
+Before implementation, `Dockerfile.base` started from `debian:bookworm-slim`. Its main APT
 transaction mixes distribution packages with several signed third-party
 repositories and direct binary installations. An operating-system migration is
 therefore broader than changing the `FROM` line.
@@ -30,7 +30,7 @@ publishes the stable `26.04` and `resolute` tags. Use `ubuntu:26.04` so the imag
 continues to receive the supported 26.04 base refreshes without moving to a
 later Ubuntu release automatically.
 
-The repository configuration currently contains Debian-specific third-party
+The repository configuration contained Debian-specific third-party
 sources:
 
 - Docker's key and repository use `download.docker.com/linux/debian` with the
@@ -176,9 +176,8 @@ Do not edit every historical mention of Debian indiscriminately.
 
 ## Dependencies And Sequencing
 
-- Complete or reconcile `T014` first. Its planned pinned-tool refresh explicitly
-  preserves Debian Bookworm, while this task replaces that operating-system
-  contract and touches the same Dockerfile and image tests.
+- T014 was reconciled to preserve Ubuntu 26.04 when its independent pinned-tool
+  refresh is implemented later.
 - Coordinate with `T020` and `T022` if they are implemented concurrently because
   they modify the same integration suite and runtime documentation. They are not
   semantic prerequisites for the base-image migration.
@@ -188,42 +187,15 @@ Do not edit every historical mention of Debian indiscriminately.
 
 ## Implementation Plan
 
-1. Record a Bookworm baseline before editing:
-   - Build the current image and capture installed command versions, selected APT
-     package origins, `/etc/os-release`, and relevant runtime smoke results.
-   - Keep the baseline focused on comparison data; do not commit generated
-     package inventories or raw build logs.
-2. Create a disposable Ubuntu 26.04 build probe:
-   - Change only the base image and distribution-specific repository endpoints
-     in the probe.
-   - Run `apt-get update` and inspect failures by repository and package rather
-     than applying broad compatibility workarounds.
-   - Confirm Docker and HashiCorp use their supported `resolute` suites and
-     determine the official Microsoft Ubuntu 26.04 source.
-3. Update `Dockerfile.base` with the smallest validated source changes:
-   - Switch to `ubuntu:26.04`.
-   - Switch Docker from `/linux/debian` to `/linux/ubuntu`.
-   - Replace the Microsoft Debian 12 Bookworm product source with the verified
-     Ubuntu 26.04 source.
-   - Keep generic signed repositories unchanged unless the probe proves a
-     compatibility requirement.
-4. Resolve distribution-package differences one failure at a time. Preserve
-   package behavior and record the reason for every renamed, added, or removed
-   package in this task's implementation or verification notes.
-5. Build the complete image and extend `tests/docker-build.sh` to assert Ubuntu
-   identity, critical package origins, Python tools, PowerShell, and representative
-   native binaries in addition to the existing tool smoke coverage.
-6. Update `tests/dockerfile-merge.sh` for the Ubuntu base assertion and run the
-   focused image and merge tests before broader runtime work.
-7. Run the real Dev Containers lifecycle and verify nested Docker, rootless
-   Podman, user identity, mounts, browsers, audio, QEMU, Vault, OpenCode, and
-   worktree behavior. Fix only failures caused by the Ubuntu migration.
-8. Rewrite current source, release, contributor, and local agent guidance to
-   identify Ubuntu 26.04 and its package sources. Preserve accurate historical
-   task records.
-9. Run the full integration suite, release-copy verification, security-relevant
-   checks, and whitespace validation. Record concrete results and set this task
-   to `solved` only after the full image and runtime contracts pass.
+1. Update focused tests for the Ubuntu base, exact runtime identity, Ubuntu
+   Docker source, PowerShell, VS Code, Python tools, and QEMU.
+2. Migrate `Dockerfile.base` directly to Ubuntu 26.04, install PowerShell from
+   Microsoft's supported universal package, remove `qemu-kvm`, and replace the
+   base image's `ubuntu` account with the configured workspace user.
+3. Build the complete image and fix only reproduced Ubuntu failures. Preserve
+   every other installation mechanism and pinned tool version.
+4. Update current documentation, then run focused checks, the complete real
+   integration suite, release-copy verification, and whitespace validation.
 
 ## Verification
 
@@ -246,8 +218,29 @@ Do not edit every historical mention of Debian indiscriminately.
 
 ## Verification Results
 
-Not run; this task currently records the Ubuntu 26.04 migration scope, known
-repository changes, compatibility risks, and implementation plan only.
+- `Dockerfile.base` now uses `ubuntu:26.04` directly. The image built
+  successfully and reported matching
+  `ID`, `VERSION_ID`, and `VERSION_CODENAME` values. Docker and HashiCorp used
+  their signed Resolute repositories; no active Bookworm, Docker Debian, or
+  Microsoft Debian 12 source remained.
+- Microsoft did not publish PowerShell in its Ubuntu 26.04 product index during
+  implementation. The image therefore installs Microsoft's officially supported
+  universal PowerShell 7.6.6 package; both `pwsh` and `code` started successfully.
+- Ubuntu's built-in `ubuntu` account was removed before creating the configured
+  workspace user. `qemu-kvm` was unavailable and unnecessary because
+  `qemu-system-x86` provides the tested emulator commands and KVM execution.
+- The first full-suite Podman run reproduced missing overlay storage support, so
+  `fuse-overlayfs` was added. The next run reproduced Podman's missing `pasta`
+  network helper, so `passt` was added. No other compatibility packages or
+  fallback paths were introduced.
+- `task check`, `task docker-build`, `tests/dockerfile-merge.sh`, and the focused
+  `tests/docker-build.sh` image and tool checks passed.
+- `task tests-run` passed all real integrations in 563 seconds, including nested
+  Docker, rootless Podman hello-world, QEMU/KVM, Chrome headless and visible
+  Wayland, FFmpeg/Pulse/Whisper, Vault, OpenCode, UID/GID and mounts, worktrees,
+  parallel branches, and submodule consumption.
+- Release-copy verification passed with `Dockerfile.base` copied byte-for-byte
+  as release `Dockerfile`.
 
 ## Cancellation Reason
 

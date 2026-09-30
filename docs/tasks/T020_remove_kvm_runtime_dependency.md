@@ -51,14 +51,14 @@ In scope:
   current justification.
 - Convert the Alpine QEMU smoke test from KVM acceleration to TCG software
   emulation, without `--privileged`, `/dev/kvm`, or a KVM group.
-- Keep QEMU, `qemu-kvm`, VM utilities, and related automation tools installed in
+- Keep QEMU, VM utilities, and related automation tools installed in
   `Dockerfile.base`.
 - Update source, release, contributor, and local agent documentation to remove
   KVM as a runtime and test prerequisite.
 
 Out of scope:
 
-- Removing QEMU, `qemu-kvm`, cloud-image, networking, or VM automation packages
+- Removing QEMU, cloud-image, networking, or VM automation packages
   from the image.
 - Removing nested Docker or changing its user-visible behavior.
 - Replacing rootful DinD with rootless Docker, a host Docker socket, a sidecar,
@@ -87,7 +87,7 @@ Out of scope:
 - The QEMU smoke path has no `/dev/kvm` availability, permission, or nested
   virtualization prerequisite.
 - `Dockerfile.base` continues to install the existing QEMU and VM utility
-  packages, including `qemu-kvm`, `qemu-system-x86`, and `qemu-utils`.
+  packages, including `qemu-system-x86` and `qemu-utils`.
 - Source and release documentation accurately describe software-emulated QEMU
   usage and the retained DinD privilege boundary.
 - No source file describes KVM as a required host facility for the standard

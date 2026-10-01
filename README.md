@@ -13,8 +13,8 @@ projects should pin `.devcontainer` to the `release` branch.
 
 The `release` branch is a runtime-only tree. It contains the files needed by the
 Dev Containers extension and excludes this repository's development-only files,
-tests, and local AI workflow support. The image toolchain includes PowerShell as
-`pwsh` for cross-platform shell and automation work, Task with Bash completion,
+tests, and local AI workflow support. The image toolchain includes Go, PowerShell
+as `pwsh` for cross-platform shell and automation work, Task with Bash completion,
 the official Gitea `tea` CLI, Renovate, shared terminal productivity and capture
 tools, Terraform and OpenTofu, plus shared QEMU and security-scan tools for
 infrastructure checks inside consuming devcontainers, including Trivy for

@@ -152,6 +152,7 @@ RUN apt-get update \
       fuse-overlayfs \
       gh \
       git \
+      golang-go \
       jq \
       lftp \
       gnupg \

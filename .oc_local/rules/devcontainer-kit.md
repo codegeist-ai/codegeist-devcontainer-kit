@@ -5,6 +5,8 @@ local override templates in this repository.
 
 ## Default Toolchain
 
+- Keep Ubuntu's `golang-go` package in the default image and verify the installed
+  `go` command through the built-image smoke test.
 - Keep Mermaid CLI (`@mermaid-js/mermaid-cli`, `mmdc`) in the default image
   toolchain. It supports repo-owned software documentation diagrams without
   requiring per-project installation.

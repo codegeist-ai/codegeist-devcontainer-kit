@@ -35,6 +35,7 @@ docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc '
   ! grep -R -E "download\.docker\.com/linux/debian|packages\.microsoft\.com/debian/12|bookworm" /etc/apt/sources.list /etc/apt/sources.list.d 2>/dev/null
   docker compose version >/dev/null
   docker buildx version >/dev/null
+  go version >/dev/null
   pwsh -NoLogo -NoProfile -Command "exit 0"
   code --version >/dev/null
   python3 -c "import graphify, lxml_html_clean, trafilatura"
@@ -138,7 +139,7 @@ docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc \
     test "$(command -v oc-record)" = "/usr/local/bin/oc-record"
     dpkg-query -W bash-completion >/dev/null
     test -s /usr/share/bash-completion/completions/task
-    grep -F "function _task()" /usr/share/bash-completion/completions/task >/dev/null
+    grep -F "_task() {" /usr/share/bash-completion/completions/task >/dev/null
     grep -F "complete -F _task \"\$TASK_CMD\"" /usr/share/bash-completion/completions/task >/dev/null
     grep -F "ln -sf \"\$launcher\" /usr/local/bin/chrome" /usr/local/bin/devcontainer-entrypoint >/dev/null
     grep -F "PATH=\"\$DEVCONTAINER_WORKSPACE_FOLDER/.devcontainer/scripts:\$PATH\"" /etc/profile.d/codegeist-workspace-scripts.sh >/dev/null

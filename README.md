@@ -11,7 +11,7 @@ The `main` branch is the canonical source and contribution target. The generated
 `release` branch is the runtime-only tree intended for consuming
 `.devcontainer/` submodules and is not an implementation target.
 The source `Dockerfile.base` uses Ubuntu 26.04 LTS and intentionally carries the
-full Codegeist/planner-style toolchain, including Docker CE, Node 24, VS Code,
+full Codegeist/planner-style toolchain, including Docker CE, Node 24, Go, VS Code,
 GitHub CLI, the Gitea `tea` CLI, Maven, GraalVM, JBang, Hugo, Nix, PowerShell
 through `pwsh`, Task
 with Bash completion, OpenCode tooling, the Codegeist CLI installed through the

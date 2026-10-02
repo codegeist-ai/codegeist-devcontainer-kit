@@ -55,16 +55,15 @@ the Dev Containers CLI against the repository root:
 npx --yes @devcontainers/cli up --workspace-folder <repo-root>
 ```
 
-VS Code opens the container workspace at an absolute host-matching path. Without
-`BRANCH`, that path resolves back to the repository root. With `BRANCH`,
-`initializeCommand` creates or reuses the matching Git worktree and
-`devcontainer.json` opens `.worktrees/<branch>` as the remote workspace while
-`docker-compose.yml` still mounts the repository root at its host path for
-linked-worktree Git metadata. The generated Compose project name is
-branch-first, for example `develop0-myrepo`, so multiple Remote SSH windows for
-different branches get separate `workspace` containers. Keeping stable
-per-checkout paths prevents OpenCode sessions from being mixed across projects or
-branches.
+VS Code opens the checkout passed to it at the same absolute host path inside the
+container. `initialize.sh` prepares only that checkout. For a linked worktree,
+`docker-compose.yml` also mounts the exact absolute Git common directory reported
+by `git rev-parse --path-format=absolute --git-common-dir`, so Git can follow the
+worktree's `.git` file without mounting or managing another checkout. The
+generated Compose project name is branch-first, for example `develop0-myrepo`,
+so directly opened checkouts on different branches get separate `workspace`
+containers. Keeping stable per-checkout paths prevents OpenCode sessions from
+being mixed across projects or branches.
 
 ## Quick Start For Consuming Repos
 
@@ -85,11 +84,14 @@ Ignore `/.oc_local/` only when the consuming repository does not intentionally
 track project-specific OpenCode overlay files there. Do not ignore
 `.codegeist/compose.local.yml` or `.codegeist/Dockerfile` if the repository
 creates them for intentional Compose or image overrides; they should stay
-visible to Git.
+visible to Git. `/.worktrees/` is only a conventional ignore for explicitly
+created repository-local worktrees; the kit does not create the directory.
 
 If these patterns are missing, `initialize.sh` adds them to the repository root
 `.gitignore`. It never writes generated-file ignores to `.git/info/exclude`, so
 review and commit intentional `.gitignore` changes like normal repository state.
+It also removes obsolete exact `/.local.env` and `/compose.local.yml` ignore
+lines so unsupported legacy root files remain visible.
 
 Open the consuming repository root in VS Code and run
 `Dev Containers: Reopen in Container`:
@@ -98,35 +100,31 @@ Open the consuming repository root in VS Code and run
 code .
 ```
 
-To select a managed Git worktree from VS Code Remote SSH, set `BRANCH` in the
-SSH environment and reopen the repository root in the container. The Dev
-Containers lifecycle creates `.worktrees/<branch>` and opens that checkout as
-the remote workspace. If `BRANCH` names the already checked-out branch, such as
-`BRANCH=main` on `main`, `.worktrees/<branch>` is a symlink alias back to the
-repository root. The Docker Compose project name is generated as
-`<branch-slug>-<repo-slug>`, so two SSH hosts with different `BRANCH` values run
-parallel containers such as `codegeist-cloud-server-myrepo-workspace-1` and
-`install-scripts-myrepo-workspace-1`:
-
-```sshconfig
-Host project-dev0
-  SetEnv BRANCH=develop0
-```
-
-The same path can be smoke-tested with the Dev Containers CLI:
+To use a Git worktree, create it explicitly, initialize its submodules when the
+repository has any, and open that checkout directly:
 
 ```bash
-BRANCH=develop0 npx --yes @devcontainers/cli up --workspace-folder <repo-root>
+git worktree add .worktrees/feature-x feature-x
+git -C .worktrees/feature-x submodule update --init --recursive
+code .worktrees/feature-x
 ```
 
-For a plain local VS Code command where an existing VS Code process may not
-inherit new environment variables, prepare the worktree from the consuming
-repository root and then open that checkout:
+For a new branch, select its base explicitly:
 
 ```bash
-BRANCH=develop0 .devcontainer/initialize.sh
-code .worktrees/develop0
+git worktree add -b feature-x .worktrees/feature-x origin/main
+git -C .worktrees/feature-x submodule update --init --recursive
+code .worktrees/feature-x
 ```
+
+The Dev Containers CLI uses the same direct-checkout workflow:
+
+```bash
+npx --yes @devcontainers/cli up --workspace-folder .worktrees/feature-x
+```
+
+The kit does not create worktrees, aliases, branches, or submodules. A worktree
+may live under `.worktrees/` or elsewhere; only the opened checkout path matters.
 
 The first start creates local and generated files when missing:
 
@@ -143,8 +141,6 @@ The first start creates local and generated files when missing:
   `.codegeist/compose.local.yml` overrides
 - root `.oc_local/` with a local `.gitignore` for workspace-specific OpenCode
   config, when missing
-- root `.worktrees/`; `.worktrees/<branch>` as a worktree or current-branch
-  symlink alias when `BRANCH` is set
 
 The kit also ships `.oc_local.opencode.json.example` as an inactive template for
 `.oc_local/opencode.json`. When consumed as `.devcontainer/`, copy
@@ -167,11 +163,11 @@ not migrated. Store new persistent secrets that are not disposable test inputs
 under `.codegeist/secrets/`; existing `.codegeist/.local.env` and `.chrome/`
 contracts remain unchanged.
 
-When upgrading an older checkout, `initialize.sh` copies legacy root `.local.env`
-or `compose.local.yml` into the matching `.codegeist/` path only when the new
-file does not exist. It does not delete the legacy files and does not migrate a
-root `Dockerfile`; move devcontainer image extensions to `.codegeist/Dockerfile`
-manually if needed.
+Root `.local.env` and `compose.local.yml` files are not configuration inputs and
+are never copied or migrated. The initializer removes their obsolete generated
+ignore lines so accidental legacy files remain visible to Git. Move intended
+settings to `.codegeist/.local.env` or `.codegeist/compose.local.yml` explicitly;
+move devcontainer image extensions to `.codegeist/Dockerfile`.
 
 Do not edit `.devcontainer/.env`, `.devcontainer/.Xauthority.gen`,
 `.devcontainer/Dockerfile.merged.gen`, `.devcontainer/compose.local.gen.yml`, or
@@ -185,8 +181,7 @@ Compose and Dockerfile override files only when the repository needs them.
 
 A consuming repository can extend host-side initialization with an optional
 `.codegeist/extensions/custom_initialize.sh` Bash script. After the normal kit
-setup completes, `initialize.sh` runs the hook from the selected workspace. A
-`BRANCH` start therefore uses the hook from that managed worktree.
+setup completes, `initialize.sh` runs the hook from the opened checkout.
 
 The file does not need to be executable. A missing hook is ignored, while a
 failing hook fails `initializeCommand`. The hook runs on the host outside
@@ -307,13 +302,13 @@ the user's home directory and out of the repository.
 
 The devcontainer image includes Google Chrome for browser checks and visible
 browser sessions that must run from inside the container's network, DNS, and
-certificate trust context. The shared kit installs a `chrome` launcher for direct
-visible browser startup when the devcontainer has access to a host display, and
-the same launcher supports deterministic headless automation for tests. The image
-also includes `Xvfb` for tools that need a virtual X11 display without a host UI.
-It does not add VNC, noVNC, bookmarks, credentials, or project-specific service
-URLs. Plain visible Chrome stores its project-local state under the opened
-workspace's ignored `.chrome/` directory.
+certificate trust context. The shared `chrome` launcher supports visible,
+interactive Chrome only through a Remote SSH loopback X11 display. The same
+launcher supports deterministic headless automation for tests. The image also
+includes `Xvfb` for tools that need a virtual X11 display without a host UI. It
+does not add VNC, noVNC, Wayland transport, bookmarks, credentials, or
+project-specific service URLs. Plain visible Chrome stores its project-local
+state under the opened checkout's ignored `.chrome/` directory.
 
 Run visible Chrome from a terminal inside the devcontainer when you need to load
 a URL with container-side DNS and certificates:
@@ -323,37 +318,25 @@ chrome https://example.test
 ```
 
 The visible command does not start VNC or noVNC, and it does not treat a non-empty
-display variable as proof that a display server is reachable. During
-`initializeCommand`, `initialize.sh` detects an existing host Wayland socket from
-`WAYLAND_DISPLAY` and `XDG_RUNTIME_DIR` (or `/run/user/<uid>/wayland-0`) and adds a
-generated bind for only that socket. When the mounted socket is reachable, the
-launcher prefers it, removes inherited `DISPLAY`, and starts Chrome with
-`--ozone-platform=wayland`. The container entrypoint keeps the generated
-`/tmp/codegeist-wayland` runtime directory owned by the workspace user with mode
-`0700`, allowing VS Code and other XDG clients to create private IPC sockets
-there. A local X11 value such as `DISPLAY=:0` remains usable only when
-`/tmp/.X11-unix/X0` exists inside the container; the shared Compose config does
-not mount local X11 sockets by default.
+display variable as proof that a display server is reachable. It accepts only
+`DISPLAY=localhost:N[.screen]` or `127.0.0.1:N[.screen]` from Remote SSH X11
+forwarding. Local `DISPLAY=:N`, arbitrary non-loopback X11 hosts, and Wayland are
+not supported visible transports. The shared Compose configuration does not
+mount host display sockets.
 
 VS Code SSH reconnects can allocate a new loopback display number while reusing
-an existing container. Each initialize run atomically refreshes the selected
-workspace's `.devcontainer/.env` and ignored `.devcontainer/.Xauthority.gen`.
+an existing container. Each initialize run atomically refreshes the opened
+checkout's `.devcontainer/.env` and ignored `.devcontainer/.Xauthority.gen`.
 The launcher rereads those files on every visible start, probes
 `DISPLAY=localhost:N.0` or `127.0.0.1:N.0` with a short `xdpyinfo` check, and, if
-needed, normalizes the matching `/unix:N` cookie through unique temporary
-Xauthority aliases. It
-exits before Google Chrome starts when no candidate is reachable. Worktrees keep
-separate generated state and `.chrome` profiles, so multiple VS Code instances
-on one host do not overwrite each other's runtime display files. Explicit
-non-loopback X11 hosts remain caller-managed.
-
-Wayland discovery can mount only a socket that exists when the container is
-created. `initialize.sh` cannot create a graphical host session, and a socket
-that appears later cannot be added to an already running container without
-recreation. SSH X11 reconnect recovery does not have that limitation because it
-uses host networking and workspace-local refreshed authority state. Use
-`chrome --headless ...` when no visible backend is available; broad host access
-such as `xhost +` is neither required nor recommended.
+needed, normalizes only the requested display's matching `/unix:N` cookie into a
+private temporary authority file. It exits before Google Chrome starts when the
+display is missing, stale, unreachable, or unauthorized. Directly opened
+worktrees keep independent generated display state, Xauthority files, and
+`.chrome` profiles. Reconnect recovery uses host networking and refreshed
+checkout-local authority state. Use `chrome --headless ...` for automation when
+no supported visible session is available; broad host access such as `xhost +`
+is neither required nor recommended.
 
 Plain visible `chrome` uses `$DEVCONTAINER_WORKSPACE_FOLDER/.chrome` unless the
 caller passes an explicit `--user-data-dir`. Visible Chrome also disables
@@ -404,18 +387,13 @@ processes can fail with Docker's small default `/dev/shm`. Chrome hardware
 acceleration is disabled by a managed policy at
 `/etc/opt/chrome/policies/managed/disable-hardware-accel.json`.
 
-The repository test suite also includes a Chrome DevTools Protocol UI smoke test
-in `tests/browser-smoke.sh`. It starts a Dev Containers CLI fixture, launches
-Chrome through `chrome --headless` inside the workspace container, captures
-a PNG screenshot of a container-local HTML file, and compares rendered
-accessibility text against the expected value. This keeps the test path aligned
-with the visible launcher while staying deterministic in CI-like environments.
-The same test also reproduces the local VS Code failure shape with
-`DEVCONTAINER_DISPLAY=:0`, no `/tmp/.X11-unix/X0`, and a real Weston Wayland
-socket. It starts non-headless Chrome, verifies `--ozone-platform=wayland` through
-CDP, captures rendered output, and must pass as part of `task tests-run` before
-`scripts/release-build.sh` accepts the current commit. Weston is installed only
-in the disposable test fixture, not in the released image.
+The repository test suite also includes Chrome DevTools Protocol regressions in
+`tests/browser-smoke.sh`. It verifies headless rendering and captures a PNG of
+container-local content. Separately, it starts a real non-headless Chrome process
+through authenticated loopback X11 shaped like Remote SSH forwarding, verifies
+the rendered page through CDP, and confirms that browser profile state stays in
+the opened checkout. This real visible-X11 regression must pass as part of
+`task tests-run` before `scripts/release-build.sh` accepts the current commit.
 
 ## QEMU Support
 
@@ -809,9 +787,10 @@ self-hosted server before the first login:
 The CLI stores its project-local configuration, account metadata, login state,
 and encrypted cache under
 `$DEVCONTAINER_REPO_ROOT/.codegeist/secrets/bitwarden-cli`. The repository root
-is mounted persistently, the parent secrets directory is ignored by Git, and
-managed worktrees share this state. The first `bw` invocation creates the
-directory and `data.json`; the kit does not migrate an existing
+is mounted persistently and the parent secrets directory is ignored by Git.
+Each directly opened checkout has independent `.codegeist` state. The first
+`bw` invocation creates the directory and `data.json`; the kit does not migrate
+an existing
 `~/.config/Bitwarden CLI` directory.
 
 ```bash
@@ -985,7 +964,6 @@ source as a temporary consuming repository:
 
 ```bash
 task devcontainer-reality-test
-task devcontainer-reality-test -- develop0
 ```
 
 The reality test copies the current source worktree, including uncommitted
@@ -1025,8 +1003,8 @@ task release-build -- --push
 
 `task release-build` requires a commit-bound verification written only after
 `task tests-run` completes. This prevents a runtime release from being created
-without the real `DISPLAY=:0` plus Wayland Chrome regression passing on the exact
-commit being released.
+without the real non-headless authenticated loopback-X11 Chrome regression
+passing on the exact commit being released.
 
 Every generated release commit uses the fixed subject
 `chore(release): update devcontainer runtime branch`. Its body records the full
@@ -1182,9 +1160,9 @@ bootstrap in fresh devcontainers. When the consuming repository does not track a
 `.oc_local/` overlay, `initialize.sh` adds the missing local-file patterns to
 that repository's root `.gitignore`; it never writes them to `.git/info/exclude`.
 
-The test suite includes a real submodule-consuming fixture that starts
-`BRANCH=dev0` through `devcontainer up`, verifies the selected workspace path,
-nested Docker, and a commit/fast-forward merge flow from inside the container.
+The test suite includes a real submodule-consuming fixture that opens its current
+checkout through `devcontainer up` and verifies the workspace path and nested
+Docker from inside the container.
 
 ## Normal VS Code Workflow
 
@@ -1241,13 +1219,8 @@ It must not:
 
 It may:
 
-- create `.codegeist/.local.env` from `.devcontainer/.local.env.example`, or
-  copy legacy root `.local.env` there when it already exists and the new file is
-  missing
-- create `.codegeist/compose.local.yml` from
-  `.devcontainer/compose.local.yml.example`, or copy legacy root
-  `compose.local.yml` there when it already exists and the new file is missing;
-  this file is not ignored automatically
+- create `.codegeist/.local.env` from `.devcontainer/.local.env.example` when the
+  checkout-local file is missing
 - create root `.oc_local/` for workspace-local OpenCode config
 - write `.devcontainer/.env`, `.devcontainer/.Xauthority.gen`,
   `.devcontainer/Dockerfile.merged.gen`, and `.devcontainer/compose.local.gen.yml`
@@ -1269,24 +1242,24 @@ written to files, not expected to appear as `${localEnv:...}` values.
 Preferred pattern:
 
 1. `initialize.sh` writes `.codegeist/.local.env`.
-2. `initialize.sh` migrates a legacy root `compose.local.yml` into
-   `.codegeist/compose.local.yml` only when that legacy file exists.
-3. `initialize.sh` writes `.devcontainer/.env`, including host display state.
-4. `initialize.sh` atomically refreshes `.devcontainer/.Xauthority.gen`.
-5. `initialize.sh` writes `.devcontainer/Dockerfile.merged.gen`.
-6. `initialize.sh` writes `.devcontainer/compose.local.gen.yml`.
-7. `initialize.sh` writes `.devcontainer/compose.user.gen.yml`, either empty or
+2. `initialize.sh` writes `.devcontainer/.env`, including host display state and
+   the exact absolute Git common directory.
+3. `initialize.sh` atomically refreshes `.devcontainer/.Xauthority.gen`.
+4. `initialize.sh` writes `.devcontainer/Dockerfile.merged.gen`.
+5. `initialize.sh` writes `.devcontainer/compose.local.gen.yml`.
+6. `initialize.sh` writes `.devcontainer/compose.user.gen.yml`, either empty or
    copied from `.codegeist/compose.local.yml`.
-8. `.devcontainer/docker-compose.yml` reads `.env` and
+7. `.devcontainer/docker-compose.yml` reads `.env` and
    `../.codegeist/.local.env` with `env_file`.
-9. `devcontainer.json` includes `compose.local.gen.yml` and
+8. `devcontainer.json` includes `compose.local.gen.yml` and
    `compose.user.gen.yml`.
-10. `.devcontainer/docker-compose.yml` owns the workspace and parent Git mounts.
-11. `devcontainer.json` uses `${localEnv:USER}` for `remoteUser` and
+9. `.devcontainer/docker-compose.yml` mounts the opened checkout and its exact
+   Git common directory at their host-identical absolute paths.
+10. `devcontainer.json` uses `${localEnv:USER}` for `remoteUser` and
     `containerUser`.
-12. `docker-compose.yml` passes initial display values into the container; the
+11. `docker-compose.yml` passes initial display values into the container; the
     Chrome launcher rereads the workspace files after SSH reconnects.
-13. Container-side tools read normal environment variables from Compose.
+12. Container-side tools read normal environment variables from Compose.
 
 Example Compose shape:
 
@@ -1432,8 +1405,8 @@ Roles:
 
 - `devcontainer.json` is the VS Code entrypoint.
 - `initialize.sh` performs host-side setup for `initializeCommand`.
-- `docker-compose.yml` defines the workspace runtime and the root/worktree bind
-  mounts.
+- `docker-compose.yml` defines the workspace runtime and host-identical checkout
+  and exact Git-common-directory bind mounts.
 - `.devcontainer/Dockerfile` is the release kit base image file; source checkouts
   keep the same content as `Dockerfile.base`. Root `.codegeist/Dockerfile` can
   extend it through the generated `Dockerfile.merged.gen` file.
@@ -1443,7 +1416,7 @@ Roles:
 - `entrypoint.sh` links `/usr/local/bin/chrome` to the mounted
   `.devcontainer/scripts/chrome.sh` in the selected workspace and prepends
   `$DEVCONTAINER_WORKSPACE_FOLDER/.devcontainer/scripts` to `PATH`; the launcher
-  starts visible Chrome on the current container display or headless Chrome for
+  starts visible Chrome through Remote SSH loopback X11 or headless Chrome for
   automation.
 - `.local.env.example` documents `.codegeist/.local.env` values.
 - `.oc_local.gitignore.example` seeds root `.oc_local/.gitignore` when the
@@ -1485,73 +1458,31 @@ optional and must not be required by `devcontainer.json`.
 
 ## Git Worktrees
 
-The kit supports managed Git worktrees under `.worktrees/<branch>`. When
-`BRANCH` is present in the VS Code Remote SSH or Dev Containers CLI environment,
-the repository root can be opened directly and the devcontainer opens the
-matching worktree as the remote workspace. If `BRANCH` matches the branch already
-checked out at the repository root, `initialize.sh` creates
-`.worktrees/<branch>` as a symlink alias back to that root instead of asking Git
-for a second checkout of the same branch.
-
-For a consuming repository that only has the runtime kit at `.devcontainer/`, a
-Remote SSH host alias can select the worktree while the user opens the repository
-root:
-
-```sshconfig
-Host project-dev0
-  SetEnv BRANCH=develop0
-```
-
-The same branch selection can be tested without VS Code:
+Git, not `initialize.sh`, owns worktree and branch creation. Create the checkout,
+initialize its submodules explicitly when required, and open that path directly:
 
 ```bash
-BRANCH=develop0 npx --yes @devcontainers/cli up --workspace-folder <repo-root>
+git worktree add .worktrees/feature-x feature-x
+git -C .worktrees/feature-x submodule update --init --recursive
+code .worktrees/feature-x
 ```
 
-For local `code` commands, prepare the worktree from the root and then open the
-worktree path:
+A worktree may live under `.worktrees/` or any other path. The conventional
+`/.worktrees/` ignore remains useful and is added when missing, but the
+initializer does not create that directory. It derives the opened checkout with
+`git rev-parse --show-toplevel` and the exact absolute common metadata path with
+`git rev-parse --path-format=absolute --git-common-dir`.
 
-```bash
-BRANCH=develop0 .devcontainer/initialize.sh
-code .worktrees/develop0
-```
+`docker-compose.yml` mounts both values at the same absolute paths inside the
+container. This is the narrow metadata mount required for the linked worktree's
+`.git` file; it does not mount a guessed parent repository or another checkout.
+Normal Git reads and writes therefore work from the directly opened worktree.
 
-During root preparation, `initialize.sh` creates `.worktrees/`, creates or
-reuses `.worktrees/<branch>` when `BRANCH` is set, or creates a current-branch
-symlink alias when the selected branch is already checked out. It initializes any
-consuming-repository submodules when the repository defines them. A new
-worktree initializes its submodules anonymously with inherited Git credential
-helpers disabled, so public repositories cannot block `initializeCommand` on a
-username or password prompt. The script also creates root
-`.codegeist/.local.env` from `.devcontainer/.local.env.example` when missing,
-migrates a legacy root `.local.env` into `.codegeist/.local.env` when needed,
-and links the worktree `.codegeist/.local.env` back to the main root file. When
-the devcontainer starts from an already selected checkout, `initializeCommand`
-writes that checkout's
-`.devcontainer/.env`, `.devcontainer/.Xauthority.gen`,
-`.devcontainer/Dockerfile.merged.gen`,
-`.devcontainer/compose.local.gen.yml`, and `.devcontainer/compose.user.gen.yml`
-without nesting another worktree for the same branch.
-
-For a `BRANCH` start, `.devcontainer/compose.local.gen.yml` sets the Compose
-project name to `<branch-slug>-<repo-slug>`. This keeps separate Remote SSH
-windows from reusing one `workspace` container when they open the same repository
-root with different branch selections.
-
-`BRANCH` is a startup input only. `initialize.sh` uses it to compute generated
-workspace values and prepare worktrees, but does not persist `BRANCH=` into
-`.devcontainer/.env`; later starts without `BRANCH` should resolve back to the
-current checkout instead of reusing an older branch selection.
-
-`docker-compose.yml` mounts the selected workspace at the same absolute path
-inside the container. For linked worktrees it also mounts the parent repository
-root at its same absolute path so Git metadata resolves.
-`.codegeist/compose.local.yml` remains available for local overrides, but it does
-not own the workspace or parent Git mounts.
-
-Changing branches after a container already exists does not automatically remount
-the running container. Rebuild or remove the existing devcontainer first, then
-open the desired checkout again.
+Each checkout independently owns `.codegeist/.local.env`, `.codegeist/secrets/`,
+`.oc_local/`, `.chrome/`, and generated `.devcontainer` files. The initializer
+does not link or synchronize this state between worktrees. The actual checked-out
+branch still determines the branch-aware Compose project name and hostname, so
+parallel directly opened worktrees use separate containers and runtime state.
 
 ## Devcontainer Reality Test
 
@@ -1567,15 +1498,8 @@ nested container that passed verification.
 task devcontainer-reality-test
 ```
 
-To verify branch selection through the normal helper flow:
-
-```bash
-task devcontainer-reality-test -- develop0
-```
-
-`BRANCH=develop0 task devcontainer-reality-test` is still accepted when an
-environment variable is more convenient. The helper prepares the worktree and
-verifies that exact checkout inside its temporary container.
+The reality test accepts no branch argument. It verifies only the temporary
+fixture checkout that it creates and opens directly.
 
 The temporary fixture and running container are intentionally left in place for
 manual inspection after the command reports their path. Use its reported

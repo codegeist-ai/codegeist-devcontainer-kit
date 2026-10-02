@@ -16,7 +16,7 @@
 # - A configured Tea login is required for `--push`; Tea is registered as the
 #   host-specific Git credential helper before the non-interactive Gitea push.
 # - `.test-tmp/release-verification` must attest that `task tests-run` passed for
-#   the current commit, including the real DISPLAY=:0 Wayland browser regression.
+#   the current commit, including the real non-headless loopback X11 regression.
 #
 # Related files:
 # - ../Taskfile.yaml
@@ -121,7 +121,7 @@ if [ -f "$verification_file" ]; then
       commit)
         verified_commit="$verification_value"
         ;;
-      browser-wayland-display0)
+      browser-visible-x11)
         verified_browser_regression="$verification_value"
         ;;
     esac

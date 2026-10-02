@@ -5,7 +5,7 @@
 # - provides one narrow entrypoint for validating the new kit behavior
 # - reports total runtime while keeping slow checks as warnings, not failures
 # - records a commit-bound release verification only after every test, including
-#   the real DISPLAY=:0 plus Wayland browser regression, succeeds
+#   the real non-headless loopback X11 browser regression, succeeds
 #
 # Related files:
 # - ./helpers.sh
@@ -35,17 +35,13 @@ run_timed "release build branch" "$WARN_FAST_SECONDS" "$script_dir/release-build
 run_timed "compose config" "$WARN_FAST_SECONDS" "$script_dir/compose-config.sh"
 run_timed "entrypoint Vault config" "$WARN_FAST_SECONDS" "$script_dir/entrypoint-vault.sh"
 run_timed "chrome launcher" "$WARN_FAST_SECONDS" "$script_dir/chrome-launcher.sh"
-run_timed "worktree setup" "$WARN_FAST_SECONDS" "$script_dir/worktree.sh"
 run_timed "opencode mounts" "$WARN_DOCKER_SECONDS" "$script_dir/opencode-mounts.sh"
 run_timed "docker image build" "$WARN_BUILD_SECONDS" "$script_dir/docker-build.sh"
-run_timed "remote ssh branch" "$WARN_DEVCONTAINER_SECONDS" "$script_dir/remote-ssh-branch.sh"
 run_timed "qemu alpine smoke" "$WARN_DEVCONTAINER_SECONDS" "$script_dir/qemu-alpine-smoke.sh"
 run_timed "docker-run task" "$WARN_DOCKER_SECONDS" "$script_dir/docker-run.sh"
 run_timed "browser smoke" "$WARN_DEVCONTAINER_SECONDS" "$script_dir/browser-smoke.sh"
 run_timed "devcontainer up" "$WARN_DEVCONTAINER_SECONDS" "$script_dir/devcontainer-up.sh"
-run_timed "devcontainer current branch up" "$WARN_DEVCONTAINER_SECONDS" "$script_dir/devcontainer-current-branch-up.sh"
 run_timed "devcontainer worktree up" "$WARN_DEVCONTAINER_SECONDS" "$script_dir/devcontainer-worktree-up.sh"
-run_timed "devcontainer parallel branches" "$WARN_DEVCONTAINER_SECONDS" "$script_dir/devcontainer-parallel-branches.sh"
 run_timed "submodule workflow" "$WARN_DEVCONTAINER_SECONDS" "$script_dir/submodule-workflow.sh"
 
 suite_duration="$(elapsed_seconds "$suite_start_epoch")"
@@ -57,7 +53,7 @@ fi
 
 cat >"$release_verification_file" <<EOF
 commit=$(git -C "$project_root" rev-parse HEAD)
-browser-wayland-display0=passed
+browser-visible-x11=passed
 EOF
 
 pass "all generic devcontainer kit tests passed"

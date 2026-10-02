@@ -1,15 +1,11 @@
 #!/usr/bin/env bash
-# submodule-workflow.sh - verify consuming repo workflow with this kit as submodule
+# submodule-workflow.sh - verify direct use of the kit as .devcontainer submodule
 #
 # Why this exists:
-# - Exercises a consuming repository that does not vendor the kit directly but
-#   adds it as `.devcontainer` through `git submodule add`.
-# - Verifies the real Dev Containers CLI lifecycle from the selected worktree
-#   after the consuming repo root prepares it with `BRANCH=dev0`, including
-#   generated `.codegeist` local files, nested Docker, and a commit/merge
-#   workflow.
-# - Verifies worktree setup initializes the released kit without relying on an
-#   inherited credential helper.
+# - exercises a consuming checkout whose recorded gitlink supplies the runtime kit
+# - proves initialization stays in that checkout and generated submodule files
+#   remain ignored
+# - verifies consuming-repository Git and nested Docker remain usable
 #
 # Related files:
 # - ../initialize.sh
@@ -30,24 +26,14 @@ if [ -z "${suite_tmp_dir:-}" ]; then
 fi
 
 kit_repo_dir="$suite_tmp_dir/devcontainer-kit-submodule-repo"
-p1_dir="$suite_tmp_dir/p1"
-branch_name="dev0"
+consumer_dir="$suite_tmp_dir/submodule-consumer"
 container_id=""
 log_file="$suite_tmp_dir/submodule-workflow.log"
-expected_hostname=""
-expected_workspace_folder=""
-expected_remote_workspace_folder=""
-expected_user="$(id -u):$(id -u)"
-expected_user_name="$(expected_container_user)"
 
-cleanup_devcontainer() {
+cleanup_test() {
   if [ -n "$container_id" ]; then
     docker rm -f "$container_id" >/dev/null 2>&1 || true
   fi
-}
-
-cleanup_test() {
-  cleanup_devcontainer
   if [ "$local_suite" -eq 1 ]; then
     cleanup_suite
   fi
@@ -55,100 +41,59 @@ cleanup_test() {
 trap cleanup_test EXIT
 
 create_kit_submodule_repo "$kit_repo_dir"
-create_git_repo "$p1_dir"
+create_git_repo "$consumer_dir"
+printf '# submodule consumer\n' >"$consumer_dir/README.md"
+git -C "$consumer_dir" add README.md
+git -C "$consumer_dir" commit -m "initial consumer" >/dev/null
+git -C "$consumer_dir" -c protocol.file.allow=always submodule add "$kit_repo_dir" .devcontainer >/dev/null
+git -C "$consumer_dir" commit -m "add devcontainer submodule" >/dev/null
+recorded_gitlink="$(git -C "$consumer_dir" rev-parse HEAD:.devcontainer)"
 
-printf '# p1\n' >"$p1_dir/README.md"
-cat >"$p1_dir/.gitignore" <<'EOF'
-/.codegeist/.local.env
-/.oc_local/
-/.oc_local/.gitignore
-/.worktrees/
-/.chrome/
-EOF
-
-git -C "$p1_dir" add README.md .gitignore
-git -C "$p1_dir" commit -m "initial p1" >/dev/null
-git -C "$p1_dir" -c protocol.file.allow=always submodule add "$kit_repo_dir" .devcontainer >/dev/null
-git -C "$p1_dir" commit -m "add devcontainer submodule" >/dev/null
-git -C "$p1_dir" config credential.helper '!exit 99'
-
-BRANCH="$branch_name" "$p1_dir/.devcontainer/initialize.sh"
-
-worktree_path="$p1_dir/.worktrees/$branch_name"
-expected_workspace_folder="$(expected_workspace_folder "$p1_dir" "$branch_name")"
-expected_remote_workspace_folder="$(expected_remote_workspace_folder "$worktree_path")"
-
-[[ -d "$worktree_path" ]] || fail "BRANCH did not create .worktrees/$branch_name"
-[[ -f "$worktree_path/.git" ]] || fail "selected worktree does not have a Git file"
-[[ -f "$p1_dir/.codegeist/.local.env" ]] || fail ".codegeist/.local.env was not created"
-[[ ! -e "$p1_dir/.codegeist/compose.local.yml" ]] || fail ".codegeist/compose.local.yml was created without an on-demand override"
-[[ ! -e "$p1_dir/.codegeist/Dockerfile" ]] || fail ".codegeist/Dockerfile was created without an on-demand extension"
-[[ -f "$p1_dir/.devcontainer/.env" ]] || fail ".devcontainer/.env was not created"
-[[ -z "$(git -C "$p1_dir/.devcontainer" status --porcelain -- .env)" ]] || fail ".devcontainer/.env is not ignored by the submodule"
-[[ -f "$p1_dir/.devcontainer/compose.local.gen.yml" ]] || fail ".devcontainer/compose.local.gen.yml was not created"
-[[ -f "$p1_dir/.devcontainer/compose.user.gen.yml" ]] || fail ".devcontainer/compose.user.gen.yml was not created"
-[[ -z "$(git -C "$p1_dir/.devcontainer" status --porcelain -- compose.user.gen.yml)" ]] || fail ".devcontainer/compose.user.gen.yml is not ignored by the submodule"
-[[ "$(<"$p1_dir/.devcontainer/compose.user.gen.yml")" == *"services: {}"* ]] || fail "user compose bridge is not empty without an on-demand override"
-assert_not_ignored "$p1_dir" ".codegeist/compose.local.yml"
-assert_not_ignored "$p1_dir" ".codegeist/Dockerfile"
-assert_ignored_by_root_gitignore "$p1_dir" ".codegeist/.local.env"
-assert_ignored_by_root_gitignore "$p1_dir" ".chrome/profile-file"
-assert_ignored_by_root_gitignore "$p1_dir" ".oc_local/.gitignore"
-assert_ignored_by_root_gitignore "$p1_dir" ".worktrees/$branch_name/.codegeist/.local.env"
-assert_info_exclude_lacks_patterns \
-  "$p1_dir" \
-  "/.oc_local/" \
-  "/.oc_local/.gitignore" \
-  "/.worktrees/" \
-  "/.codegeist/.local.env" \
-  "/.chrome/" \
-  "/.codegeist/Dockerfile" \
-  "/.codegeist/compose.local.yml"
-[[ "$(<"$p1_dir/.devcontainer/.env")" == *"DEVCONTAINER_WORKSPACE_FOLDER=$expected_workspace_folder"* ]] || fail "generated env does not set submodule workspace folder"
-[[ -L "$worktree_path/.codegeist/.local.env" ]] || fail "worktree .codegeist/.local.env is not a symlink"
-[[ -f "$worktree_path/.devcontainer/devcontainer.json" ]] || fail "submodule devcontainer is missing in worktree"
-[[ "$(git -C "$worktree_path/.devcontainer" rev-parse HEAD)" = "$(git -C "$p1_dir" rev-parse HEAD:.devcontainer)" ]] || fail "worktree devcontainer did not use the recorded gitlink commit"
-
-prepare_devcontainer_home "$worktree_path"
-HOME="$worktree_path" devcontainer_cli up --remove-existing-container --workspace-folder "$worktree_path" | tee "$log_file"
+prepare_devcontainer_home "$consumer_dir"
+HOME="$consumer_dir" devcontainer_cli up \
+  --remove-existing-container \
+  --workspace-folder "$consumer_dir" | tee "$log_file"
 container_id="$(extract_container_id_from_log "$log_file" || true)"
-[[ -n "$container_id" ]] || fail "could not extract workspace container id from devcontainer output"
-[[ "$(extract_remote_workspace_folder_from_log "$log_file" || true)" = "$expected_remote_workspace_folder" ]] || fail "submodule workflow did not report expected remote workspace folder"
+[[ -n "$container_id" ]] || fail "could not extract submodule-consumer container id"
+[[ "$(extract_remote_workspace_folder_from_log "$log_file" || true)" = "$consumer_dir" ]] \
+  || fail "submodule consumer did not open its current checkout"
 
-[[ ! -e "$worktree_path/.codegeist/compose.local.yml" ]] || fail "worktree .codegeist/compose.local.yml was created without an on-demand override"
-[[ -f "$worktree_path/.devcontainer/.env" ]] || fail "worktree .devcontainer/.env was not created"
-[[ -f "$worktree_path/.devcontainer/compose.local.gen.yml" ]] || fail "worktree .devcontainer/compose.local.gen.yml was not created"
-[[ -f "$worktree_path/.devcontainer/compose.user.gen.yml" ]] || fail "worktree .devcontainer/compose.user.gen.yml was not created"
-expected_hostname="$(expected_generated_hostname "$worktree_path" "$branch_name")"
-[[ "$(<"$worktree_path/.devcontainer/compose.local.gen.yml")" == *"hostname: $expected_hostname"* ]] || fail "generated compose file does not set submodule hostname"
-[[ "$(<"$worktree_path/.devcontainer/compose.local.gen.yml")" == *"CONTAINER_USER: $expected_user_name"* ]] || fail "generated compose file does not set submodule build user"
-[[ "$(<"$worktree_path/.devcontainer/compose.local.gen.yml")" == *"user: \"$expected_user\""* ]] || fail "generated compose file does not set submodule user"
-[[ "$(<"$worktree_path/.devcontainer/.env")" == *"DEVCONTAINER_WORKSPACE_FOLDER=$expected_workspace_folder"* ]] || fail "worktree generated env does not set submodule workspace folder"
+[[ "$(git -C "$consumer_dir/.devcontainer" rev-parse HEAD)" = "$recorded_gitlink" ]] \
+  || fail "runtime kit does not match the consuming repository gitlink"
+[[ -f "$consumer_dir/.codegeist/.local.env" ]] || fail "consumer local environment was not created"
+[[ ! -e "$consumer_dir/.codegeist/compose.local.yml" ]] || fail "optional Compose override was created"
+[[ ! -e "$consumer_dir/.codegeist/Dockerfile" ]] || fail "optional Dockerfile extension was created"
+[[ -d "$consumer_dir/.oc_local" ]] || fail "consumer OpenCode directory was not created"
+for generated_file in .env .Xauthority.gen Dockerfile.merged.gen compose.local.gen.yml compose.user.gen.yml; do
+  [[ -e "$consumer_dir/.devcontainer/$generated_file" ]] \
+    || fail "submodule generated file is missing: $generated_file"
+  [[ -z "$(git -C "$consumer_dir/.devcontainer" status --porcelain -- "$generated_file")" ]] \
+    || fail "submodule generated file is visible to Git: $generated_file"
+done
+assert_not_ignored "$consumer_dir" ".codegeist/compose.local.yml"
+assert_not_ignored "$consumer_dir" ".codegeist/Dockerfile"
+assert_ignored_by_root_gitignore "$consumer_dir" ".codegeist/.local.env"
+assert_ignored_by_root_gitignore "$consumer_dir" ".oc_local/.gitignore"
 
-docker exec -w "$expected_workspace_folder" -u "$expected_user_name" "$container_id" bash -lc '
-  test "$(pwd)" = "'"$expected_workspace_folder"'"
+expected_hostname="$(expected_generated_hostname "$consumer_dir" "")"
+expected_common_dir="$(expected_git_common_dir "$consumer_dir")"
+expected_user_name="$(expected_container_user)"
+for expected in \
+  "DEVCONTAINER_REPO_ROOT=$consumer_dir" \
+  "DEVCONTAINER_GIT_COMMON_DIR=$expected_common_dir" \
+  "DEVCONTAINER_WORKSPACE_FOLDER=$consumer_dir"; do
+  grep -Fx "$expected" "$consumer_dir/.devcontainer/.env" >/dev/null \
+    || fail "submodule consumer environment is missing: $expected"
+done
+
+docker exec -w "$consumer_dir" -u "$expected_user_name" "$container_id" bash -lc '
+  set -euo pipefail
+  test "$PWD" = "'"$consumer_dir"'"
   test "$(hostname)" = "'"$expected_hostname"'"
-  test "$DEVCONTAINER_HOSTNAME" = "'"$expected_hostname"'"
-  test "$DEVCONTAINER_WORKSPACE_FOLDER" = "'"$expected_workspace_folder"'"
-  test "$DEVCONTAINER_USER" = "'"$expected_user_name"'"
-  test "$DEVCONTAINER_UID:$DEVCONTAINER_GID" = "'"$expected_user"'"
-  test "$(git rev-parse --show-toplevel)" = "'"$expected_workspace_folder"'"
-  test "$(git rev-parse --abbrev-ref HEAD)" = dev0
-  test -f .git
-  grep -q "/.git/worktrees/dev0" .git
+  test "$(git rev-parse --show-toplevel)" = "'"$consumer_dir"'"
+  test "$(git -C .devcontainer rev-parse HEAD)" = "'"$recorded_gitlink"'"
+  test "$DEVCONTAINER_WORKSPACE_FOLDER" = "'"$consumer_dir"'"
   docker ps >/dev/null
 '
 
-docker exec -w "$expected_workspace_folder" -u "$expected_user_name" "$container_id" bash -lc '
-  printf "dev0 change\n" > dev0-change.txt
-  git add dev0-change.txt
-  git commit -m "add dev0 change" >/dev/null
-'
-
-docker exec -w "$p1_dir" -u "$expected_user_name" "$container_id" git merge --ff-only "$branch_name" >/dev/null
-
-[[ -f "$p1_dir/dev0-change.txt" ]] || fail "dev0 commit was not merged into main checkout"
-[[ "$(<"$p1_dir/dev0-change.txt")" = "dev0 change" ]] || fail "merged file content is wrong"
-[[ "$(git -C "$p1_dir" rev-parse main)" = "$(git -C "$p1_dir" rev-parse "$branch_name")" ]] || fail "main does not point at dev0 after fast-forward merge"
-
-pass "submodule consuming repo starts selected worktree and supports dev0 commit merge"
+pass "current checkout consumes the recorded devcontainer submodule directly"

@@ -41,6 +41,7 @@ compose_base_env=(
   CONTAINER_UID="$host_uid"
   CONTAINER_GID="$host_uid"
   DEVCONTAINER_REPO_ROOT="$fixture_dir"
+  DEVCONTAINER_GIT_COMMON_DIR="$fixture_dir/.git"
   DEVCONTAINER_WORKSPACE_FOLDER="$workspace_folder"
 )
 

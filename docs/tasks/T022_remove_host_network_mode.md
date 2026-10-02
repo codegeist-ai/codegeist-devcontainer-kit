@@ -10,8 +10,8 @@
 ## Goal
 
 Remove host networking from the shared devcontainer runtime and direct runtime
-helpers while preserving the supported SSH X11, Wayland, microphone, nested
-Docker, and ordinary network behavior through narrower explicit transports.
+helpers while preserving the supported SSH X11, microphone, nested Docker, and
+ordinary network behavior through narrower explicit transports.
 Establish why host networking was introduced, which current contracts still
 depend on it, and which replacement is safe and reusable before changing the
 runtime default.
@@ -20,8 +20,8 @@ runtime default.
 
 `docker-compose.yml` currently sets `network_mode: host` on the workspace
 service. `Taskfile.yaml` also passes `--network host` in its direct
-`docker-run` path, and `tests/browser-open-test.sh` adds host networking to its
-fixture override for an SSH-loopback X11 display.
+`docker-run` path. The browser fixtures inherit that source runtime contract for
+their SSH-loopback X11 displays.
 
 Git history shows that commit `d277370` introduced host networking so an SSH
 X11 value such as `DISPLAY=localhost:10.0` continued to refer to the SSH host's
@@ -47,11 +47,10 @@ reachable on that address through an intentionally scoped listener, proxy, or
 socket transport. A wildcard listener is not an acceptable shortcut for the
 existing loopback-only microphone or X11 security boundary.
 
-Wayland already uses a generated bind mount for one detected host Unix socket
-and should not require host networking. Headless Chrome also has no display
-network dependency. The investigation must distinguish those paths from SSH
-X11 and the forwarded microphone instead of treating every browser or audio
-workflow as one networking requirement.
+Headless Chrome has no display network dependency. The investigation must
+distinguish that automation path from visible SSH X11 and the forwarded
+microphone instead of treating every browser or audio workflow as one networking
+requirement.
 
 The workspace also starts rootful Docker-in-Docker. Removing host networking
 must preserve nested Docker startup, outbound DNS and registry access, and a
@@ -107,8 +106,6 @@ In scope:
 - Replace the host-loopback microphone path with a narrower transport while
   preserving the manual SSH ownership model, real Pulse/FFmpeg recording, tmux
   behavior, and loopback-or-better exposure boundary.
-- Confirm that generated Wayland socket mounting and visible Wayland Chrome do
-  not regress.
 - Verify nested Docker startup, outbound networking, DNS, image pulls, and
   documented project-port reachability on the workspace bridge network.
 - Update source, release, contributor, task, and local agent documentation to
@@ -153,8 +150,8 @@ Out of scope:
 - A missing X11 or microphone transport fails only the corresponding optional
   feature with an actionable diagnostic; ordinary devcontainer startup remains
   available.
-- Local Wayland visible Chrome, headless Chrome, and reconnect-refreshable
-  display state continue to pass their existing tests.
+- Headless Chrome and reconnect-refreshable Remote SSH X11 display state
+  continue to pass their tests.
 - Nested `dockerd` becomes ready for the workspace user, resolves DNS, pulls an
   image, and runs a container on the isolated workspace network.
 - A focused nested-container fixture publishes an HTTP port and proves the
@@ -197,6 +194,8 @@ proves its current behavior is independent of host networking.
 
 ## Dependencies And Sequencing
 
+- Implement this task after `T024` so host-network replacement targets the
+  simplified direct-checkout and Remote SSH X11-only visible-browser contract.
 - This task has no semantic dependency on `T020`, but implementation should
   follow or rebase after `T020` because both tasks modify Compose, runtime tests,
   and the same source and release documentation.
@@ -232,8 +231,9 @@ proves its current behavior is independent of host networking.
 4. Select and prove the narrow SSH X11 transport:
    - Preserve standard Xauthority cookie handling and reconnect refresh.
    - Avoid wildcard X11 exposure and broad `xhost` access.
-   - Keep explicit non-loopback display hosts caller-managed and preserve the
-     independent Wayland socket path.
+   - Target the supported Remote SSH loopback X11 path established by `T024`;
+     do not restore removed Wayland, local-X11, or arbitrary non-loopback display
+     behavior.
 5. Remove host mode from source Compose, direct Taskfile execution, and browser
    fixtures only after both required replacement paths pass focused probes.
 6. Add runtime assertions for isolated networking, ordinary egress, nested
@@ -261,7 +261,8 @@ proves its current behavior is independent of host networking.
   only to host `127.0.0.1` without the selected replacement transport.
 - In a configured Remote SSH session, run `task browser-open-test` and verify
   visible Chrome through SSH X11 without a host-network override.
-- Verify local Wayland visible Chrome and the headless browser smoke path.
+- Verify the headless browser smoke path remains independent of display
+  networking.
 - Run the real microphone null-output check and `oc-record` integration through
   the replacement transport; inspect host listeners to confirm no wildcard or
   externally reachable Pulse endpoint exists.

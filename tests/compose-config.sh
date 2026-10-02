@@ -1,15 +1,13 @@
 #!/usr/bin/env bash
-# compose-config.sh - verify compose config resolves through Dev Containers CLI
+# compose-config.sh - verify generated Compose state in a real devcontainer
 #
 # Why this exists:
-# - proves generated runtime user and KVM settings reach the real container
-# - verifies a host Wayland socket is mounted at the generated container path
-# - proves the workspace user can create IPC sockets in the Wayland runtime path
-# - verifies Xauthority is read from reconnect-refreshable workspace state
+# - proves runtime user, KVM, workspace, and Git metadata mounts reach Docker
+# - verifies Remote SSH X11 state uses the reconnect-refreshable workspace copy
+# - protects checkout-local Bitwarden state and optional Compose behavior
 #
 # Related files:
 # - ../docker-compose.yml
-# - ../compose.local.yml.example
 # - ../initialize.sh
 
 set -euo pipefail
@@ -19,82 +17,83 @@ script_dir="$(dirname "$(readlink -f "$0")")"
 # shellcheck source=./helpers.sh
 source "$script_dir/helpers.sh"
 
+local_suite=0
+if [ -z "${suite_tmp_dir:-}" ]; then
+  setup_suite
+  local_suite=1
+fi
+
 fixture_dir="$suite_tmp_dir/compose-config-repo"
+colon_fixture_dir="$suite_tmp_dir/compose:path-repo"
 container_id=""
 log_file="$suite_tmp_dir/compose-config-devcontainer.log"
 kvm_gid="$(stat -c %g /dev/kvm 2>/dev/null || printf '993')"
-wayland_runtime_dir="$suite_tmp_dir/w"
-wayland_display="w"
-wayland_socket="$wayland_runtime_dir/$wayland_display"
-wayland_pid=""
 expected_bitwarden_appdata="$fixture_dir/.codegeist/secrets/bitwarden-cli"
-create_git_fixture_repo "$fixture_dir"
-prepare_devcontainer_home "$fixture_dir"
+expected_common_dir=""
 
 cleanup_devcontainer() {
-  if [ -n "$wayland_pid" ]; then
-    kill "$wayland_pid" >/dev/null 2>&1 || true
-    wait "$wayland_pid" >/dev/null 2>&1 || true
-  fi
-  rm -rf "$wayland_runtime_dir"
   if [ -n "$container_id" ]; then
     docker rm -f "$container_id" >/dev/null 2>&1 || true
+  fi
+  if [ "$local_suite" -eq 1 ]; then
+    cleanup_suite
   fi
 }
 trap cleanup_devcontainer EXIT
 
-mkdir -m 700 "$wayland_runtime_dir"
-socat "UNIX-LISTEN:$wayland_socket,fork" EXEC:/bin/true >/dev/null 2>&1 &
-wayland_pid="$!"
-for _ in $(seq 1 50); do
-  [ ! -S "$wayland_socket" ] || break
-  sleep 0.1
-done
-[[ -S "$wayland_socket" ]] || fail "test Wayland socket was not created"
+create_git_fixture_repo "$fixture_dir"
+prepare_devcontainer_home "$fixture_dir"
+expected_common_dir="$(expected_git_common_dir "$fixture_dir")"
 
-DISPLAY=localhost:43.0 \
-  WAYLAND_DISPLAY="$wayland_display" \
-  XDG_RUNTIME_DIR="$wayland_runtime_dir" \
-  HOME="$fixture_dir" \
+log "checking long-form checkout mounts with a colon in the host path"
+create_git_fixture_repo "$colon_fixture_dir"
+HOME="$colon_fixture_dir" "$colon_fixture_dir/.devcontainer/initialize.sh"
+colon_common_dir="$(expected_git_common_dir "$colon_fixture_dir")"
+colon_compose_config="$(
+  cd "$colon_fixture_dir/.devcontainer"
+  docker compose \
+    -f docker-compose.yml \
+    -f compose.local.gen.yml \
+    -f compose.user.gen.yml \
+    config
+)"
+grep -F "source: $colon_fixture_dir" <<<"$colon_compose_config" >/dev/null \
+  || fail "Compose did not preserve the checkout path containing a colon"
+grep -F "source: $colon_common_dir" <<<"$colon_compose_config" >/dev/null \
+  || fail "Compose did not preserve the Git common path containing a colon"
+
+DISPLAY=localhost:43.0 HOME="$fixture_dir" \
   devcontainer_cli up --workspace-folder "$fixture_dir" | tee "$log_file"
 container_id="$(extract_container_id_from_log "$log_file" || true)"
 [[ -n "$container_id" ]] || fail "could not extract workspace container id from devcontainer output"
 
-[[ ! -e "$fixture_dir/.codegeist/compose.local.yml" ]] || fail "initializeCommand created .codegeist/compose.local.yml without an on-demand override"
-[[ -f "$fixture_dir/.devcontainer/compose.user.gen.yml" ]] || fail "initializeCommand did not create .devcontainer/compose.user.gen.yml"
-[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_KVM_GID=$kvm_gid"* ]] || fail "initializeCommand did not write KVM GID"
-[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_DISPLAY=localhost:43.0"* ]] || fail "initializeCommand did not write DISPLAY"
-[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_XAUTHORITY=$fixture_dir/.devcontainer/.Xauthority.gen"* ]] || fail "initializeCommand did not write workspace Xauthority"
-[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_WAYLAND_SOCKET_HOST=$wayland_socket"* ]] || fail "initializeCommand did not write Wayland socket"
+[[ ! -e "$fixture_dir/.codegeist/compose.local.yml" ]] \
+  || fail "initializeCommand created an optional Compose override"
+grep -Fx "DEVCONTAINER_KVM_GID=$kvm_gid" "$fixture_dir/.devcontainer/.env" >/dev/null \
+  || fail "initializeCommand did not write KVM GID"
+grep -Fx "DEVCONTAINER_DISPLAY=localhost:43.0" "$fixture_dir/.devcontainer/.env" >/dev/null \
+  || fail "initializeCommand did not write DISPLAY"
+grep -Fx "DEVCONTAINER_GIT_COMMON_DIR=$expected_common_dir" "$fixture_dir/.devcontainer/.env" >/dev/null \
+  || fail "initializeCommand did not write the Git common directory"
+if grep -q 'WAYLAND' "$fixture_dir/.devcontainer/.env" "$fixture_dir/.devcontainer/compose.local.gen.yml"; then
+  fail "generated runtime state retained Wayland configuration"
+fi
 
 container_config="$(docker inspect "$container_id")"
 [[ "$container_config" == *'"PathOnHost": "/dev/kvm"'* ]] || fail "workspace container did not mount /dev/kvm"
-[[ "$container_config" == *'"PathInContainer": "/dev/kvm"'* ]] || fail "workspace container did not expose /dev/kvm"
-[[ "$container_config" == *'"GroupAdd": ['* ]] || fail "workspace container did not include supplemental groups"
 [[ "$container_config" == *'"'"$kvm_gid"'"'* ]] || fail "workspace container did not add KVM group"
 [[ "$container_config" == *'"DISPLAY=localhost:43.0"'* ]] || fail "workspace container did not use generated DISPLAY"
 [[ "$container_config" == *'"BITWARDENCLI_APPDATA_DIR='"$expected_bitwarden_appdata"'"'* ]] \
-  || fail "workspace container did not use the repository-scoped Bitwarden CLI data path"
-[[ "$container_config" == *'"XAUTHORITY='"$fixture_dir"'/.devcontainer/.Xauthority.gen"'* ]] || fail "workspace container did not use generated Xauthority"
-[[ "$container_config" == *'"WAYLAND_DISPLAY='"$wayland_display"'"'* ]] || fail "workspace container did not use generated Wayland display"
-[[ "$container_config" == *'"XDG_RUNTIME_DIR=/tmp/codegeist-wayland"'* ]] || fail "workspace container did not use generated Wayland runtime"
-[[ "$container_config" == *'"Source": "'"$wayland_socket"'"'* ]] || fail "workspace container did not mount host Wayland socket"
-[[ "$container_config" == *'"Destination": "/tmp/codegeist-wayland/'"$wayland_display"'"'* ]] || fail "workspace container did not expose Wayland socket at generated target"
-docker exec "$container_id" test -S "/tmp/codegeist-wayland/$wayland_display" \
-  || fail "workspace container Wayland target is not a Unix socket"
-[[ "$(docker exec "$container_id" stat -c '%u:%g:%a' /tmp/codegeist-wayland)" = "$(id -u):$(id -g):700" ]] \
-  || fail "workspace Wayland runtime directory did not use runtime-user ownership and mode 0700"
-docker exec "$container_id" node -e '
-  const net = require("node:net");
-  const path = `${process.env.XDG_RUNTIME_DIR}/devcontainer-ipc-test.sock`;
-  const server = net.createServer();
-  server.on("error", (error) => {
-    console.error(error);
-    process.exit(1);
-  });
-  server.listen(path, () => server.close((error) => {
-    if (error) throw error;
-  }));
-' || fail "workspace user could not create an IPC socket in the Wayland runtime directory"
+  || fail "workspace container did not use checkout-local Bitwarden state"
+[[ "$container_config" == *'"XAUTHORITY='"$fixture_dir"'/.devcontainer/.Xauthority.gen"'* ]] \
+  || fail "workspace container did not use generated Xauthority"
+[[ "$container_config" == *'"Source": "'"$fixture_dir"'"'* ]] \
+  || fail "workspace checkout was not mounted at its host path"
+[[ "$container_config" == *'"Source": "'"$expected_common_dir"'"'* ]] \
+  || fail "Git common metadata was not mounted at its host path"
 
-pass "compose config mounts writable Wayland and reconnect-safe Xauthority state"
+docker exec -u "$(expected_container_user)" -w "$fixture_dir" "$container_id" \
+  git status --short >/dev/null \
+  || fail "Git metadata is not usable from the workspace container"
+
+pass "Compose exposes checkout, Git metadata, KVM, and Remote SSH X11 state"

@@ -1,19 +1,16 @@
 #!/usr/bin/env bash
-# devcontainer-worktree-up.sh - verify BRANCH starts the selected Git worktree
+# devcontainer-worktree-up.sh - verify a directly opened Git worktree
 #
 # Why this exists:
-# - proves the worktree flow works in an actual Git repository, not only a copied
-#   folder fixture
-# - verifies `.codegeist/.local.env` is shared from the repository root into the
-#   managed worktree
-# - verifies Remote SSH-style `BRANCH=<name>` starts from the repository root but
-#   opens the selected worktree as the remote workspace folder
+# - proves Git, not initialize.sh, creates and selects the linked worktree
+# - verifies an arbitrary worktree path opens as the host-identical workspace
+# - proves the exact common Git directory supports index, object, ref, and commit
+#   writes without broadly mounting the main checkout
 #
 # Related files:
 # - ../initialize.sh
 # - ../devcontainer.json
 # - ../docker-compose.yml
-# - ./helpers.sh
 
 set -euo pipefail
 
@@ -28,25 +25,19 @@ if [ -z "${suite_tmp_dir:-}" ]; then
   local_suite=1
 fi
 
-repo_dir="$suite_tmp_dir/worktree-devcontainer-repo"
-branch_name="feature/test-worktree"
-root_container_id=""
+repo_dir="$suite_tmp_dir/worktree-main-repo"
+worktree_path="$suite_tmp_dir/arbitrary-linked-checkout"
+branch_name="feature/direct-worktree"
+container_id=""
 log_file="$suite_tmp_dir/devcontainer-worktree-up.log"
-expected_hostname=""
-expected_project_name=""
-expected_workspace_folder=""
-expected_user="$(id -u):$(id -u)"
-expected_user_name="$(expected_container_user)"
-
-cleanup_devcontainer() {
-  if [ -n "$root_container_id" ]; then
-    docker rm -f "$root_container_id" >/dev/null 2>&1 || true
-  fi
-
-}
 
 cleanup_test() {
-  cleanup_devcontainer
+  if [ -n "$container_id" ]; then
+    docker rm -f "$container_id" >/dev/null 2>&1 || true
+  fi
+  if [ -d "$worktree_path" ]; then
+    git -C "$repo_dir" worktree remove --force "$worktree_path" >/dev/null 2>&1 || true
+  fi
   if [ "$local_suite" -eq 1 ]; then
     cleanup_suite
   fi
@@ -54,49 +45,66 @@ cleanup_test() {
 trap cleanup_test EXIT
 
 create_git_fixture_repo "$repo_dir"
+git -C "$repo_dir" worktree add -b "$branch_name" "$worktree_path" >/dev/null
+prepare_devcontainer_home "$worktree_path"
 
-worktree_path="$repo_dir/.worktrees/$branch_name"
-expected_workspace_folder="$(expected_workspace_folder "$repo_dir" "$branch_name")"
+expected_hostname="$(expected_generated_hostname "$worktree_path" "$branch_name")"
+expected_project_name="$(expected_compose_project_name "$worktree_path" "$branch_name")"
+expected_common_dir="$(expected_git_common_dir "$worktree_path")"
+expected_user_name="$(expected_container_user)"
+main_head_before="$(git -C "$repo_dir" rev-parse HEAD)"
 
-prepare_devcontainer_home "$repo_dir"
-BRANCH="$branch_name" HOME="$repo_dir" devcontainer_cli up --remove-existing-container --workspace-folder "$repo_dir" | tee "$log_file"
-root_container_id="$(extract_container_id_from_log "$log_file" || true)"
-[[ -n "$root_container_id" ]] || fail "could not extract worktree container id from devcontainer output"
-[[ "$(extract_remote_workspace_folder_from_log "$log_file" || true)" = "$expected_workspace_folder" ]] || fail "worktree devcontainer did not report expected remote workspace folder"
+HOME="$worktree_path" devcontainer_cli up \
+  --remove-existing-container \
+  --workspace-folder "$worktree_path" | tee "$log_file"
+container_id="$(extract_container_id_from_log "$log_file" || true)"
+[[ -n "$container_id" ]] || fail "could not extract linked-worktree container id"
+[[ "$(extract_remote_workspace_folder_from_log "$log_file" || true)" = "$worktree_path" ]] \
+  || fail "Dev Containers did not open the linked worktree directly"
 
-[[ -d "$worktree_path" ]] || fail "worktree path was not created: $worktree_path"
-[[ -d "$worktree_path/.git" || -f "$worktree_path/.git" ]] || fail "worktree is not a Git checkout"
-[[ -f "$worktree_path/.devcontainer/devcontainer.json" ]] || fail "worktree .devcontainer files are missing"
-[[ -L "$worktree_path/.codegeist/.local.env" ]] || fail "worktree .codegeist/.local.env is not a symlink"
-[[ -f "$repo_dir/.codegeist/.local.env" ]] || fail ".codegeist/.local.env was not created"
-
-[[ ! -e "$repo_dir/.codegeist/compose.local.yml" ]] || fail "initializeCommand created .codegeist/compose.local.yml without an on-demand override"
-[[ -f "$repo_dir/.devcontainer/.env" ]] || fail "initializeCommand did not create .devcontainer/.env"
-[[ -f "$repo_dir/.devcontainer/compose.local.gen.yml" ]] || fail "initializeCommand did not create .devcontainer/compose.local.gen.yml"
-[[ -f "$repo_dir/.devcontainer/compose.user.gen.yml" ]] || fail "initializeCommand did not create .devcontainer/compose.user.gen.yml"
-[[ "$(<"$repo_dir/.devcontainer/.env")" == *"DEVCONTAINER_WORKSPACE_FOLDER=$expected_workspace_folder"* ]] || fail "generated env does not set worktree workspace folder"
-[[ -e "$worktree_path/.codegeist/.local.env" ]] || fail "worktree .codegeist/.local.env disappeared after devcontainer up"
-[[ -L "$worktree_path/.codegeist/.local.env" ]] || fail "worktree .codegeist/.local.env stopped being a symlink"
-
-expected_hostname="$(expected_generated_hostname "$repo_dir" "$branch_name")"
-expected_project_name="$(expected_compose_project_name "$repo_dir" "$branch_name")"
-[[ "$(<"$repo_dir/.devcontainer/.env")" == *"DEVCONTAINER_COMPOSE_PROJECT_NAME=$expected_project_name"* ]] || fail "generated env does not set worktree Compose project name"
-[[ "$(<"$repo_dir/.devcontainer/compose.local.gen.yml")" == *"name: $expected_project_name"* ]] || fail "generated compose file does not set worktree project name"
-[[ "$(<"$repo_dir/.devcontainer/compose.local.gen.yml")" == *"hostname: $expected_hostname"* ]] || fail "generated compose file does not set worktree hostname"
-[[ "$(<"$repo_dir/.devcontainer/compose.local.gen.yml")" == *"CONTAINER_USER: $expected_user_name"* ]] || fail "generated compose file does not set worktree build user"
-[[ "$(<"$repo_dir/.devcontainer/compose.local.gen.yml")" == *"user: \"$expected_user\""* ]] || fail "generated compose file does not set worktree user"
-[[ "$(docker inspect --format '{{ index .Config.Labels "com.docker.compose.project" }}' "$root_container_id")" = "$expected_project_name" ]] || fail "worktree container has wrong Compose project label"
-docker exec -u "$expected_user_name" "$root_container_id" bash -lc \
-  'test "$BITWARDENCLI_APPDATA_DIR" = "'"$repo_dir"'/.codegeist/secrets/bitwarden-cli"' \
-  || fail "worktree container did not share the repository-scoped Bitwarden CLI data path"
-
-for _ in 1 2 3 4 5 6 7 8 9 10; do
-  if docker exec -w "$expected_workspace_folder" -u "$expected_user_name" "$root_container_id" bash -lc 'test "$(id -un)" = "'"$expected_user_name"'" && test "$(hostname)" = "'"$expected_hostname"'" && test "$DEVCONTAINER_HOSTNAME" = "'"$expected_hostname"'" && test "$DEVCONTAINER_USER" = "'"$expected_user_name"'" && test "$DEVCONTAINER_UID:$DEVCONTAINER_GID" = "'"$expected_user"'" && test "$DEVCONTAINER_WORKSPACE_FOLDER" = "'"$expected_workspace_folder"'" && test "$PWD" = "'"$expected_workspace_folder"'" && docker ps >/dev/null && git rev-parse --is-inside-work-tree >/dev/null && test "$(git rev-parse --abbrev-ref HEAD)" = "feature/test-worktree" && test -d "'"$repo_dir"'/.git"'; then
-    pass "Dev Containers CLI starts Remote SSH BRANCH worktree as workspace"
-    exit 0
-  fi
-
-  sleep 1
+for expected in \
+  "DEVCONTAINER_REPO_ROOT=$worktree_path" \
+  "DEVCONTAINER_GIT_COMMON_DIR=$expected_common_dir" \
+  "DEVCONTAINER_WORKSPACE_FOLDER=$worktree_path" \
+  "DEVCONTAINER_BRANCH_NAME=feature-direct-worktree" \
+  "DEVCONTAINER_HOSTNAME=$expected_hostname" \
+  "DEVCONTAINER_COMPOSE_PROJECT_NAME=$expected_project_name"; do
+  grep -Fx "$expected" "$worktree_path/.devcontainer/.env" >/dev/null \
+    || fail "linked-worktree environment is missing: $expected"
 done
+[[ -f "$worktree_path/.codegeist/.local.env" && ! -L "$worktree_path/.codegeist/.local.env" ]] \
+  || fail "linked worktree does not own an independent local environment"
+[[ ! -e "$repo_dir/.codegeist" ]] \
+  || fail "linked-worktree initialization changed the main checkout local state"
+[[ "$(docker inspect --format '{{ index .Config.Labels "com.docker.compose.project" }}' "$container_id")" = "$expected_project_name" ]] \
+  || fail "linked-worktree container has the wrong Compose project"
 
-fail "Remote SSH BRANCH start did not expose selected worktree, nested Docker, and Git workspace"
+mount_sources="$(docker inspect --format '{{range .Mounts}}{{println .Source}}{{end}}' "$container_id")"
+grep -Fx "$worktree_path" <<<"$mount_sources" >/dev/null \
+  || fail "linked worktree is not mounted at its host path"
+grep -Fx "$expected_common_dir" <<<"$mount_sources" >/dev/null \
+  || fail "exact Git common directory is not mounted"
+if grep -Fx "$repo_dir" <<<"$mount_sources" >/dev/null; then
+  fail "main checkout was broadly mounted for linked-worktree Git metadata"
+fi
+
+docker exec -w "$worktree_path" -u "$expected_user_name" "$container_id" bash -lc '
+  set -euo pipefail
+  test "$PWD" = "'"$worktree_path"'"
+  test "$(git rev-parse --show-toplevel)" = "'"$worktree_path"'"
+  test "$(git rev-parse --path-format=absolute --git-common-dir)" = "'"$expected_common_dir"'"
+  test "$(git rev-parse --abbrev-ref HEAD)" = "'"$branch_name"'"
+  test "$DEVCONTAINER_WORKSPACE_FOLDER" = "'"$worktree_path"'"
+  test "$(hostname)" = "'"$expected_hostname"'"
+  docker ps >/dev/null
+  printf "direct worktree commit\n" > direct-worktree.txt
+  git add direct-worktree.txt
+  git commit -m "test direct worktree commit" >/dev/null
+'
+
+[[ "$(git -C "$repo_dir" rev-parse HEAD)" = "$main_head_before" ]] \
+  || fail "linked-worktree commit moved the main branch"
+[[ "$(git -C "$worktree_path" log -1 --format=%s)" = "test direct worktree commit" ]] \
+  || fail "container commit was not recorded on the linked-worktree branch"
+
+pass "directly opened linked worktree has isolated state and writable Git metadata"

@@ -91,31 +91,37 @@ local override templates in this repository.
 ## Display Forwarding
 
 - Use `task devcontainer-reality-test` for manual current-source verification in
-  a temporary consuming repository. It must enter the reported container by ID
-  and pass the fixture workspace explicitly; do not add a parallel fake-CLI
-  contract test for this manual helper.
+  a temporary consuming repository. It must test the checkout opened directly,
+  enter the reported container by ID, and pass the fixture workspace explicitly;
+  do not add a parallel fake-CLI contract test for this manual helper.
+- Treat the checkout opened by VS Code or the Dev Containers CLI as the complete
+  workspace-selection input. `initialize.sh` must not interpret `BRANCH`, create
+  or repair worktrees, create current-branch aliases, or initialize worktree
+  submodules.
+- Support ordinary linked worktrees only when Git or another explicit repository
+  workflow created them and the user opens that checkout directly. Resolve the
+  checkout and common Git metadata with Git rather than assuming a
+  `.worktrees/<branch>` layout.
 - Do not reserve, increment, or guess SSH X11 forwarding ports in
   `initialize.sh`; SSH and VS Code own forwarding listener allocation.
 - Preserve the host-side `DISPLAY` visible to `initializeCommand` by writing it
   to generated `.devcontainer/.env` as `DEVCONTAINER_DISPLAY`, then pass that
   value into the container as `DISPLAY` from `docker-compose.yml`. Treat it as a
-  candidate, not proof that a host-local X11 socket is mounted.
-- Keep the generated `/tmp/codegeist-wayland` XDG runtime directory owned by the
-  configured workspace user with mode `0700`. VS Code and other XDG clients must
-  be able to create private IPC sockets there when local Wayland forwarding is
-  active; do not apply ownership changes to arbitrary user-provided runtime paths.
-- In visible Chrome, prefer Wayland only when
-  `$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY` is a real socket, and force
-  `--ozone-platform=wayland` while removing an inherited invalid `DISPLAY`.
-- Accept local X11 displays such as `:0` only when the matching
-  `/tmp/.X11-unix/X0` socket exists. Do not add a shared default X11 socket mount
-  or require broad `xhost +` access.
-- Keep SSH-loopback X11 normalization and explicitly configured remote X11 host
-  values working when Wayland is unavailable.
-- For parallel visible-browser work, prefer opening the selected worktree path
-  directly so generated display state is isolated per worktree. Treat multiple
-  root-opened sessions with different `BRANCH` values as unsafe unless
-  branch-scoped generated files are implemented.
+  candidate until the launcher proves the Remote SSH loopback X11 endpoint is
+  reachable and has matching Xauthority state.
+- Keep visible Chrome limited to Remote SSH loopback X11 displays such as
+  `localhost:N.0` and `127.0.0.1:N.0`. Reread the directly opened checkout's
+  generated display and authority state on every launch, probe the requested
+  display, and normalize only its matching cookie before Chrome starts.
+- Do not preserve Wayland discovery, generated socket mounts, runtime-directory
+  setup, launcher selection, or Wayland browser verification. Local X11 displays
+  and arbitrary non-loopback X11 hosts are also outside the supported visible
+  browser contract.
+- Keep `chrome --headless` available for automation, independently of visible
+  display state. Do not use it as proof of the visible-browser contract.
+- For parallel visible-browser work, create each worktree explicitly and open
+  each checkout directly so generated display state, Xauthority, Compose state,
+  and Chrome profiles remain checkout-local.
 - For interactive account sign-in, use a manually launched visible `chrome`
   session from a terminal. Do not route login flows through OpenCode/Playwright
   MCP browser sessions because providers such as Google can reject
@@ -181,9 +187,10 @@ local override templates in this repository.
   `chore(release): update devcontainer runtime branch`. Its body must identify
   the full source commit and include the latest five source commit subjects as a
   short changelog.
-- `task tests-run` must exercise real non-headless Chrome with `DISPLAY=:0`, no
-  X0 socket, and a real Wayland compositor. `scripts/release-build.sh` must reject
-  a commit without the matching `.test-tmp/release-verification` attestation.
+- `task tests-run` must exercise real non-headless Chrome over loopback X11 with
+  Xauthority state shaped like Remote SSH forwarding. `scripts/release-build.sh`
+  must reject a commit unless `.test-tmp/release-verification` matches the exact
+  commit and contains `browser-visible-x11=passed`.
 - After the release branch is pushed, update only the local `.devcontainer/`
   submodule checkout to `origin/release` and report the parent gitlink change;
   do not commit that gitlink automatically unless the user explicitly asks.

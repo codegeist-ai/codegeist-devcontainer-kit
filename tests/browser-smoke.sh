@@ -1,19 +1,16 @@
 #!/usr/bin/env bash
-# browser-smoke.sh - verify Chrome starts inside a Dev Containers CLI workspace
+# browser-smoke.sh - verify real headless and visible X11 Chrome
 #
 # Why this exists:
-# - proves the shared kit can launch Chrome from inside the devcontainer runtime
-# - verifies the browser can read container-local resources without host display
-#   forwarding or project-specific browser configuration
-# - drives a rendered browser UI check through Chrome DevTools Protocol
-# - proves stale SSH-loopback X11 is rejected before Google Chrome starts
-# - reproduces the local VS Code failure shape with DISPLAY=:0, no X0 socket, and
-#   a real Wayland compositor before a runtime release can pass the full suite
+# - proves the shared launcher renders container-local content through CDP
+# - verifies stale Remote SSH X11 state rejects launch before Chrome starts
+# - exercises real non-headless Chrome through authenticated loopback X11 without
+#   substituting a Wayland compositor for the supported display transport
 #
 # Related files:
-# - ../Dockerfile.base
+# - ../scripts/chrome.sh
 # - ../docker-compose.yml
-# - ./helpers.sh
+# - ./browser-ui-cdp.mjs
 
 set -euo pipefail
 
@@ -24,28 +21,8 @@ source "$script_dir/helpers.sh"
 
 container_id=""
 expected_user_name="$(expected_container_user)"
-expected_content="browser smoke expected content from inside the container"
-container_file="/tmp/datei_innerhalb_des_containers.txt"
-ui_expected_content="browser UI smoke rendered content from inside the container"
-ui_container_file="/tmp/datei_innerhalb_des_containers.html"
 ui_driver_file="/tmp/browser-ui-cdp.mjs"
-ui_screenshot_file="/tmp/browser-ui-smoke.png"
-wayland_expected_content="visible Chrome rendered through a real Wayland socket"
-wayland_container_file="/tmp/browser-wayland-visible.html"
-wayland_screenshot_file="/tmp/browser-wayland-visible.png"
-wayland_runtime_dir="/tmp/browser-wayland-runtime"
-wayland_socket_name="vscode-wayland-regression.sock"
-weston_log_file="/tmp/browser-wayland-weston.log"
-stale_workspace="/tmp/browser-stale-ssh-workspace"
-stale_error_file="/tmp/browser-stale-ssh-error.log"
-stale_chrome_marker="/tmp/browser-stale-ssh-google-chrome-started"
 browser_tmp_root="${BROWSER_SMOKE_TMP_ROOT:-$project_root/.browser-smoke-tmp}"
-
-cleanup_devcontainer() {
-  if [ -n "$container_id" ]; then
-    docker rm -f "$container_id" >/dev/null 2>&1 || true
-  fi
-}
 
 mkdir -p "$browser_tmp_root"
 suite_tmp_dir="$(mktemp -d "$browser_tmp_root/browser-smoke.XXXXXX")"
@@ -53,217 +30,144 @@ suite_start_epoch="$(date +%s)"
 export suite_tmp_dir suite_start_epoch
 
 cleanup_browser_smoke() {
-  cleanup_devcontainer
+  if [ -n "$container_id" ]; then
+    docker rm -f "$container_id" >/dev/null 2>&1 || true
+  fi
   cleanup_suite
 }
 trap cleanup_browser_smoke EXIT
 
 fixture_dir="$suite_tmp_dir/browser-fixture-repo"
 log_file="$suite_tmp_dir/browser-smoke.log"
-
 create_git_fixture_repo "$fixture_dir"
-
-# Weston is installed only in this disposable fixture. It provides a real
-# Wayland protocol endpoint without adding a compositor to the release image.
-mkdir -p "$fixture_dir/.codegeist"
-cat >"$fixture_dir/.codegeist/Dockerfile" <<'EOF'
-# Test-only image extension for the visible Wayland browser regression.
-USER root
-RUN apt-get update \
- && apt-get install -y --no-install-recommends weston \
- && rm -rf /var/lib/apt/lists/*
-USER ${CONTAINER_USER}
-EOF
-
 prepare_devcontainer_home "$fixture_dir"
-DISPLAY=:0 HOME="$fixture_dir" devcontainer_cli up --workspace-folder "$fixture_dir" | tee "$log_file"
+(unset DISPLAY; HOME="$fixture_dir" devcontainer_cli up \
+  --workspace-folder "$fixture_dir") | tee "$log_file"
 container_id="$(extract_container_id_from_log "$log_file" || true)"
-[[ -n "$container_id" ]] || fail "could not extract workspace container id from devcontainer output"
-grep -Fx "DEVCONTAINER_DISPLAY=:0" "$fixture_dir/.devcontainer/.env" >/dev/null \
-  || fail "browser fixture did not preserve the failing local DISPLAY=:0 shape"
-
-log "checking real Chrome headless DOM output with DISPLAY=:0 present"
-actual_content="$(docker exec -u "$expected_user_name" \
-  -e EXPECTED_CONTENT="$expected_content" \
-  -e CONTAINER_FILE="$container_file" \
-  "$container_id" bash -lc '
-    set -euo pipefail
-
-    user_data_dir="$(mktemp -d)"
-    trap '\''rm -rf "$user_data_dir"'\'' EXIT
-
-    printf "%s\n" "$EXPECTED_CONTENT" > "$CONTAINER_FILE"
-    chrome \
-      --headless \
-      --user-data-dir="$user_data_dir" \
-      --dump-dom \
-      "file://$CONTAINER_FILE" \
-      | python3 -c '\''import re, sys; print(re.sub(r"<[^>]+>", "", sys.stdin.read()).strip())'\''
-  ')"
-
-if [ "$actual_content" != "$expected_content" ]; then
-  printf 'Expected browser content: %s\n' "$expected_content" >&2
-  printf 'Actual browser content:   %s\n' "$actual_content" >&2
-  fail "Chrome did not load the container-local file content"
-fi
+[[ -n "$container_id" ]] || fail "could not extract browser workspace container id"
+docker cp "$script_dir/browser-ui-cdp.mjs" "$container_id:$ui_driver_file"
 
 log "checking stale SSH X11 is rejected before Google Chrome starts"
-docker exec -u "$expected_user_name" \
-  -e STALE_WORKSPACE="$stale_workspace" \
-  -e STALE_ERROR_FILE="$stale_error_file" \
-  -e STALE_CHROME_MARKER="$stale_chrome_marker" \
-  "$container_id" bash -lc '
-    set -euo pipefail
-
-    fake_bin="$STALE_WORKSPACE/fake-bin"
-    authority_file="$STALE_WORKSPACE/.devcontainer/.Xauthority.gen"
-    rm -rf "$STALE_WORKSPACE"
-    mkdir -p "$STALE_WORKSPACE/.devcontainer" "$fake_bin"
-    : >"$authority_file"
-    cat >"$STALE_WORKSPACE/.devcontainer/.env" <<EOF
+docker exec -u "$expected_user_name" "$container_id" bash -lc '
+  set -euo pipefail
+  workspace=/tmp/browser-stale-ssh-workspace
+  fake_bin="$workspace/fake-bin"
+  authority_file="$workspace/.devcontainer/.Xauthority.gen"
+  error_file=/tmp/browser-stale-ssh-error.log
+  marker=/tmp/browser-stale-ssh-google-chrome-started
+  rm -rf "$workspace"
+  mkdir -p "$workspace/.devcontainer" "$fake_bin"
+  : >"$authority_file"
+  cat >"$workspace/.devcontainer/.env" <<EOF
 DEVCONTAINER_DISPLAY=localhost:39999.0
 DEVCONTAINER_XAUTHORITY=$authority_file
-DEVCONTAINER_WAYLAND_DISPLAY=
-DEVCONTAINER_WAYLAND_RUNTIME_DIR=
 EOF
-    cat >"$fake_bin/google-chrome" <<EOF
+  cat >"$fake_bin/google-chrome" <<EOF
 #!/usr/bin/env bash
-touch "$STALE_CHROME_MARKER"
+touch "$marker"
 EOF
-    chmod +x "$fake_bin/google-chrome"
-    rm -f "$STALE_ERROR_FILE" "$STALE_CHROME_MARKER"
-
-    set +e
-    env -u WAYLAND_DISPLAY -u XDG_RUNTIME_DIR \
-      PATH="$fake_bin:$PATH" \
-      DEVCONTAINER_WORKSPACE_FOLDER="$STALE_WORKSPACE" \
-      chrome about:blank 2>"$STALE_ERROR_FILE"
-    launcher_status="$?"
-    set -e
-
-    [ "$launcher_status" -ne 0 ]
-    [ ! -e "$STALE_CHROME_MARKER" ]
-    grep -F "Detected stale SSH DISPLAY=localhost:39999.0" "$STALE_ERROR_FILE" >/dev/null
-  '
-
-docker cp "$script_dir/browser-ui-cdp.mjs" "$container_id:$ui_driver_file"
+  chmod +x "$fake_bin/google-chrome"
+  rm -f "$error_file" "$marker"
+  if PATH="$fake_bin:$PATH" DEVCONTAINER_WORKSPACE_FOLDER="$workspace" chrome about:blank 2>"$error_file"; then
+    exit 1
+  fi
+  test ! -e "$marker"
+  grep -F "Detected stale SSH DISPLAY=localhost:39999.0" "$error_file" >/dev/null
+'
 
 log "checking real Chrome headless CDP rendering"
 docker exec -u "$expected_user_name" \
-  -e UI_EXPECTED_CONTENT="$ui_expected_content" \
-  -e UI_CONTAINER_FILE="$ui_container_file" \
   -e UI_DRIVER_FILE="$ui_driver_file" \
-  -e UI_SCREENSHOT_FILE="$ui_screenshot_file" \
   "$container_id" bash -lc '
     set -euo pipefail
-
-    cat >"$UI_CONTAINER_FILE" <<EOF
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <title>Browser UI Smoke</title>
-    <style>
-      body { margin: 0; min-height: 100vh; display: grid; place-items: center; font-family: sans-serif; }
-      main { border: 4px solid #2155d9; padding: 2rem; }
-    </style>
-  </head>
-  <body>
-    <main aria-label="$UI_EXPECTED_CONTENT">$UI_EXPECTED_CONTENT</main>
-  </body>
-</html>
+    expected="headless Chrome rendered content from inside the container"
+    html=/tmp/browser-headless.html
+    screenshot=/tmp/browser-headless.png
+    cat >"$html" <<EOF
+<!doctype html><html lang="en"><body><main aria-label="$expected">$expected</main></body></html>
 EOF
-
-    rm -f "$UI_SCREENSHOT_FILE"
+    rm -f "$screenshot"
     node "$UI_DRIVER_FILE" \
-      --url "file://$UI_CONTAINER_FILE" \
-      --expected "$UI_EXPECTED_CONTENT" \
-      --screenshot "$UI_SCREENSHOT_FILE"
-
-    test -s "$UI_SCREENSHOT_FILE"
+      --url "file://$html" \
+      --expected "$expected" \
+      --screenshot "$screenshot"
+    test -s "$screenshot"
   '
 
-log "checking real visible Chrome with invalid X11 and a real Wayland compositor"
+log "checking real non-headless Chrome through authenticated loopback X11"
 docker exec -u "$expected_user_name" \
-  -e UI_EXPECTED_CONTENT="$wayland_expected_content" \
-  -e UI_CONTAINER_FILE="$wayland_container_file" \
   -e UI_DRIVER_FILE="$ui_driver_file" \
-  -e UI_SCREENSHOT_FILE="$wayland_screenshot_file" \
-  -e WAYLAND_RUNTIME_DIR="$wayland_runtime_dir" \
-  -e WAYLAND_SOCKET_NAME="$wayland_socket_name" \
-  -e WESTON_LOG_FILE="$weston_log_file" \
   "$container_id" bash -lc '
     set -euo pipefail
+    xvfb_pid=""
+    proxy_pid=""
+    display_number=""
+    server_authority=/tmp/browser-x11-server.Xauthority
+    source_authority="$DEVCONTAINER_WORKSPACE_FOLDER/.devcontainer/.Xauthority.gen"
+    screenshot=/tmp/browser-visible-x11.png
+    html=/tmp/browser-visible-x11.html
+    expected="visible Chrome rendered through authenticated loopback X11"
+    cookie=0123456789abcdef0123456789abcdef
 
-    weston_pid=""
-    cleanup_wayland() {
-      if [ -n "$weston_pid" ]; then
-        kill "$weston_pid" >/dev/null 2>&1 || true
-        wait "$weston_pid" >/dev/null 2>&1 || true
-      fi
-      rm -rf "$WAYLAND_RUNTIME_DIR"
+    cleanup_x11() {
+      if [ -n "$proxy_pid" ]; then kill "$proxy_pid" >/dev/null 2>&1 || true; fi
+      if [ -n "$xvfb_pid" ]; then kill "$xvfb_pid" >/dev/null 2>&1 || true; fi
+      if [ -n "$proxy_pid" ]; then wait "$proxy_pid" >/dev/null 2>&1 || true; fi
+      if [ -n "$xvfb_pid" ]; then wait "$xvfb_pid" >/dev/null 2>&1 || true; fi
+      rm -f "$server_authority" "$screenshot" "$html"
     }
-    trap cleanup_wayland EXIT
+    trap cleanup_x11 EXIT
 
-    [ "${DISPLAY:-}" = ":0" ] \
-      || { printf "Expected container DISPLAY=:0, got %s\n" "${DISPLAY:-<unset>}" >&2; exit 1; }
-    [ "${DEVCONTAINER_DISPLAY:-}" = ":0" ] \
-      || { printf "Expected DEVCONTAINER_DISPLAY=:0, got %s\n" "${DEVCONTAINER_DISPLAY:-<unset>}" >&2; exit 1; }
-    [ ! -S /tmp/.X11-unix/X0 ] \
-      || { printf "Expected /tmp/.X11-unix/X0 to be absent\n" >&2; exit 1; }
-
-    rm -rf "$WAYLAND_RUNTIME_DIR"
-    mkdir -m 700 "$WAYLAND_RUNTIME_DIR"
-    export XDG_RUNTIME_DIR="$WAYLAND_RUNTIME_DIR"
-    export WAYLAND_DISPLAY="$WAYLAND_SOCKET_NAME"
-
-    weston \
-      --backend=headless-backend.so \
-      --socket="$WAYLAND_SOCKET_NAME" \
-      --idle-time=0 \
-      --use-pixman \
-      --no-config \
-      --log="$WESTON_LOG_FILE" &
-    weston_pid="$!"
-
-    for _ in $(seq 1 100); do
-      [ ! -S "$WAYLAND_RUNTIME_DIR/$WAYLAND_SOCKET_NAME" ] || break
-      if ! kill -0 "$weston_pid" 2>/dev/null; then
-        cat "$WESTON_LOG_FILE" >&2 || true
-        exit 1
+    for candidate in $(seq 200 299); do
+      port=$((6000 + candidate))
+      if [ ! -e "/tmp/.X11-unix/X$candidate" ] && ! nc -z -w 1 127.0.0.1 "$port" >/dev/null 2>&1; then
+        display_number="$candidate"
+        break
       fi
+    done
+    test -n "$display_number"
+    port=$((6000 + display_number))
+
+    rm -f "$server_authority" "$source_authority"
+    touch "$server_authority" "$source_authority"
+    xauth -f "$server_authority" add "$(hostname)/unix:$display_number" MIT-MAGIC-COOKIE-1 "$cookie"
+    xauth -f "$source_authority" add "fixture/unix:$display_number" MIT-MAGIC-COOKIE-1 "$cookie"
+    chmod 600 "$server_authority" "$source_authority"
+
+    Xvfb ":$display_number" -screen 0 1280x900x24 -nolisten tcp -auth "$server_authority" >/tmp/browser-xvfb.log 2>&1 &
+    xvfb_pid="$!"
+    for _ in $(seq 1 100); do
+      [ ! -S "/tmp/.X11-unix/X$display_number" ] || break
+      kill -0 "$xvfb_pid"
       sleep 0.1
     done
-    [ -S "$WAYLAND_RUNTIME_DIR/$WAYLAND_SOCKET_NAME" ] \
-      || { cat "$WESTON_LOG_FILE" >&2 || true; exit 1; }
+    test -S "/tmp/.X11-unix/X$display_number"
 
-    # The launcher intentionally clears stale create-time Wayland values when
-    # initializeCommand writes empty replacements. Point this test workspace at
-    # the compositor it created before exercising the real launcher.
+    socat "TCP4-LISTEN:$port,bind=127.0.0.1,reuseaddr,fork" "UNIX-CONNECT:/tmp/.X11-unix/X$display_number" >/tmp/browser-x11-proxy.log 2>&1 &
+    proxy_pid="$!"
+    for _ in $(seq 1 100); do
+      nc -z -w 1 127.0.0.1 "$port" >/dev/null 2>&1 && break
+      kill -0 "$proxy_pid"
+      sleep 0.1
+    done
+    nc -z -w 1 127.0.0.1 "$port" >/dev/null 2>&1
+
     cat >"$DEVCONTAINER_WORKSPACE_FOLDER/.devcontainer/.env" <<EOF
-DEVCONTAINER_DISPLAY=:0
-DEVCONTAINER_XAUTHORITY=${XAUTHORITY:-}
-DEVCONTAINER_WAYLAND_DISPLAY=$WAYLAND_SOCKET_NAME
-DEVCONTAINER_WAYLAND_RUNTIME_DIR=$WAYLAND_RUNTIME_DIR
+DEVCONTAINER_DISPLAY=localhost:$display_number.0
+DEVCONTAINER_XAUTHORITY=$source_authority
 EOF
-
-    cat >"$UI_CONTAINER_FILE" <<EOF
-<!doctype html>
-<html lang="en">
-  <head><meta charset="utf-8"><title>Visible Wayland Regression</title></head>
-  <body><main aria-label="$UI_EXPECTED_CONTENT">$UI_EXPECTED_CONTENT</main></body>
-</html>
+    cat >"$html" <<EOF
+<!doctype html><html lang="en"><body><main aria-label="$expected">$expected</main></body></html>
 EOF
-
-    rm -f "$UI_SCREENSHOT_FILE"
-    timeout 30s node "$UI_DRIVER_FILE" \
-      --mode visible \
-      --url "file://$UI_CONTAINER_FILE" \
-      --expected "$UI_EXPECTED_CONTENT" \
-      --expected-browser-arg=--ozone-platform=wayland \
-      --screenshot "$UI_SCREENSHOT_FILE"
-
-    test -s "$UI_SCREENSHOT_FILE"
+    rm -f "$screenshot"
+    BROWSER_UI_PROFILE_ROOT="$DEVCONTAINER_WORKSPACE_FOLDER" \
+      timeout 30s node "$UI_DRIVER_FILE" \
+        --mode visible \
+        --url "file://$html" \
+        --expected "$expected" \
+        --screenshot "$screenshot"
+    test -s "$screenshot"
+    test -z "$(find "$DEVCONTAINER_WORKSPACE_FOLDER" -maxdepth 1 -name ".chrome-ui-cdp.*" -print -quit)"
   '
 
-pass "Chrome passes headless, stale SSH X11, and real DISPLAY=:0 Wayland regressions"
+pass "Chrome passes stale-X11, headless CDP, and real visible loopback-X11 regressions"

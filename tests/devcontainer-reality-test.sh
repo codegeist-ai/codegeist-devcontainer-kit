@@ -9,7 +9,6 @@
 # - Leaves the temporary repository and container available for manual inspection.
 #
 # Inputs:
-# - First positional argument or BRANCH selects a worktree branch.
 # - KEEP_REALITY_FIXTURE_DIR can select an empty fixture directory instead of a
 #   newly allocated operating-system temporary directory.
 #
@@ -31,7 +30,6 @@ script_dir="$(dirname "$(readlink -f "$0")")"
 # shellcheck source=./helpers.sh
 source "$script_dir/helpers.sh"
 
-branch_name="${1:-${BRANCH:-}}"
 fixture_dir="${KEEP_REALITY_FIXTURE_DIR:-$(mktemp -d -t devcontainer-reality-XXXXXX)}"
 remote_workspace_folder=""
 expected_workspace_folder=""
@@ -45,25 +43,15 @@ fi
 create_git_fixture_repo "$fixture_dir"
 
 log "created devcontainer fixture at $fixture_dir"
-expected_workspace_folder="$(expected_workspace_folder "$fixture_dir" "$branch_name")"
+expected_workspace_folder="$(expected_workspace_folder "$fixture_dir")"
 expected_remote_workspace_folder="$(expected_remote_workspace_folder "$expected_workspace_folder")"
 remote_workspace_folder="$expected_remote_workspace_folder"
-
-if [ -n "$branch_name" ]; then
-  log "preparing fixture worktree with BRANCH=$branch_name"
-  BRANCH="$branch_name" "$fixture_dir/.devcontainer/initialize.sh"
-fi
 
 if [ "${DEVCONTAINER_REALITY_TEST_SKIP_UP:-false}" != "true" ]; then
   log "starting devcontainer CLI from fixture root"
   devcontainer_log="$fixture_dir/devcontainer-up.log"
-  if [ -n "$branch_name" ]; then
-    prepare_devcontainer_home "$expected_workspace_folder"
-    HOME="$expected_workspace_folder" devcontainer_cli up --remove-existing-container --workspace-folder "$expected_workspace_folder" | tee "$devcontainer_log"
-  else
-    prepare_devcontainer_home "$fixture_dir"
-    HOME="$fixture_dir" devcontainer_cli up --remove-existing-container --workspace-folder "$fixture_dir" | tee "$devcontainer_log"
-  fi
+  prepare_devcontainer_home "$fixture_dir"
+  HOME="$fixture_dir" devcontainer_cli up --remove-existing-container --workspace-folder "$fixture_dir" | tee "$devcontainer_log"
 
   remote_workspace_folder="$(extract_remote_workspace_folder_from_log "$devcontainer_log")"
   [ -n "$remote_workspace_folder" ] || fail "devcontainer CLI did not report a remote workspace folder"
@@ -72,26 +60,14 @@ if [ "${DEVCONTAINER_REALITY_TEST_SKIP_UP:-false}" != "true" ]; then
   container_id="$(extract_container_id_from_log "$devcontainer_log")"
   [ -n "$container_id" ] || fail "devcontainer CLI did not report a container ID"
 
-  if [ -n "$branch_name" ]; then
-    devcontainer_cli exec --container-id "$container_id" bash -c '
-      set -eu
-      cd "$DEVCONTAINER_WORKSPACE_FOLDER"
-      test "$(pwd -P)" = "'"$expected_workspace_folder"'"
-      test "$DEVCONTAINER_WORKSPACE_FOLDER" = "'"$expected_workspace_folder"'"
-      test "$(command -v oc)" = "/usr/local/bin/oc"
-      git rev-parse --is-inside-work-tree >/dev/null
-      test "$(git rev-parse --abbrev-ref HEAD)" = "'"$branch_name"'"
-    '
-  else
-    devcontainer_cli exec --container-id "$container_id" bash -c '
-      set -eu
-      cd "$DEVCONTAINER_WORKSPACE_FOLDER"
-      test "$(pwd -P)" = "'"$expected_workspace_folder"'"
-      test "$DEVCONTAINER_WORKSPACE_FOLDER" = "'"$expected_workspace_folder"'"
-      test "$(command -v oc)" = "/usr/local/bin/oc"
-      git rev-parse --is-inside-work-tree >/dev/null
-    '
-  fi
+  devcontainer_cli exec --container-id "$container_id" bash -c '
+    set -eu
+    cd "$DEVCONTAINER_WORKSPACE_FOLDER"
+    test "$(pwd -P)" = "'"$expected_workspace_folder"'"
+    test "$DEVCONTAINER_WORKSPACE_FOLDER" = "'"$expected_workspace_folder"'"
+    test "$(command -v oc)" = "/usr/local/bin/oc"
+    git rev-parse --is-inside-work-tree >/dev/null
+  '
 fi
 
 pass "verified current kit in temporary consuming devcontainer: $fixture_dir"

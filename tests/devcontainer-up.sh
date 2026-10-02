@@ -36,7 +36,7 @@ cleanup_devcontainer() {
 trap cleanup_devcontainer EXIT
 
 create_git_fixture_repo "$fixture_dir"
-rm -rf "$fixture_dir/.codegeist"
+rm -rf "$fixture_dir/.codegeist" "$fixture_dir/.oc_local"
 
 prepare_devcontainer_home "$fixture_dir"
 HOME="$fixture_dir" devcontainer_cli up --workspace-folder "$fixture_dir" | tee "$log_file"
@@ -47,7 +47,6 @@ HOME="$fixture_dir" devcontainer_cli up --workspace-folder "$fixture_dir" | tee 
 [[ -f "$fixture_dir/.devcontainer/.env" ]] || fail "initializeCommand did not create .devcontainer/.env"
 [[ -f "$fixture_dir/.devcontainer/compose.local.gen.yml" ]] || fail "initializeCommand did not create .devcontainer/compose.local.gen.yml"
 [[ -f "$fixture_dir/.devcontainer/compose.user.gen.yml" ]] || fail "initializeCommand did not create .devcontainer/compose.user.gen.yml"
-[[ "$(<"$fixture_dir/.devcontainer/compose.user.gen.yml")" == *"services: {}"* ]] || fail "user compose bridge is not empty without an on-demand override"
 expected_hostname="$(expected_generated_hostname "$fixture_dir" "")"
 expected_workspace_folder="$(expected_workspace_folder "$fixture_dir")"
 expected_remote_workspace_folder="$(expected_remote_workspace_folder "$fixture_dir")"

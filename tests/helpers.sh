@@ -108,11 +108,10 @@ devcontainer_cli() {
       -u DEVCONTAINER_HOST_NAME \
       -u DEVCONTAINER_REPO_NAME \
       -u DEVCONTAINER_REPO_ROOT \
+      -u DEVCONTAINER_GIT_COMMON_DIR \
       -u DEVCONTAINER_BRANCH_NAME \
       -u DEVCONTAINER_HOSTNAME \
       -u DEVCONTAINER_WORKSPACE_FOLDER \
-      -u DEVCONTAINER_WORKSPACE_RELATIVE \
-      -u DEVCONTAINER_WORKSPACE_SUFFIX \
       -u DEVCONTAINER_USER \
       -u DEVCONTAINER_GROUP \
       -u DEVCONTAINER_UID \
@@ -120,9 +119,6 @@ devcontainer_cli() {
       -u DEVCONTAINER_KVM_GID \
       -u DEVCONTAINER_DISPLAY \
       -u DEVCONTAINER_XAUTHORITY \
-      -u DEVCONTAINER_WAYLAND_DISPLAY \
-      -u DEVCONTAINER_WAYLAND_SOCKET_HOST \
-      -u DEVCONTAINER_WAYLAND_RUNTIME_DIR \
       npx --yes @devcontainers/cli "$@")
     return
   fi
@@ -131,11 +127,10 @@ devcontainer_cli() {
     -u DEVCONTAINER_HOST_NAME \
     -u DEVCONTAINER_REPO_NAME \
     -u DEVCONTAINER_REPO_ROOT \
+    -u DEVCONTAINER_GIT_COMMON_DIR \
     -u DEVCONTAINER_BRANCH_NAME \
     -u DEVCONTAINER_HOSTNAME \
     -u DEVCONTAINER_WORKSPACE_FOLDER \
-    -u DEVCONTAINER_WORKSPACE_RELATIVE \
-    -u DEVCONTAINER_WORKSPACE_SUFFIX \
     -u DEVCONTAINER_USER \
     -u DEVCONTAINER_GROUP \
     -u DEVCONTAINER_UID \
@@ -143,9 +138,6 @@ devcontainer_cli() {
     -u DEVCONTAINER_KVM_GID \
     -u DEVCONTAINER_DISPLAY \
     -u DEVCONTAINER_XAUTHORITY \
-    -u DEVCONTAINER_WAYLAND_DISPLAY \
-    -u DEVCONTAINER_WAYLAND_SOCKET_HOST \
-    -u DEVCONTAINER_WAYLAND_RUNTIME_DIR \
     npx --yes @devcontainers/cli "$@"
 }
 
@@ -235,7 +227,7 @@ expected_generated_hostname() {
   local branch_part=""
 
   host_part="$(slug_hostname_part "$(hostname -s 2>/dev/null || hostname)")"
-  repo_part="$(slug_hostname_part "$(basename "$repo_dir")")"
+  repo_part="$(slug_hostname_part "$(expected_repository_name "$repo_dir")")"
 
   if [ -z "$branch_name" ]; then
     branch_name="$(git -C "$repo_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
@@ -255,7 +247,7 @@ expected_compose_project_name() {
   local repo_part=""
   local branch_part=""
 
-  repo_part="$(slug_hostname_part "$(basename "$repo_dir")")"
+  repo_part="$(slug_hostname_part "$(expected_repository_name "$repo_dir")")"
 
   if [ -z "$branch_name" ]; then
     branch_name="$(git -C "$repo_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
@@ -269,32 +261,41 @@ expected_compose_project_name() {
   printf '%s-%s\n' "$branch_part" "$repo_part"
 }
 
+expected_repository_name() {
+  local repo_dir="$1"
+  local common_dir=""
+  local common_name=""
+
+  common_dir="$(expected_git_common_dir "$repo_dir")"
+  common_name="$(basename "$common_dir")"
+  if [ "$common_name" = ".git" ]; then
+    basename "$(dirname "$common_dir")"
+  else
+    common_name="${common_name%.git}"
+    printf '%s\n' "${common_name:-$(basename "$repo_dir")}"
+  fi
+}
+
 expected_container_user() {
   printf '%s\n' "${USER:-$(id -un)}"
 }
 
 expected_workspace_folder() {
   local repo_dir="$1"
-  local branch_name="${2:-}"
-
-  if [ -n "$branch_name" ]; then
-    printf '%s/.worktrees/%s\n' "$repo_dir" "$branch_name"
-    return 0
-  fi
 
   printf '%s\n' "$repo_dir"
 }
 
 expected_remote_workspace_folder() {
   local local_workspace_folder="$1"
-  local branch_name="${2:-}"
 
-  if [ -n "$branch_name" ]; then
-    printf '%s/.worktrees/%s\n' "$local_workspace_folder" "$branch_name"
-    return 0
-  fi
+  printf '%s\n' "$local_workspace_folder"
+}
 
-  printf '%s/.worktrees/..\n' "$local_workspace_folder"
+expected_git_common_dir() {
+  local checkout_dir="$1"
+
+  git -C "$checkout_dir" rev-parse --path-format=absolute --git-common-dir
 }
 
 assert_ignored_by_root_gitignore() {

@@ -19,8 +19,8 @@ Then:
 2. Review `git --no-pager status --short --branch`.
 3. Stop if the worktree is not clean.
 4. Run the full verification suite again with `task tests-run`. Confirm its real
-   browser smoke starts non-headless Chrome with `DISPLAY=:0`, no X0 socket, and
-   a real Wayland compositor.
+   browser smoke starts non-headless Chrome over loopback X11 with matching
+   Xauthority state shaped like Remote SSH forwarding.
 5. Run `tests/release-build.sh`.
 6. Confirm `tea login list` contains the Gitea login, repair its persistent Git
    integration with `tea login helper setup`, and run
@@ -60,7 +60,7 @@ finished successfully.
 Do not skip `task tests-run` after the save workflow and clean-worktree check;
 release builds must always retest the current saved state before publishing.
 Do not continue unless `.test-tmp/release-verification` matches the current commit
-and contains `browser-wayland-display0=passed`; `scripts/release-build.sh` also
+and contains `browser-visible-x11=passed`; `scripts/release-build.sh` also
 enforces this gate.
 Do not skip updating `.devcontainer/` to the just-pushed `origin/release` commit
 after the release branch push succeeds.

@@ -2,7 +2,7 @@
 
 - ID: `T001_03`
 - Type: `feature`
-- Status: `open`
+- Status: `cancelled`
 - Parent: `T001`
 - Source Reference: `docs/tasks/T001_add_browser_support_to_devcontainer/task.md`
 
@@ -54,23 +54,19 @@ Out of scope:
 
 ## Acceptance Criteria
 
-- Two worktree devcontainer starts can run in parallel without overwriting each
-  other's generated display state.
-- A test proves branch workspace A receives one generated `DISPLAY` value and
-  branch workspace B receives a different generated `DISPLAY` value.
-- Existing root, current-branch alias, and worktree startup flows still pass.
-- Documentation explains the recommended workflow for parallel browser sessions.
-- Documentation clearly states any unsupported workflow, especially multiple
-  root-opened VS Code sessions sharing the same `.devcontainer/.env`.
+Cancelled; these criteria are no longer active. `T024` replaces the managed
+branch-workspace contract with explicitly created worktrees opened directly, so
+each checkout owns its generated display state without branch-scoped files or a
+current-branch alias.
 
-## Verification
+## Historical Verification Plan
 
 - `bash -n initialize.sh tests/*.sh`
 - `git --no-pager diff --check`
 - Targeted worktree display-state tests.
 - `task tests-run`
 
-## File Targets
+## Historical File Targets
 
 - `initialize.sh`
 - `docker-compose.yml`
@@ -89,6 +85,9 @@ Out of scope:
 
 ## Implementation Notes
 
+- The notes below preserve work completed before cancellation. They are
+  historical implementation context, not remaining requirements for the current
+  initializer or browser contract.
 - Implemented reconnect-safe runtime state: `initialize.sh` now atomically writes
   `.devcontainer/.env` and `.devcontainer/.Xauthority.gen` into the selected
   worktree as well as the root Compose input when `BRANCH` selects a worktree.
@@ -121,4 +120,8 @@ Out of scope:
 
 ## Cancellation Reason
 
-- `none`
+- Superseded by `T024`, which removes initializer-managed `BRANCH` worktrees and
+  supports parallel browser state through explicitly created worktrees opened as
+  direct checkouts. The remaining branch-scoped generated-file work and
+  root-opened parallel-`BRANCH` acceptance criteria are therefore no longer part
+  of the supported product contract.

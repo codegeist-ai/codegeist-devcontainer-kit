@@ -1,18 +1,16 @@
 #!/usr/bin/env bash
-# initialize.sh - verify local devcontainer runtime files are bootstrapped
+# initialize.sh - verify current-checkout devcontainer bootstrap behavior
 #
 # Why this exists:
-# - proves initializeCommand creates required local env and generated Compose files
-# - protects user-edited local files from being overwritten across devcontainer up
-# - proves root-side worktree preparation and later Dev Containers lifecycle
-#   initialization preserve user-owned local files
-# - verifies parallel worktrees keep separate display and Xauthority state and
-#   that host Wayland discovery emits only a live one-socket mount
+# - proves initialization owns only the checkout containing the invoked script
+# - rejects legacy root configuration imports and managed BRANCH worktrees
+# - verifies direct linked worktrees retain independent generated and local state
+# - protects atomic X11/Xauthority refresh and the custom initialization hook
 #
 # Related files:
 # - ../initialize.sh
-# - ../compose.local.yml.example
-# - ../.local.env.example
+# - ../devcontainer.json
+# - ../docker-compose.yml
 
 set -euo pipefail
 
@@ -28,241 +26,181 @@ if [ -z "${suite_tmp_dir:-}" ]; then
 fi
 
 fixture_dir="$suite_tmp_dir/initialize-fixture"
-container_id=""
-log_file="$suite_tmp_dir/initialize-devcontainer.log"
-expected_hostname=""
-expected_project_name=""
-expected_user="$(id -u):$(id -u)"
-expected_user_name="$(expected_container_user)"
-expected_kvm_gid="$(stat -c %g /dev/kvm 2>/dev/null || id -g)"
-worktree_path=""
-worktree_local_env=""
-custom_initialize=""
-custom_initialize_result=""
-current_branch=""
-current_branch_alias=""
-parallel_worktree_path=""
-host_xauthority="$fixture_dir/.Xauthority"
-wayland_runtime_dir="$suite_tmp_dir/w"
-wayland_display="w"
-wayland_socket="$wayland_runtime_dir/$wayland_display"
-wayland_pid=""
-create_git_fixture_repo "$fixture_dir"
-
-cleanup_devcontainer() {
-  if [ -n "$container_id" ]; then
-    docker rm -f "$container_id" >/dev/null 2>&1 || true
-  fi
-}
+worktree_path="$suite_tmp_dir/direct-linked-worktree"
+bare_repo_dir="$suite_tmp_dir/shared-repository.git"
+bare_worktree_path="$suite_tmp_dir/arbitrary-bare-worktree"
+host_xauthority="$suite_tmp_dir/host.Xauthority"
 
 cleanup_test() {
-  if [ -n "$wayland_pid" ]; then
-    kill "$wayland_pid" >/dev/null 2>&1 || true
-    wait "$wayland_pid" >/dev/null 2>&1 || true
+  if [ -d "$worktree_path" ]; then
+    git -C "$fixture_dir" worktree remove --force "$worktree_path" >/dev/null 2>&1 || true
   fi
-  rm -rf "$wayland_runtime_dir"
-  cleanup_devcontainer
+  if [ -d "$bare_worktree_path" ]; then
+    git --git-dir="$bare_repo_dir" worktree remove --force "$bare_worktree_path" >/dev/null 2>&1 || true
+  fi
   if [ "$local_suite" -eq 1 ]; then
     cleanup_suite
   fi
 }
 trap cleanup_test EXIT
 
-rm -rf "$fixture_dir/.codegeist"
-printf '# legacy compose marker\n' >"$fixture_dir/compose.local.yml"
-printf 'LEGACY_ENV=1\n' >"$fixture_dir/.local.env"
-rm -f "$fixture_dir/.devcontainer/.env"
-rm -f "$fixture_dir/.devcontainer/compose.local.gen.yml"
-rm -f "$fixture_dir/.devcontainer/compose.user.gen.yml"
+create_git_fixture_repo "$fixture_dir"
+rm -rf "$fixture_dir/.codegeist" "$fixture_dir/.oc_local" "$fixture_dir/.tmp" "$fixture_dir/.worktrees"
+rm -f "$fixture_dir/.devcontainer/.env" \
+  "$fixture_dir/.devcontainer/.Xauthority.gen" \
+  "$fixture_dir/.devcontainer/compose.local.gen.yml" \
+  "$fixture_dir/.devcontainer/compose.user.gen.yml"
+printf 'LEGACY_ENV=must-not-import\n' >"$fixture_dir/.local.env"
+printf 'services:\n  workspace:\n    environment:\n      LEGACY_COMPOSE: must-not-import\n' >"$fixture_dir/compose.local.yml"
+printf 'first-authority\n' >"$host_xauthority"
+cat >"$fixture_dir/.gitignore" <<'EOF'
+# Preserve this entry and the file metadata while removing obsolete patterns.
+/kept-local-path/
+/.local.env
+/compose.local.yml
+/.worktrees/**/.codegeist/.local.env
+/.worktrees/**/.local.env
+EOF
+chmod 664 "$fixture_dir/.gitignore"
 
-env -u WAYLAND_DISPLAY -u XDG_RUNTIME_DIR \
-  HOME="$fixture_dir" DISPLAY=localhost:42.0 BRANCH=feature/initialize-test \
-  "$fixture_dir/.devcontainer/initialize.sh"
-expected_hostname="$(expected_generated_hostname "$fixture_dir" "feature/initialize-test")"
-expected_project_name="$(expected_compose_project_name "$fixture_dir" "feature/initialize-test")"
+log "checking current-checkout bootstrap without legacy imports or BRANCH selection"
+HOME="$fixture_dir" XAUTHORITY="$host_xauthority" DISPLAY=localhost:42.0 \
+  BRANCH=ignored/managed-branch "$fixture_dir/.devcontainer/initialize.sh"
 
-[[ -f "$fixture_dir/.codegeist/compose.local.yml" ]] || fail ".codegeist/compose.local.yml was not created"
-[[ ! -e "$fixture_dir/.codegeist/Dockerfile" ]] || fail ".codegeist/Dockerfile was created without an on-demand extension"
+expected_branch="$(git -C "$fixture_dir" rev-parse --abbrev-ref HEAD)"
+expected_hostname="$(expected_generated_hostname "$fixture_dir" "$expected_branch")"
+expected_project_name="$(expected_compose_project_name "$fixture_dir" "$expected_branch")"
+expected_common_dir="$(expected_git_common_dir "$fixture_dir")"
+generated_env="$(<"$fixture_dir/.devcontainer/.env")"
+
 [[ -f "$fixture_dir/.codegeist/.local.env" ]] || fail ".codegeist/.local.env was not created"
+grep -F 'GITEA_SERVER_URL=' "$fixture_dir/.codegeist/.local.env" >/dev/null \
+  || fail ".codegeist/.local.env was not seeded from the current template"
+[[ "$generated_env" != *"must-not-import"* ]] || fail "legacy root environment was imported"
+[[ ! -e "$fixture_dir/.codegeist/compose.local.yml" ]] || fail "legacy root Compose override was migrated"
+[[ "$(<"$fixture_dir/.devcontainer/compose.user.gen.yml")" != *"LEGACY_COMPOSE"* ]] \
+  || fail "legacy root Compose override reached the generated bridge"
+[[ ! -e "$fixture_dir/.worktrees" ]] || fail "initializer created a managed .worktrees directory"
 [[ -d "$fixture_dir/.codegeist/secrets" ]] || fail ".codegeist/secrets was not created"
-[[ -L "$fixture_dir/.tmp" ]] || fail ".tmp was not created as a symlink"
-[[ "$(readlink "$fixture_dir/.tmp")" = "/tmp/ws-data" ]] || fail ".tmp does not target /tmp/ws-data"
-[[ "$(<"$fixture_dir/.codegeist/compose.local.yml")" == *"# legacy compose marker"* ]] || fail "legacy compose.local.yml was not migrated"
-[[ "$(<"$fixture_dir/.codegeist/.local.env")" = "LEGACY_ENV=1" ]] || fail "legacy .local.env was not migrated"
-[[ ! -e "$fixture_dir/.devcontainer/compose.local.yml" ]] || fail "compose.local.yml was created in the kit directory"
-[[ ! -e "$fixture_dir/.devcontainer/.local.env" ]] || fail ".local.env was created in the kit directory"
-[[ -f "$fixture_dir/.devcontainer/compose.local.yml.example" ]] || fail "compose.local.yml.example is missing from the kit directory"
-[[ -f "$fixture_dir/.devcontainer/.local.env.example" ]] || fail ".local.env.example is missing from the kit directory"
-grep -F 'GITEA_SERVER_URL=' "$fixture_dir/.devcontainer/.local.env.example" >/dev/null \
-  || fail ".local.env.example does not document GITEA_SERVER_URL"
-grep -F 'GITEA_SERVER_TOKEN=' "$fixture_dir/.devcontainer/.local.env.example" >/dev/null \
-  || fail ".local.env.example does not document GITEA_SERVER_TOKEN"
-if grep -E '(^|[^_])GITEA_TOKEN=' "$fixture_dir/.devcontainer/.local.env.example" >/dev/null; then
-  fail ".local.env.example still documents legacy GITEA_TOKEN"
+[[ -L "$fixture_dir/.tmp" && "$(readlink "$fixture_dir/.tmp")" = "/tmp/ws-data" ]] \
+  || fail ".tmp does not link to /tmp/ws-data"
+[[ -d "$fixture_dir/.oc_local" && -f "$fixture_dir/.oc_local/.gitignore" ]] \
+  || fail "OpenCode bootstrap directory was not created"
+[[ -f "$fixture_dir/.devcontainer/Dockerfile.merged.gen" ]] || fail "merged Dockerfile was not generated"
+[[ -f "$fixture_dir/.devcontainer/compose.local.gen.yml" ]] || fail "generated Compose file is missing"
+[[ -f "$fixture_dir/.devcontainer/compose.user.gen.yml" ]] || fail "user Compose bridge is missing"
+[[ "$(<"$fixture_dir/.devcontainer/.Xauthority.gen")" = "first-authority" ]] \
+  || fail "host Xauthority was not copied"
+[[ "$(stat -c %a "$fixture_dir/.devcontainer/.Xauthority.gen")" = "600" ]] \
+  || fail "generated Xauthority mode is not 0600"
+[[ "$(stat -c %a "$fixture_dir/.gitignore")" = "664" ]] \
+  || fail "initializer changed the existing .gitignore mode"
+
+for expected in \
+  "DEVCONTAINER_REPO_ROOT=$fixture_dir" \
+  "DEVCONTAINER_GIT_COMMON_DIR=$expected_common_dir" \
+  "DEVCONTAINER_WORKSPACE_FOLDER=$fixture_dir" \
+  "DEVCONTAINER_BRANCH_NAME=$(slug_hostname_part "$expected_branch")" \
+  "DEVCONTAINER_HOSTNAME=$expected_hostname" \
+  "DEVCONTAINER_COMPOSE_PROJECT_NAME=$expected_project_name" \
+  "DEVCONTAINER_DISPLAY=localhost:42.0" \
+  "DEVCONTAINER_XAUTHORITY=$fixture_dir/.devcontainer/.Xauthority.gen"; do
+  grep -Fx "$expected" "$fixture_dir/.devcontainer/.env" >/dev/null \
+    || fail "generated environment is missing: $expected"
+done
+if grep -Eq '^(BRANCH|DEVCONTAINER_WORKSPACE_(RELATIVE|SUFFIX)|DEVCONTAINER_WAYLAND_)=' \
+  "$fixture_dir/.devcontainer/.env"; then
+  fail "generated environment retained a removed managed-worktree or Wayland key"
 fi
-[[ -f "$fixture_dir/.devcontainer/.env" ]] || fail ".devcontainer/.env was not created"
-[[ -f "$fixture_dir/.devcontainer/compose.local.gen.yml" ]] || fail ".devcontainer/compose.local.gen.yml was not created"
-[[ -f "$fixture_dir/.devcontainer/compose.user.gen.yml" ]] || fail ".devcontainer/compose.user.gen.yml was not created"
-[[ "$(<"$fixture_dir/.devcontainer/compose.user.gen.yml")" == *"# legacy compose marker"* ]] || fail "user compose bridge did not copy legacy compose override"
-[[ -f "$fixture_dir/.gitignore" ]] || fail ".gitignore was not created"
-[[ -d "$fixture_dir/.oc_local" ]] || fail ".oc_local was not created in repository root"
-[[ -f "$fixture_dir/.oc_local/.gitignore" ]] || fail ".oc_local/.gitignore was not created"
-[[ "$(<"$fixture_dir/.oc_local/.gitignore")" == *"*"* ]] || fail ".oc_local/.gitignore does not ignore local OpenCode files"
+
+assert_not_ignored "$fixture_dir" ".local.env"
+assert_not_ignored "$fixture_dir" "compose.local.yml"
 assert_not_ignored "$fixture_dir" ".codegeist/compose.local.yml"
-[[ -n "$(git -C "$fixture_dir" status --porcelain -- .codegeist/compose.local.yml)" ]] || fail ".codegeist/compose.local.yml is not visible to git status"
 assert_not_ignored "$fixture_dir" ".codegeist/Dockerfile"
 assert_ignored_by_root_gitignore "$fixture_dir" ".codegeist/.local.env"
 assert_ignored_by_root_gitignore "$fixture_dir" ".codegeist/secrets/example"
 assert_ignored_by_root_gitignore "$fixture_dir" ".tmp"
 assert_ignored_by_root_gitignore "$fixture_dir" ".chrome/profile-file"
-assert_ignored_by_root_gitignore "$fixture_dir" ".oc_local/.gitignore"
-assert_ignored_by_root_gitignore "$fixture_dir" ".worktrees/feature/initialize-test/.codegeist/.local.env"
-assert_info_exclude_lacks_patterns \
-  "$fixture_dir" \
-  "/.oc_local/" \
-  "/.oc_local/.gitignore" \
-  "/.worktrees/" \
-  "/.codegeist/.local.env" \
-  "/.codegeist/secrets/" \
-  "/.tmp" \
-  "/.chrome/" \
-  "/.codegeist/Dockerfile" \
-  "/.codegeist/compose.local.yml"
-[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_HOSTNAME=$expected_hostname"* ]] || fail ".env does not contain generated hostname"
-[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_COMPOSE_PROJECT_NAME=$expected_project_name"* ]] || fail ".env does not contain generated Compose project name"
-[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_USER=$expected_user_name"* ]] || fail ".env does not contain generated user"
-[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_UID=$(id -u)"* ]] || fail ".env does not contain generated UID"
-[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_GID=$(id -u)"* ]] || fail ".env does not contain generated GID"
-[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_KVM_GID=$expected_kvm_gid"* ]] || fail ".env does not contain generated KVM GID"
-[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_DISPLAY=localhost:42.0"* ]] || fail ".env does not contain generated DISPLAY"
-[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_XAUTHORITY=$fixture_dir/.worktrees/feature/initialize-test/.devcontainer/.Xauthority.gen"* ]] || fail ".env does not point to workspace-local Xauthority"
-[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_WAYLAND_DISPLAY="* ]] || fail ".env does not contain generated Wayland display key"
-[[ "$(<"$fixture_dir/.devcontainer/.env")" != *"CODEGEIST_CHROME_CDP_PROFILE_DIR="* ]] || fail ".env persisted shared Chrome CDP profile path"
-[[ "$(<"$fixture_dir/.devcontainer/.env")" != *"BRANCH="* ]] || fail ".env persisted BRANCH input"
-! grep -q '^COMPOSE_PROJECT_NAME=' "$fixture_dir/.devcontainer/.env" || fail ".env persisted Docker Compose project override"
-[[ "$(<"$fixture_dir/.devcontainer/compose.local.gen.yml")" == *"name: $expected_project_name"* ]] || fail "generated compose file does not set generated project name"
-[[ "$(<"$fixture_dir/.devcontainer/compose.local.gen.yml")" == *"hostname: $expected_hostname"* ]] || fail "generated compose file does not set generated hostname"
-[[ "$(<"$fixture_dir/.devcontainer/compose.local.gen.yml")" == *"\"$expected_hostname:127.0.0.1\""* ]] || fail "generated compose file does not resolve generated hostname"
-[[ "$(<"$fixture_dir/.devcontainer/compose.local.gen.yml")" == *"CONTAINER_USER: $expected_user_name"* ]] || fail "generated compose file does not set generated build user"
-[[ "$(<"$fixture_dir/.devcontainer/compose.local.gen.yml")" == *"user: \"$expected_user\""* ]] || fail "generated compose file does not set generated user"
-[[ "$(<"$fixture_dir/.devcontainer/compose.local.gen.yml")" != *"group_add:"* ]] || fail "generated compose file should not own KVM group_add"
-[[ -z "$(git -C "$fixture_dir" status --porcelain -- .devcontainer/compose.user.gen.yml)" ]] || fail "user compose bridge is not ignored"
-worktree_path="$fixture_dir/.worktrees/feature/initialize-test"
-[[ -d "$worktree_path" ]] || fail "root initializer did not create the requested worktree"
-[[ -L "$worktree_path/.tmp" ]] || fail "selected worktree .tmp is not a symlink"
-[[ "$(readlink "$worktree_path/.tmp")" = "/tmp/ws-data" ]] || fail "selected worktree .tmp does not target /tmp/ws-data"
-[[ "$(<"$worktree_path/.devcontainer/.env")" == *"DEVCONTAINER_DISPLAY=localhost:42.0"* ]] || fail "selected worktree did not receive isolated display state"
-[[ -f "$worktree_path/.devcontainer/.Xauthority.gen" ]] || fail "selected worktree did not receive generated Xauthority"
-assert_ignored_by_root_gitignore "$fixture_dir" ".worktrees/feature/initialize-test/.devcontainer/.Xauthority.gen"
 
-custom_initialize="$worktree_path/.codegeist/extensions/custom_initialize.sh"
-custom_initialize_result="$worktree_path/.codegeist/custom-initialize.result"
-mkdir -p "$(dirname "$custom_initialize")"
-cat >"$custom_initialize" <<'EOF'
+log "checking idempotence, current overrides, X11 refresh, and hooks"
+mv "$fixture_dir/.gitignore" "$fixture_dir/.gitignore.target"
+ln -s .gitignore.target "$fixture_dir/.gitignore"
+printf '/.local.env\n/compose.local.yml\n' >>"$fixture_dir/.gitignore.target"
+mkdir -p "$fixture_dir/.codegeist/extensions"
+cat >"$fixture_dir/.codegeist/compose.local.yml" <<'EOF'
+services:
+  workspace:
+    environment:
+      CURRENT_OVERRIDE: preserved
+EOF
+printf 'CURRENT_ENV=preserved\n' >"$fixture_dir/.codegeist/.local.env"
+cat >"$fixture_dir/.codegeist/extensions/custom_initialize.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-
 printf '%s\n' "$PWD" >.codegeist/custom-initialize.result
 EOF
-
-printf 'workspace-a-authority\n' >"$host_xauthority"
-env -u WAYLAND_DISPLAY -u XDG_RUNTIME_DIR \
-  HOME="$fixture_dir" XAUTHORITY="$host_xauthority" DISPLAY=localhost:44.0 \
-  BRANCH=feature/initialize-test "$fixture_dir/.devcontainer/initialize.sh"
-[[ "$(<"$custom_initialize_result")" = "$worktree_path" ]] || fail "custom initialize hook did not run in the selected worktree"
-printf 'workspace-b-authority\n' >"$host_xauthority"
-env -u WAYLAND_DISPLAY -u XDG_RUNTIME_DIR \
-  HOME="$fixture_dir" XAUTHORITY="$host_xauthority" DISPLAY=localhost:45.0 \
-  BRANCH=feature/initialize-parallel "$fixture_dir/.devcontainer/initialize.sh"
-parallel_worktree_path="$fixture_dir/.worktrees/feature/initialize-parallel"
-[[ -L "$parallel_worktree_path/.tmp" ]] || fail "parallel worktree .tmp is not a symlink"
-
-[[ "$(<"$worktree_path/.devcontainer/.env")" == *"DEVCONTAINER_DISPLAY=localhost:44.0"* ]] || fail "workspace A display state was overwritten by workspace B"
-[[ "$(<"$parallel_worktree_path/.devcontainer/.env")" == *"DEVCONTAINER_DISPLAY=localhost:45.0"* ]] || fail "workspace B did not receive its own display state"
-[[ "$(<"$worktree_path/.devcontainer/.Xauthority.gen")" = "workspace-a-authority" ]] || fail "workspace A Xauthority was overwritten by workspace B"
-[[ "$(<"$parallel_worktree_path/.devcontainer/.Xauthority.gen")" = "workspace-b-authority" ]] || fail "workspace B did not receive its own Xauthority"
-
-worktree_local_env="$worktree_path/.codegeist/.local.env"
-[[ -L "$worktree_local_env" ]] || fail "worktree .codegeist/.local.env is not a symlink"
-rm -f "$worktree_local_env"
-printf 'WORKTREE_LOCAL_ENV=1\n' >"$worktree_local_env"
-HOME="$fixture_dir" BRANCH=feature/initialize-test "$fixture_dir/.devcontainer/initialize.sh"
-[[ -f "$worktree_local_env" ]] || fail "existing worktree .codegeist/.local.env file was removed"
-[[ ! -L "$worktree_local_env" ]] || fail "existing worktree .codegeist/.local.env file was replaced with a symlink"
-[[ "$(<"$worktree_local_env")" = "WORKTREE_LOCAL_ENV=1" ]] || fail "existing worktree .codegeist/.local.env file was overwritten"
-assert_ignored_by_root_gitignore "$fixture_dir" ".worktrees/feature/initialize-test/.codegeist/.local.env"
-[[ -z "$(git -C "$fixture_dir" status --porcelain -- .worktrees/feature/initialize-test/.codegeist/.local.env)" ]] || fail "worktree .codegeist/.local.env is not ignored"
-[[ "$(<"$fixture_dir/.codegeist/compose.local.yml")" != *"/workspace"* ]] || fail ".codegeist/compose.local.yml should not mount the workspace"
-[[ "$(<"$fixture_dir/.codegeist/compose.local.yml")" != *".worktrees"* ]] || fail ".codegeist/compose.local.yml should not mount selected worktrees"
-assert_ignored_by_root_gitignore "$fixture_dir" ".oc_local/.gitignore"
-[[ -z "$(git -C "$fixture_dir" status --porcelain -- .oc_local)" ]] || fail ".oc_local is not ignored"
-
-cp "$fixture_dir/.codegeist/compose.local.yml" "$fixture_dir/.codegeist/compose.local.yml.before"
-cp "$fixture_dir/.codegeist/.local.env" "$fixture_dir/.codegeist/.local.env.before"
-printf '\n# local compose marker\n' >>"$fixture_dir/.codegeist/compose.local.yml"
-printf 'CUSTOM_ENV=1\n' >"$fixture_dir/.codegeist/.local.env"
-
-HOME="$fixture_dir" BRANCH=feature/initialize-test "$fixture_dir/.devcontainer/initialize.sh"
-
-[[ "$(<"$fixture_dir/.codegeist/compose.local.yml")" == *"# local compose marker"* ]] || fail ".codegeist/compose.local.yml was overwritten"
-[[ "$(<"$fixture_dir/.devcontainer/compose.user.gen.yml")" == *"# local compose marker"* ]] || fail "user compose bridge did not refresh local compose marker"
-[[ "$(<"$fixture_dir/.codegeist/.local.env")" = "CUSTOM_ENV=1" ]] || fail ".codegeist/.local.env was overwritten"
-
-mkdir -m 700 "$wayland_runtime_dir"
-socat "UNIX-LISTEN:$wayland_socket,fork" EXEC:/bin/true >/dev/null 2>&1 &
-wayland_pid="$!"
-for _ in $(seq 1 50); do
-  [ ! -S "$wayland_socket" ] || break
-  sleep 0.1
-done
-[[ -S "$wayland_socket" ]] || fail "test Wayland socket was not created"
-HOME="$fixture_dir" XDG_RUNTIME_DIR="$wayland_runtime_dir" WAYLAND_DISPLAY="$wayland_display" \
+printf 'second-authority\n' >"$host_xauthority"
+HOME="$fixture_dir" XAUTHORITY="$host_xauthority" DISPLAY=127.0.0.1:43.0 \
   "$fixture_dir/.devcontainer/initialize.sh"
-[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_WAYLAND_DISPLAY=$wayland_display"* ]] || fail ".env did not capture host Wayland display"
-[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_WAYLAND_SOCKET_HOST=$wayland_socket"* ]] || fail ".env did not capture host Wayland socket"
-[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_WAYLAND_RUNTIME_DIR=/tmp/codegeist-wayland"* ]] || fail ".env did not set container Wayland runtime"
-[[ "$(<"$fixture_dir/.devcontainer/compose.local.gen.yml")" == *"$wayland_socket:/tmp/codegeist-wayland/$wayland_display"* ]] || fail "generated Compose did not mount the host Wayland socket"
 
-env -u BRANCH -u DISPLAY -u WAYLAND_DISPLAY -u XDG_RUNTIME_DIR \
-  HOME="$fixture_dir" "$fixture_dir/.devcontainer/initialize.sh"
-[[ "$(<"$fixture_dir/.devcontainer/.env")" != *"BRANCH="* ]] || fail "generated .env kept stale BRANCH after unset start"
-[[ "$(<"$fixture_dir/.devcontainer/.env")" != *"DEVCONTAINER_BRANCH_NAME=feature-initialize-test"* ]] || fail "generated .env reused stale branch after unset start"
-[[ "$(<"$fixture_dir/.devcontainer/.env")" != *"DEVCONTAINER_COMPOSE_PROJECT_NAME=$expected_project_name"* ]] || fail "generated .env reused stale Compose project after unset start"
-[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_WORKSPACE_FOLDER=$fixture_dir"* ]] || fail "generated .env did not reset workspace when BRANCH was unset"
-[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_DISPLAY="* ]] || fail "generated .env removed DISPLAY key after unset start"
-[[ "$(<"$fixture_dir/.devcontainer/.env")" != *"DEVCONTAINER_DISPLAY=localhost:42.0"* ]] || fail "generated .env reused stale DISPLAY after unset start"
-[[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_WAYLAND_DISPLAY="* ]] || fail "generated .env removed Wayland key after unset start"
-[[ "$(<"$fixture_dir/.devcontainer/compose.local.gen.yml")" != *"/tmp/codegeist-wayland"* ]] || fail "generated Compose retained stale Wayland mount"
+[[ "$(<"$fixture_dir/.codegeist/.local.env")" = "CURRENT_ENV=preserved" ]] \
+  || fail "current local environment was overwritten"
+grep -F 'CURRENT_OVERRIDE: preserved' "$fixture_dir/.devcontainer/compose.user.gen.yml" >/dev/null \
+  || fail "current Compose override did not refresh the generated bridge"
+[[ "$(<"$fixture_dir/.devcontainer/.Xauthority.gen")" = "second-authority" ]] \
+  || fail "generated Xauthority was not refreshed"
+[[ "$(<"$fixture_dir/.codegeist/custom-initialize.result")" = "$fixture_dir" ]] \
+  || fail "custom initialization hook did not run in the opened checkout"
+[[ -L "$fixture_dir/.gitignore" ]] || fail "initializer replaced a symlinked .gitignore"
+[[ "$(stat -Lc %a "$fixture_dir/.gitignore")" = "664" ]] \
+  || fail "initializer changed the symlinked .gitignore target mode"
+if grep -Fx -e '/.local.env' -e '/compose.local.yml' "$fixture_dir/.gitignore.target" >/dev/null; then
+  fail "initializer did not remove obsolete patterns through a symlinked .gitignore"
+fi
 
-current_branch="$(git -C "$fixture_dir" rev-parse --abbrev-ref HEAD)"
-current_branch_alias="$fixture_dir/.worktrees/$current_branch"
-HOME="$fixture_dir" BRANCH="$current_branch" "$fixture_dir/.devcontainer/initialize.sh"
-[[ -L "$current_branch_alias" ]] || fail "current branch did not create a worktree alias"
-[[ "$(readlink -f "$current_branch_alias")" = "$fixture_dir" ]] || fail "current branch alias does not resolve to repository root"
-git -C "$fixture_dir" switch -c replacement-root >/dev/null
-HOME="$fixture_dir" BRANCH="$current_branch" "$fixture_dir/.devcontainer/initialize.sh"
-[[ -d "$current_branch_alias" ]] || fail "stale current branch alias was not replaced with a worktree"
-[[ ! -L "$current_branch_alias" ]] || fail "stale current branch alias is still a symlink"
-[[ "$(git -C "$current_branch_alias" rev-parse --abbrev-ref HEAD)" = "$current_branch" ]] || fail "replaced current branch alias is not on the original branch"
+log "checking an externally created linked worktree owns independent state"
+git -C "$fixture_dir" worktree add -b feature/direct-worktree "$worktree_path" >/dev/null
+rm -rf "$worktree_path/.codegeist" "$worktree_path/.oc_local" "$worktree_path/.tmp"
+printf 'worktree-authority\n' >"$host_xauthority"
+HOME="$worktree_path" XAUTHORITY="$host_xauthority" DISPLAY=localhost:44.0 \
+  BRANCH=ignored/again "$worktree_path/.devcontainer/initialize.sh"
 
-prepare_devcontainer_home "$worktree_path"
-HOME="$worktree_path" devcontainer_cli up --remove-existing-container --workspace-folder "$worktree_path" | tee "$log_file"
-container_id="$(extract_container_id_from_log "$log_file" || true)"
-[[ -n "$container_id" ]] || fail "could not extract workspace container id from devcontainer output"
-expected_hostname="$(expected_generated_hostname "$worktree_path" "feature/initialize-test")"
+worktree_common_dir="$(expected_git_common_dir "$worktree_path")"
+for expected in \
+  "DEVCONTAINER_REPO_ROOT=$worktree_path" \
+  "DEVCONTAINER_GIT_COMMON_DIR=$worktree_common_dir" \
+  "DEVCONTAINER_WORKSPACE_FOLDER=$worktree_path" \
+  "DEVCONTAINER_BRANCH_NAME=feature-direct-worktree" \
+  "DEVCONTAINER_DISPLAY=localhost:44.0"; do
+  grep -Fx "$expected" "$worktree_path/.devcontainer/.env" >/dev/null \
+    || fail "linked worktree environment is missing: $expected"
+done
+[[ "$(<"$fixture_dir/.devcontainer/.Xauthority.gen")" = "second-authority" ]] \
+  || fail "linked worktree initialization changed main-checkout authority state"
+[[ "$(<"$worktree_path/.devcontainer/.Xauthority.gen")" = "worktree-authority" ]] \
+  || fail "linked worktree did not receive independent authority state"
+[[ -f "$worktree_path/.codegeist/.local.env" && ! -L "$worktree_path/.codegeist/.local.env" ]] \
+  || fail "linked worktree did not receive its own local environment file"
 
-[[ "$(<"$fixture_dir/.codegeist/compose.local.yml")" == *"# local compose marker"* ]] || fail ".codegeist/compose.local.yml was overwritten when BRANCH was unset"
-[[ "$(<"$fixture_dir/.codegeist/.local.env")" = "CUSTOM_ENV=1" ]] || fail ".codegeist/.local.env was overwritten when BRANCH was unset"
-[[ "$(<"$worktree_path/.devcontainer/compose.local.gen.yml")" == *"hostname: $expected_hostname"* ]] || fail "generated compose hostname was not refreshed for worktree start"
-[[ "$(<"$worktree_path/.devcontainer/compose.local.gen.yml")" == *"\"$expected_hostname:127.0.0.1\""* ]] || fail "generated compose hostname resolution was not refreshed for worktree start"
+log "checking repository identity for a worktree backed by a bare common directory"
+git clone --bare "$fixture_dir" "$bare_repo_dir" >/dev/null
+git --git-dir="$bare_repo_dir" worktree add -b feature/bare-worktree \
+  "$bare_worktree_path" main >/dev/null
+HOME="$bare_worktree_path" "$bare_worktree_path/.devcontainer/initialize.sh"
+grep -Fx 'DEVCONTAINER_REPO_NAME=shared-repository' \
+  "$bare_worktree_path/.devcontainer/.env" >/dev/null \
+  || fail "bare worktree did not derive repository identity from its common directory"
+grep -Fx 'DEVCONTAINER_COMPOSE_PROJECT_NAME=feature-bare-worktree-shared-repository' \
+  "$bare_worktree_path/.devcontainer/.env" >/dev/null \
+  || fail "bare worktree Compose identity depends on its arbitrary checkout basename"
 
-cat >"$custom_initialize" <<'EOF'
+mkdir -p "$worktree_path/.codegeist/extensions"
+cat >"$worktree_path/.codegeist/extensions/custom_initialize.sh" <<'EOF'
 #!/usr/bin/env bash
 exit 23
 EOF
-
-if HOME="$fixture_dir" BRANCH=feature/initialize-test "$fixture_dir/.devcontainer/initialize.sh"; then
-  fail "failing custom initialize hook did not fail initializeCommand"
+if HOME="$worktree_path" "$worktree_path/.devcontainer/initialize.sh"; then
+  fail "failing custom initialization hook did not fail initialization"
 fi
 
-pass "initialize creates .codegeist local files and selected BRANCH worktrees without owning compose mounts"
+pass "initializer prepares only the opened checkout and direct Git worktrees"

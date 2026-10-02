@@ -12,6 +12,7 @@
 // - --screenshot: path where a PNG screenshot should be written
 // - --mode: optional `headless` default or `visible` for a real display server
 // - --expected-browser-arg: optional Chrome process argument to require
+// - BROWSER_UI_PROFILE_ROOT: optional directory for the disposable profile
 //
 // Related files:
 // - tests/browser-smoke.sh
@@ -38,7 +39,8 @@ if (!['headless', 'visible'].includes(mode)) {
 }
 
 const port = await reservePort();
-const userDataDir = await mkdtemp(path.join(os.tmpdir(), 'chrome-ui-cdp.'));
+const profileRoot = process.env.BROWSER_UI_PROFILE_ROOT ?? os.tmpdir();
+const userDataDir = await mkdtemp(path.join(profileRoot, '.chrome-ui-cdp.'));
 const chromeArgs = [];
 let chrome;
 let chromeStderr = '';

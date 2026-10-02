@@ -103,7 +103,7 @@ tasks:
   devcontainer-reality-test:
     desc: Verify the current kit in a temp consuming devcontainer
     cmds:
-      - '{{.TASKFILE_DIR}}/tests/devcontainer-reality-test.sh {{.CLI_ARGS}}'
+      - '{{.TASKFILE_DIR}}/tests/devcontainer-reality-test.sh'
 
   release-build:
     desc: Update the runtime-only devcontainer release branch

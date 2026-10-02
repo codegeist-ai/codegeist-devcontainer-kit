@@ -15,10 +15,6 @@
 /.codegeist/secrets/
 /.worktrees/
 /.tmp
-/.local.env
-/compose.local.yml
-/.worktrees/**/.codegeist/.local.env
-/.worktrees/**/.local.env
 /.test-tmp/
 /.browser-smoke-tmp/
 /logs/

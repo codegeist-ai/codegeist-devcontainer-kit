@@ -51,13 +51,12 @@ apply without being duplicated in this runtime tree.
 
 - Consuming repositories can add an optional tracked
   `.codegeist/extensions/custom_initialize.sh` Bash hook for host-side setup
-  after normal kit initialization, including in the selected managed worktree.
+  after normal kit initialization in the opened checkout.
 - Documented optional Linux PipeWire microphone forwarding through a fixed
   loopback-only OpenSSH remote forward, including connection multiplexing for
   parallel VS Code sessions, client usage, verification, and security limits.
-- Managed worktrees now initialize submodules anonymously with inherited Git
-  credential helpers disabled, preventing public repositories from blocking
-  `initializeCommand` on a credential prompt.
+- Directly opened Git worktrees mount their exact common Git metadata while
+  worktree creation and submodule initialization remain explicit user steps.
 - The generated runtime manifest includes the canonical root `LICENSE`, so the
   license travels with every `.devcontainer/` release checkout.
 
@@ -95,12 +94,15 @@ kit:
 Do not ignore `/.oc_local/` if the consuming repository intentionally tracks a
 project-local OpenCode overlay there. Do not ignore `.codegeist/compose.local.yml`
 or `.codegeist/Dockerfile` if the repository creates them for intentional Compose
-or image overrides; they should stay visible to Git.
+or image overrides; they should stay visible to Git. `/.worktrees/` is only a
+conventional ignore for explicitly created repository-local worktrees; the kit
+does not create the directory.
 
 If these patterns are missing, `initialize.sh` adds them to the consuming
 repository's root `.gitignore`. It never writes generated-file ignores to
 `.git/info/exclude`, so review and commit intentional `.gitignore` changes like
-normal repository state.
+normal repository state. It also removes obsolete exact `/.local.env` and
+`/compose.local.yml` ignore lines so unsupported legacy root files remain visible.
 
 The generated `.devcontainer/.env`, `.devcontainer/.Xauthority.gen`,
 `.devcontainer/Dockerfile.merged.gen`, `.devcontainer/compose.local.gen.yml`, and
@@ -447,38 +449,35 @@ own the container lifecycle:
 code .
 ```
 
-To start the container with a managed Git worktree mounted at its stable host
-path from VS Code Remote SSH, set `BRANCH` in the SSH environment and reopen the
-repository root in the container. If `BRANCH` names the already checked-out
-branch, such as `BRANCH=main` on `main`, `.worktrees/<branch>` is a symlink
-alias back to the repository root. The Docker Compose project name is generated
-as `<branch-slug>-<repo-slug>`, so two SSH hosts with different `BRANCH` values
-run parallel containers such as `codegeist-cloud-server-myrepo-workspace-1` and
-`install-scripts-myrepo-workspace-1`:
-
-```sshconfig
-Host project-dev0
-  SetEnv BRANCH=develop0
-```
-
-The same branch selection can be smoke-tested with the Dev Containers CLI:
+To use a Git worktree, create it explicitly, initialize its submodules when the
+repository has any, and open that checkout directly:
 
 ```bash
-BRANCH=develop0 npx --yes @devcontainers/cli up --workspace-folder <repo-root>
+git worktree add .worktrees/feature-x feature-x
+git -C .worktrees/feature-x submodule update --init --recursive
+code .worktrees/feature-x
 ```
 
-For local `code` commands where an already running VS Code process may not
-inherit new environment variables, prepare the worktree from the consuming
-project root and then open that checkout:
+For a new branch, select its base explicitly:
 
 ```bash
-BRANCH=develop0 .devcontainer/initialize.sh
-code .worktrees/develop0
+git worktree add -b feature-x .worktrees/feature-x origin/main
+git -C .worktrees/feature-x submodule update --init --recursive
+code .worktrees/feature-x
 ```
 
-When a new worktree needs submodules, `initialize.sh` disables inherited Git
-credential helpers and terminal prompts for that checkout. Public submodules are
-therefore cloned anonymously without waiting for a username or password.
+The Dev Containers CLI uses the same direct-checkout workflow:
+
+```bash
+npx --yes @devcontainers/cli up --workspace-folder .worktrees/feature-x
+```
+
+The kit does not create worktrees, aliases, branches, or submodules. It mounts
+the opened checkout at its host-identical absolute path and mounts the exact
+absolute common Git directory reported by
+`git rev-parse --path-format=absolute --git-common-dir`. This lets the linked
+worktree's `.git` file resolve without mounting another checkout. The actual
+checked-out branch determines the branch-aware Compose project name and hostname.
 
 The first start creates local runtime files when missing:
 
@@ -487,8 +486,6 @@ The first start creates local runtime files when missing:
 - `.tmp`, a workspace-visible symlink to `/tmp/ws-data` for new disposable
   artifacts
 - root `.oc_local/` when no tracked project overlay exists
-- root `.worktrees/`; `.worktrees/<branch>` as a worktree or current-branch
-  symlink alias when `BRANCH` is set
 - `.devcontainer/.env`
 - `.devcontainer/.Xauthority.gen`
 - `.devcontainer/Dockerfile.merged.gen`
@@ -509,11 +506,11 @@ environment. Store new persistent secrets that are not disposable test inputs
 under `.codegeist/secrets/`. Existing `.codegeist/.local.env` and `.chrome/`
 contracts remain unchanged.
 
-When upgrading an older checkout, `initialize.sh` copies legacy root `.local.env`
-or `compose.local.yml` into the matching `.codegeist/` path only when the new
-file does not exist. It does not delete the legacy files and does not migrate a
-root `Dockerfile`; move devcontainer image extensions to `.codegeist/Dockerfile`
-manually if needed.
+Root `.local.env` and `compose.local.yml` files are not configuration inputs and
+are never copied or migrated. The initializer removes their obsolete generated
+ignore lines so accidental legacy files remain visible to Git. Move intended
+settings to `.codegeist/.local.env` or `.codegeist/compose.local.yml` explicitly;
+move devcontainer image extensions to `.codegeist/Dockerfile`.
 
 Do not edit generated `.devcontainer` files directly. Put environment overrides in
 `.codegeist/.local.env`, Compose overrides in `.codegeist/compose.local.yml`,
@@ -522,17 +519,16 @@ and Dockerfile override files only when the repository needs them. Commit
 `.codegeist/compose.local.yml` and `.codegeist/Dockerfile` only when their
 overrides are intentional repository state.
 
-`BRANCH` is a startup input only. The kit uses it to prepare `.worktrees/<branch>`
-and compute generated workspace values, but it does not persist `BRANCH=` into
-`.devcontainer/.env`; later starts without `BRANCH` resolve back to the current
-checkout.
+Each directly opened checkout owns independent `.codegeist` local state,
+`.oc_local` bootstrap, `.chrome` profile, generated `.devcontainer` files, and
+Compose project. The kit does not link or synchronize that state across
+worktrees.
 
 ## Custom Initialize Hook
 
 A consuming repository can extend host-side initialization with an optional
 `.codegeist/extensions/custom_initialize.sh` Bash script. After the normal kit
-setup completes, `initialize.sh` runs the hook from the selected workspace. A
-`BRANCH` start therefore uses the hook from that managed worktree.
+setup completes, `initialize.sh` runs the hook from the opened checkout.
 
 The file does not need to be executable. A missing hook is ignored, while a
 failing hook fails `initializeCommand`. The hook runs on the host outside
@@ -652,46 +648,35 @@ the user's home directory and out of the repository.
 
 The release kit includes Google Chrome for visible, headless, and automated UI
 browser checks that must use the devcontainer's DNS, networking, and installed
-certificates. It also includes `Xvfb` for tools that need a virtual X11 display
-without a host UI. Start visible Chrome from inside the container when a resource
-is only reachable from that runtime context:
+certificates. Visible interactive Chrome is supported only through a Remote SSH
+loopback X11 display. It also includes `Xvfb` for tools that need a virtual X11
+display without a host UI. Start visible Chrome from inside the container when a
+resource is only reachable from that runtime context:
 
 ```bash
 chrome https://example.test
 ```
 
 The visible command does not start VNC or noVNC, and it validates display
-transport before starting Google Chrome. During `initializeCommand`,
-`initialize.sh` detects an existing host Wayland socket from `WAYLAND_DISPLAY`
-and `XDG_RUNTIME_DIR` (or `/run/user/<uid>/wayland-0`) and adds a generated bind
-for only that socket. When the mounted socket is reachable, the launcher prefers
-it, removes inherited `DISPLAY`, and starts Chrome with
-`--ozone-platform=wayland`. The container entrypoint keeps the generated
-`/tmp/codegeist-wayland` runtime directory owned by the workspace user with mode
-`0700`, allowing VS Code and other XDG clients to create private IPC sockets
-there. A local X11 value such as `DISPLAY=:0` is usable only when
-`/tmp/.X11-unix/X0` exists; the shared Compose config does not mount local X11
-sockets by default.
+transport before starting Google Chrome. It accepts only
+`DISPLAY=localhost:N[.screen]` or `127.0.0.1:N[.screen]` from Remote SSH X11
+forwarding. Local `DISPLAY=:N`, arbitrary non-loopback X11 hosts, and Wayland are
+not supported visible transports. The shared Compose configuration does not
+mount host display sockets.
 
 VS Code SSH reconnects can allocate a new loopback display number while reusing
-an existing container. Each initialize run atomically refreshes the selected
-workspace's `.devcontainer/.env` and ignored `.devcontainer/.Xauthority.gen`.
+an existing container. Each initialize run atomically refreshes the opened
+checkout's `.devcontainer/.env` and ignored `.devcontainer/.Xauthority.gen`.
 The launcher rereads those files on every visible start, probes
 `DISPLAY=localhost:N.0` or `127.0.0.1:N.0` with a short `xdpyinfo` check, and, if
-needed, normalizes the matching `/unix:N` cookie through unique temporary
-Xauthority aliases. It
-exits before Google Chrome starts when no candidate is reachable. Worktrees keep
-separate generated state and `.chrome` profiles, so multiple VS Code instances
-on one host do not overwrite each other's runtime display files. Explicit
-non-loopback X11 hosts remain caller-managed.
-
-Wayland discovery can mount only a socket that exists when the container is
-created. `initialize.sh` cannot create a graphical host session, and a socket
-that appears later cannot be added to an existing container without recreation.
-SSH X11 reconnect recovery does not have that limitation because it uses host
-networking and refreshed workspace-local authority state. Use
-`chrome --headless ...` when no visible backend is available; broad host access
-such as `xhost +` is neither required nor recommended.
+needed, normalizes only the requested display's matching `/unix:N` cookie into a
+private temporary authority file. It exits before Google Chrome starts when the
+display is missing, stale, unreachable, or unauthorized. Directly opened
+worktrees keep independent generated display state, Xauthority files, and
+`.chrome` profiles. Reconnect recovery uses host networking and refreshed
+checkout-local authority state. Use `chrome --headless ...` for automation when
+no supported visible session is available; broad host access such as `xhost +`
+is neither required nor recommended.
 
 Plain visible `chrome` uses `$DEVCONTAINER_WORKSPACE_FOLDER/.chrome` unless the
 caller passes an explicit `--user-data-dir`. Visible Chrome also disables
@@ -727,6 +712,12 @@ chrome --headless --dump-dom https://example.test
 
 Use `xvfb-run` when a browser or UI tool requires an X server but should not use
 the host display.
+
+The source release regression starts real non-headless Chrome through
+authenticated loopback X11 shaped like Remote SSH forwarding, verifies rendered
+content through CDP, and confirms that profile state stays in the opened
+checkout. Headless rendering is tested separately. Both paths must pass before
+the source release workflow accepts a commit.
 
 The workspace service sets `shm_size: '1gb'` for browser stability, and Chrome
 hardware acceleration is disabled through the managed policy file at
@@ -888,9 +879,10 @@ CLI at the self-hosted server before the first login:
 The CLI stores its project-local configuration, account metadata, login state,
 and encrypted cache under
 `$DEVCONTAINER_REPO_ROOT/.codegeist/secrets/bitwarden-cli`. The repository root
-is mounted persistently, the parent secrets directory is ignored by Git, and
-managed worktrees share this state. The first `bw` invocation creates the
-directory and `data.json`; the release kit does not migrate an existing
+is mounted persistently and the parent secrets directory is ignored by Git.
+Each directly opened checkout has independent `.codegeist` state. The first `bw`
+invocation creates the directory and `data.json`; the release kit does not
+migrate an existing
 `~/.config/Bitwarden CLI` directory.
 
 ```bash
@@ -1049,7 +1041,7 @@ not as ordinary project source.
 - Do not commit `.devcontainer/.env`, `.devcontainer/.Xauthority.gen`,
   `.devcontainer/Dockerfile.merged.gen`, `.devcontainer/compose.local.gen.yml`,
   `.devcontainer/compose.user.gen.yml`, `.codegeist/.local.env`,
-  `.codegeist/secrets/`, `.tmp`, or generated `.worktrees/` files. Keep
+  `.codegeist/secrets/`, `.tmp`, or repository-local worktrees. Keep
   `.codegeist/compose.local.yml` visible to Git and keep `.codegeist/Dockerfile`
   visible to Git without `FROM`; commit either only when its overrides are
   intentional repository state.
@@ -1097,9 +1089,8 @@ changes by committing only the parent gitlink.
 
 ## Troubleshooting
 
-If changing `BRANCH` does not change the selected workspace path, rebuild or
-remove the existing devcontainer before starting VS Code again. Docker Compose
-cannot remount an already running container just because `.env` changed.
+If VS Code opens the wrong checkout, close that window and open the intended
+checkout path directly. The kit does not select a checkout or change branches.
 
 If the Dev Containers image build fails, inspect Docker storage first:
 

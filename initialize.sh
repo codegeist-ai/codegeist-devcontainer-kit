@@ -1,90 +1,39 @@
 #!/usr/bin/env bash
-# initialize.sh - create local devcontainer files and prepare worktrees
+# initialize.sh - prepare the checkout opened by Dev Containers
 #
 # Why this exists:
-# - `../.codegeist/.local.env` carries machine-local runtime values and should be
-#   created from the template only once.
-# - Git worktrees are prepared through BRANCH before VS Code or the Dev
-#   Containers CLI opens the selected workspace path.
-# - Worktree submodules are initialized anonymously and non-interactively so
-#   public repositories never block initializeCommand on a credential prompt.
-# - BRANCH lets root-side helpers create or reuse a managed worktree; when the
-#   branch is already checked out, `.worktrees/<branch>` is a symlink alias back
-#   to the current checkout so `workspaceFolder` still resolves.
-# - `.env`, `compose.local.gen.yml`, and `compose.user.gen.yml` are generated
-#   kit-owned files under `.devcontainer/`; users should edit
-#   `.codegeist/.local.env` and create `.codegeist/compose.local.yml` only when
-#   repository-specific Compose overrides are needed. The generated Compose file
-#   sets a branch-aware project name and maps the container hostname back to
-#   loopback so tools such as sudo can resolve it.
-# - Host display state seen during initializeCommand is copied into generated
-#   runtime files. The Chrome launcher rereads `.env` after a VS Code SSH
-#   reconnect, while an existing host Wayland socket is mounted through the
-#   generated Compose override when the container is created.
-# - The current host Xauthority file is copied to an ignored workspace-local
-#   file on every initialize run. Existing containers see replacements through
-#   the workspace directory bind instead of retaining a stale file bind mount.
-# - `Dockerfile.merged.gen` is generated from the kit Dockerfile plus the
-#   repository-root `.codegeist/Dockerfile` extension when that extension exists.
-# - OpenCode keys session state by directory path, so the container workspace
-#   path must match the selected root/worktree path instead of a shared
-#   `/workspace` mount.
-# - Missing local-file ignore patterns are written to the repository `.gitignore`;
-#   this script never hides generated files through `.git/info/exclude`.
-# - Each opened workspace exposes `.tmp` as a link to `/tmp/ws-data`, keeping new
-#   disposable agent artifacts outside the persistent repository bind mount.
-#   Persistent secret files belong under the ignored `.codegeist/secrets/`
-#   directory instead of temporary storage.
-# - The script runs as a Dev Containers `initializeCommand` on the host and must
-#   stay idempotent, non-interactive, and safe for repeated starts.
-# - After kit setup, a selected workspace may extend host initialization with
-#   `.codegeist/extensions/custom_initialize.sh`. The trusted consumer hook runs
-#   with Bash from that workspace and its failure stops initialization.
+# - Seeds checkout-local machine configuration without overwriting user files.
+# - Generates the Dockerfile, Compose overrides, runtime environment, and
+#   reconnect-refreshable Xauthority state consumed by devcontainer.json.
+# - Resolves Git's common directory so a directly opened linked worktree can use
+#   normal Git commands without mounting or managing another checkout.
+# - Bootstraps writable OpenCode state and runs the optional trusted
+#   `.codegeist/extensions/custom_initialize.sh` hook from the opened checkout.
+#
+# Inputs and side effects:
+# - The script location identifies the opened checkout; caller cwd and BRANCH are
+#   intentionally ignored.
+# - DISPLAY and XAUTHORITY are captured for visible Remote SSH X11 Chrome.
+# - Generated files under `.devcontainer/` are replaced atomically. User-owned
+#   inputs remain under `.codegeist/` and `.oc_local/`.
+# - Git worktree creation, branch selection, and submodule initialization remain
+#   explicit caller responsibilities.
 #
 # Related files:
 # - devcontainer.json
 # - docker-compose.yml
-# - Dockerfile
-# - Dockerfile.base
-# - Dockerfile.example
-# - .codegeist/Dockerfile
-# - Dockerfile.merged.gen
-# - compose.local.gen.yml
-# - compose.user.gen.yml
-# - compose.local.yml.example
-# - .codegeist/compose.local.yml
-# - .codegeist/.local.env
-# - .codegeist/secrets/
-# - ../.tmp
-# - .env
-# - .Xauthority.gen
+# - scripts/chrome.sh
 # - .local.env.example
+# - Dockerfile.example
+# - compose.local.yml.example
 
 set -euo pipefail
 
 script_dir="$(dirname "$(readlink -f "$0")")"
 checkout_dir="$(dirname "$script_dir")"
-host_wayland_display=""
-host_wayland_socket=""
-container_wayland_runtime_dir=""
 
-discover_host_wayland() {
-  local display_name="${WAYLAND_DISPLAY:-wayland-0}"
-  local runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-  local socket_path=""
-
-  # WAYLAND_DISPLAY normally contains a socket basename. Ignore other shapes so
-  # generated Compose paths cannot escape the dedicated runtime directory.
-  case "$display_name" in
-    ""|*/*) return 0 ;;
-  esac
-
-  socket_path="$runtime_dir/$display_name"
-  [ -S "$socket_path" ] || return 0
-
-  host_wayland_display="$display_name"
-  host_wayland_socket="$socket_path"
-  container_wayland_runtime_dir="/tmp/codegeist-wayland"
+log() {
+  printf 'level=info event=devcontainer_initialize %s\n' "$*" >&2
 }
 
 copy_if_missing() {
@@ -94,7 +43,6 @@ copy_if_missing() {
   if [ -e "$target_file" ] || [ -L "$target_file" ]; then
     return 0
   fi
-
   cp "$source_file" "$target_file"
 }
 
@@ -110,15 +58,11 @@ validate_local_dockerfile_fragment() {
 kit_dockerfile_path() {
   if [ -f "$script_dir/Dockerfile" ]; then
     printf '%s\n' "$script_dir/Dockerfile"
-    return 0
-  fi
-
-  if [ -f "$script_dir/Dockerfile.base" ]; then
+  elif [ -f "$script_dir/Dockerfile.base" ]; then
     printf '%s\n' "$script_dir/Dockerfile.base"
-    return 0
+  else
+    return 1
   fi
-
-  return 1
 }
 
 write_merged_dockerfile() {
@@ -126,58 +70,35 @@ write_merged_dockerfile() {
   local kit_dockerfile=""
   local local_dockerfile="$root_dir/.codegeist/Dockerfile"
   local target_file="$script_dir/Dockerfile.merged.gen"
-  local kit_dockerfile_real=""
-  local local_dockerfile_real=""
+  local temporary_file=""
 
   if ! kit_dockerfile="$(kit_dockerfile_path)"; then
     printf 'Kit Dockerfile is missing: %s or %s\n' "$script_dir/Dockerfile" "$script_dir/Dockerfile.base" >&2
     return 1
   fi
+  temporary_file="$(mktemp "$target_file.XXXXXX")"
+  cp "$kit_dockerfile" "$temporary_file"
 
-  cp "$kit_dockerfile" "$target_file"
-
-  if [ ! -f "$local_dockerfile" ]; then
-    return 0
+  if [ -f "$local_dockerfile" ] \
+    && [ "$(readlink -f "$local_dockerfile")" != "$(readlink -f "$kit_dockerfile")" ] \
+    && ! cmp -s "$kit_dockerfile" "$local_dockerfile"; then
+    validate_local_dockerfile_fragment "$local_dockerfile"
+    {
+      printf '\n# Local project Dockerfile extension from ../.codegeist/Dockerfile.\n'
+      printf '# Appended by .devcontainer/initialize.sh; do not edit this generated file.\n\n'
+      cat "$local_dockerfile"
+      printf '\nUSER ${CONTAINER_USER}\n'
+    } >>"$temporary_file"
   fi
-
-  kit_dockerfile_real="$(readlink -f "$kit_dockerfile")"
-  local_dockerfile_real="$(readlink -f "$local_dockerfile")"
-  if [ "$local_dockerfile_real" = "$kit_dockerfile_real" ]; then
-    return 0
-  fi
-
-  if cmp -s "$kit_dockerfile" "$local_dockerfile"; then
-    return 0
-  fi
-
-  validate_local_dockerfile_fragment "$local_dockerfile"
-
-  {
-    printf '\n'
-    printf '# Local project Dockerfile extension from ../.codegeist/Dockerfile.\n'
-    printf '# Appended by .devcontainer/initialize.sh; do not edit this generated file.\n'
-    printf '\n'
-    cat "$local_dockerfile"
-    printf '\n'
-    printf 'USER ${CONTAINER_USER}\n'
-  } >>"$target_file"
+  mv -f "$temporary_file" "$target_file"
 }
 
 repo_root() {
   git -C "$checkout_dir" rev-parse --show-toplevel
 }
 
-repo_storage_root() {
-  local root_dir="$1"
-  local common_dir=""
-
-  common_dir="$(git -C "$root_dir" rev-parse --path-format=absolute --git-common-dir)"
-  if [ "$(basename "$common_dir")" = ".git" ]; then
-    dirname "$common_dir"
-    return 0
-  fi
-
-  printf '%s\n' "$root_dir"
+git_common_dir() {
+  git -C "$1" rev-parse --path-format=absolute --git-common-dir
 }
 
 slugify_hostname_part() {
@@ -186,83 +107,65 @@ slugify_hostname_part() {
   value="$(printf '%s' "$value" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9-' '-')"
   value="${value#-}"
   value="${value%-}"
-
-  if [ -z "$value" ]; then
-    value="detached"
-  fi
-
+  [ -n "$value" ] || value="detached"
   printf '%s\n' "$value"
 }
 
 fit_hostname() {
-  local value="$1"
+  local value="${1:0:63}"
 
-  value="${value:0:63}"
   value="${value%-}"
-
-  if [ -z "$value" ]; then
-    value="detached"
-  fi
-
+  [ -n "$value" ] || value="detached"
   printf '%s\n' "$value"
 }
 
 current_branch_name() {
-  local root_dir="$1"
   local branch_name=""
 
-  branch_name="$(git -C "$root_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
-
+  branch_name="$(git -C "$1" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
   if [ -z "$branch_name" ] || [ "$branch_name" = "HEAD" ]; then
     branch_name="detached"
   fi
-
   printf '%s\n' "$branch_name"
 }
 
-branch_selects_current_checkout() {
+# Use the repository that owns the shared Git directory for runtime identity.
+# A linked worktree's basename can be arbitrary and is not a stable repo name.
+repository_name() {
   local root_dir="$1"
-  local branch_name="$2"
+  local common_dir=""
+  local common_name=""
 
-  [ -n "$branch_name" ] && [ "$(current_branch_name "$root_dir")" = "$branch_name" ]
+  common_dir="$(git_common_dir "$root_dir")"
+  common_name="$(basename "$common_dir")"
+  if [ "$common_name" = ".git" ]; then
+    basename "$(dirname "$common_dir")"
+  else
+    common_name="${common_name%.git}"
+    printf '%s\n' "${common_name:-$(basename "$root_dir")}"
+  fi
 }
 
 generated_hostname() {
   local root_dir="$1"
-  local branch_name="$2"
   local host_part=""
   local repo_part=""
   local branch_part=""
 
   host_part="$(slugify_hostname_part "$(hostname -s 2>/dev/null || hostname)")"
-  repo_part="$(slugify_hostname_part "$(basename "$root_dir")")"
-  branch_part="$(slugify_hostname_part "${branch_name:-$(current_branch_name "$root_dir")}")"
-
+  repo_part="$(slugify_hostname_part "$(repository_name "$root_dir")")"
+  branch_part="$(slugify_hostname_part "$(current_branch_name "$root_dir")")"
   fit_hostname "$host_part-$repo_part-$branch_part"
 }
 
 generated_compose_project_name() {
   local root_dir="$1"
-  local branch_name="$2"
   local repo_part=""
   local branch_part=""
 
-  repo_part="$(slugify_hostname_part "$(basename "$root_dir")")"
-  branch_part="$(slugify_hostname_part "${branch_name:-$(current_branch_name "$root_dir")}")"
-
+  repo_part="$(slugify_hostname_part "$(repository_name "$root_dir")")"
+  branch_part="$(slugify_hostname_part "$(current_branch_name "$root_dir")")"
   printf '%s-%s\n' "$branch_part" "$repo_part"
-}
-
-selected_workspace_folder() {
-  local root_dir="$1"
-  local branch_name="$2"
-
-  if [ -n "$branch_name" ] && ! branch_selects_current_checkout "$root_dir" "$branch_name"; then
-    printf '%s/.worktrees/%s\n' "$root_dir" "$branch_name"
-    return 0
-  fi
-
-  printf '%s\n' "$root_dir"
 }
 
 write_generated_xauthority() {
@@ -284,115 +187,62 @@ write_generated_xauthority() {
 write_generated_env() {
   local target_file="$1"
   local root_dir="$2"
-  local branch_name="$3"
-  local host_name=""
-  local repo_name=""
-  local repo_storage_dir=""
-  local selected_branch=""
-  local container_hostname=""
-  local compose_project_name=""
-  local workspace_folder=""
-  local workspace_relative="."
-  local workspace_suffix=""
-  local user_name=""
-  local group_name=""
-  local uid=""
-  local kvm_gid=""
-  local display_value=""
-  local xauthority_file=""
+  local common_dir="$3"
+  local branch_name=""
   local temporary_file=""
 
-  host_name="$(slugify_hostname_part "$(hostname -s 2>/dev/null || hostname)")"
-  repo_name="$(slugify_hostname_part "$(basename "$root_dir")")"
-  repo_storage_dir="$(repo_storage_root "$root_dir")"
-  selected_branch="${branch_name:-$(current_branch_name "$root_dir")}"
-  container_hostname="$(generated_hostname "$root_dir" "$selected_branch")"
-  compose_project_name="$(generated_compose_project_name "$root_dir" "$selected_branch")"
-  workspace_folder="$root_dir"
-  if [ -n "$branch_name" ] && ! branch_selects_current_checkout "$root_dir" "$branch_name"; then
-    workspace_folder="$root_dir/.worktrees/$branch_name"
-    workspace_relative=".worktrees/$branch_name"
-    workspace_suffix="/.worktrees/$branch_name"
-  fi
-  user_name="${USER:-$(id -un)}"
-  group_name="$(id -gn)"
-  uid="$(id -u)"
-  kvm_gid="$(stat -c %g /dev/kvm 2>/dev/null || id -g)"
-  display_value="${DISPLAY:-}"
-  xauthority_file="$workspace_folder/.devcontainer/.Xauthority.gen"
+  branch_name="$(current_branch_name "$root_dir")"
   temporary_file="$(mktemp "$target_file.XXXXXX")"
   cat >"$temporary_file" <<EOF
 # .env - generated by .devcontainer/initialize.sh
 #
 # Do not edit manually. Local environment overrides belong in ../.codegeist/.local.env.
-DEVCONTAINER_HOST_NAME=$host_name
-DEVCONTAINER_REPO_NAME=$repo_name
-DEVCONTAINER_REPO_ROOT=$repo_storage_dir
-DEVCONTAINER_BRANCH_NAME=$(slugify_hostname_part "$selected_branch")
-DEVCONTAINER_HOSTNAME=$container_hostname
-DEVCONTAINER_COMPOSE_PROJECT_NAME=$compose_project_name
-DEVCONTAINER_WORKSPACE_FOLDER=$workspace_folder
-DEVCONTAINER_WORKSPACE_RELATIVE=$workspace_relative
-DEVCONTAINER_WORKSPACE_SUFFIX=$workspace_suffix
-DEVCONTAINER_USER=$user_name
-DEVCONTAINER_GROUP=$group_name
-DEVCONTAINER_UID=$uid
-DEVCONTAINER_GID=$uid
-DEVCONTAINER_KVM_GID=$kvm_gid
-DEVCONTAINER_DISPLAY=$display_value
-DEVCONTAINER_XAUTHORITY=$xauthority_file
-DEVCONTAINER_WAYLAND_DISPLAY=$host_wayland_display
-DEVCONTAINER_WAYLAND_SOCKET_HOST=$host_wayland_socket
-DEVCONTAINER_WAYLAND_RUNTIME_DIR=$container_wayland_runtime_dir
+DEVCONTAINER_HOST_NAME=$(slugify_hostname_part "$(hostname -s 2>/dev/null || hostname)")
+DEVCONTAINER_REPO_NAME=$(slugify_hostname_part "$(repository_name "$root_dir")")
+DEVCONTAINER_REPO_ROOT=$root_dir
+DEVCONTAINER_GIT_COMMON_DIR=$common_dir
+DEVCONTAINER_BRANCH_NAME=$(slugify_hostname_part "$branch_name")
+DEVCONTAINER_HOSTNAME=$(generated_hostname "$root_dir")
+DEVCONTAINER_COMPOSE_PROJECT_NAME=$(generated_compose_project_name "$root_dir")
+DEVCONTAINER_WORKSPACE_FOLDER=$root_dir
+DEVCONTAINER_USER=${USER:-$(id -un)}
+DEVCONTAINER_GROUP=$(id -gn)
+DEVCONTAINER_UID=$(id -u)
+DEVCONTAINER_GID=$(id -u)
+DEVCONTAINER_KVM_GID=$(stat -c %g /dev/kvm 2>/dev/null || id -g)
+DEVCONTAINER_DISPLAY=${DISPLAY:-}
+DEVCONTAINER_XAUTHORITY=$root_dir/.devcontainer/.Xauthority.gen
 EOF
   mv -f "$temporary_file" "$target_file"
-
 }
 
 write_generated_compose() {
   local target_file="$1"
-  local container_hostname="$2"
-  local compose_project_name="$3"
-  local user_name=""
-  local group_name=""
-  local uid=""
+  local root_dir="$2"
   local temporary_file=""
+  local uid=""
 
-  user_name="${USER:-$(id -un)}"
-  group_name="$(id -gn)"
   uid="$(id -u)"
   temporary_file="$(mktemp "$target_file.XXXXXX")"
-
   cat >"$temporary_file" <<EOF
 # compose.local.gen.yml - generated by .devcontainer/initialize.sh
 #
 # Do not edit manually. Repository Compose overrides are loaded through compose.user.gen.yml.
-name: $compose_project_name
+name: $(generated_compose_project_name "$root_dir")
 
 services:
   workspace:
     build:
       args:
-        CONTAINER_USER: $user_name
-        CONTAINER_GROUP: $group_name
+        CONTAINER_USER: ${USER:-$(id -un)}
+        CONTAINER_GROUP: $(id -gn)
         CONTAINER_UID: "$uid"
         CONTAINER_GID: "$uid"
-    hostname: $container_hostname
+    hostname: $(generated_hostname "$root_dir")
     extra_hosts:
-      - "$container_hostname:127.0.0.1"
+      - "$(generated_hostname "$root_dir"):127.0.0.1"
     user: "$uid:$uid"
 EOF
-
-  if [ -n "$host_wayland_socket" ]; then
-    cat >>"$temporary_file" <<EOF
-    environment:
-      WAYLAND_DISPLAY: "$host_wayland_display"
-      XDG_RUNTIME_DIR: "$container_wayland_runtime_dir"
-    volumes:
-      - "$host_wayland_socket:$container_wayland_runtime_dir/$host_wayland_display"
-EOF
-  fi
-
   mv -f "$temporary_file" "$target_file"
 }
 
@@ -403,80 +253,34 @@ write_user_compose_bridge() {
   local temporary_file=""
 
   temporary_file="$(mktemp "$target_file.XXXXXX")"
-
   if [ -f "$source_file" ]; then
     cp "$source_file" "$temporary_file"
-    mv -f "$temporary_file" "$target_file"
-    return 0
-  fi
-
-  cat >"$temporary_file" <<'EOF'
+  else
+    cat >"$temporary_file" <<'EOF'
 # compose.user.gen.yml - generated by .devcontainer/initialize.sh
 #
 # Do not edit manually. Create ../.codegeist/compose.local.yml when repository
 # Compose overrides are needed.
 services: {}
 EOF
+  fi
   mv -f "$temporary_file" "$target_file"
 }
 
-ensure_codegeist_dir() {
+ensure_workspace_tmp_link() {
+  local root_dir="$1"
+
+  mkdir -p /tmp/ws-data
+  if [ ! -e "$root_dir/.tmp" ] && [ ! -L "$root_dir/.tmp" ]; then
+    ln -s /tmp/ws-data "$root_dir/.tmp"
+  fi
+}
+
+ensure_codegeist_state() {
   local root_dir="$1"
 
   mkdir -p "$root_dir/.codegeist/secrets"
-}
-
-ensure_workspace_tmp_link() {
-  local workspace_dir="$1"
-  local tmp_target="/tmp/ws-data"
-  local link_path="$workspace_dir/.tmp"
-
-  mkdir -p "$tmp_target"
-  if [ -e "$link_path" ] || [ -L "$link_path" ]; then
-    return 0
-  fi
-
-  ln -s "$tmp_target" "$link_path"
-}
-
-copy_local_or_example_if_missing() {
-  local legacy_file="$1"
-  local example_file="$2"
-  local target_file="$3"
-
-  if [ -e "$target_file" ] || [ -L "$target_file" ]; then
-    return 0
-  fi
-
-  if [ -e "$legacy_file" ] || [ -L "$legacy_file" ]; then
-    cp "$legacy_file" "$target_file"
-    return 0
-  fi
-
-  cp "$example_file" "$target_file"
-}
-
-migrate_legacy_compose_local() {
-  local root_dir="$1"
-  local legacy_file="$root_dir/compose.local.yml"
-  local target_file="$root_dir/.codegeist/compose.local.yml"
-
-  if [ -e "$target_file" ] || [ -L "$target_file" ]; then
-    return 0
-  fi
-
-  if [ -e "$legacy_file" ] || [ -L "$legacy_file" ]; then
-    cp "$legacy_file" "$target_file"
-  fi
-}
-
-ensure_codegeist_local_env() {
-  local root_dir="$1"
-
-  copy_local_or_example_if_missing \
-    "$root_dir/.local.env" \
-    "$root_dir/.devcontainer/.local.env.example" \
-    "$root_dir/.codegeist/.local.env"
+  copy_if_missing "$script_dir/.local.env.example" "$root_dir/.codegeist/.local.env"
 }
 
 ensure_opencode_local_config_dir() {
@@ -484,47 +288,11 @@ ensure_opencode_local_config_dir() {
   local config_dir="$root_dir/.oc_local"
 
   mkdir -p "$config_dir"
-  copy_if_missing "$root_dir/.devcontainer/.oc_local.gitignore.example" "$config_dir/.gitignore"
-}
-
-ensure_worktrees_dir() {
-  local root_dir="$1"
-
-  mkdir -p "$root_dir/.worktrees"
-}
-
-ensure_current_checkout_alias() {
-  local root_dir="$1"
-  local branch_name="$2"
-  local alias_path="$root_dir/.worktrees/$branch_name"
-  local alias_target=""
-  local resolved_alias=""
-
-  mkdir -p "$(dirname "$alias_path")"
-
-  if [ -L "$alias_path" ]; then
-    resolved_alias="$(readlink -f "$alias_path" 2>/dev/null || true)"
-    if [ "$resolved_alias" = "$root_dir" ]; then
-      return 0
-    fi
-
-    printf 'Refusing to reuse %s because it does not resolve to %s\n' "$alias_path" "$root_dir" >&2
-    return 1
-  fi
-
-  if [ -e "$alias_path" ]; then
-    printf 'Refusing to replace existing non-symlink path: %s\n' "$alias_path" >&2
-    return 1
-  fi
-
-  alias_target="$(realpath --relative-to="$(dirname "$alias_path")" "$root_dir")"
-  ln -s "$alias_target" "$alias_path"
+  copy_if_missing "$script_dir/.oc_local.gitignore.example" "$config_dir/.gitignore"
 }
 
 has_tracked_opencode_local_overlay() {
-  local root_dir="$1"
-
-  [ -n "$(git -C "$root_dir" ls-files .oc_local 2>/dev/null || true)" ]
+  [ -n "$(git -C "$1" ls-files .oc_local 2>/dev/null || true)" ]
 }
 
 ensure_gitignore_pattern() {
@@ -536,157 +304,85 @@ ensure_gitignore_pattern() {
 
   if [ -f "$gitignore_file" ]; then
     while IFS= read -r line; do
-      if [ "$line" = "$pattern" ]; then
-        return 0
-      fi
+      [ "$line" != "$pattern" ] || return 0
     done <"$gitignore_file"
   fi
-
   if [ -s "$gitignore_file" ]; then
     last_byte="$(tail -c 1 "$gitignore_file" | od -An -t x1 | tr -d '[:space:]')"
-    if [ "$last_byte" != "0a" ]; then
-      printf '\n' >>"$gitignore_file"
-    fi
+    [ "$last_byte" = "0a" ] || printf '\n' >>"$gitignore_file"
   fi
-
   printf '%s\n' "$pattern" >>"$gitignore_file"
 }
 
-ensure_worktree() {
+remove_gitignore_pattern() {
   local root_dir="$1"
-  local branch="$2"
-  local slug="$3"
-  local worktree_path="$root_dir/.worktrees/$slug"
-  local resolved_worktree=""
+  local pattern="$2"
+  local gitignore_file="$root_dir/.gitignore"
+  local temporary_file=""
+  local line=""
+  local removed=0
 
-  git check-ref-format --branch "$branch" >/dev/null
-  mkdir -p "$(dirname "$worktree_path")"
-
-  if [ -L "$worktree_path" ]; then
-    resolved_worktree="$(readlink -f "$worktree_path" 2>/dev/null || true)"
-    if [ "$resolved_worktree" != "$root_dir" ]; then
-      printf 'Refusing to replace existing symlink path: %s\n' "$worktree_path" >&2
-      return 1
+  [ -f "$gitignore_file" ] || return 0
+  temporary_file="$(mktemp "$gitignore_file.XXXXXX")"
+  while IFS= read -r line || [ -n "$line" ]; do
+    if [ "$line" = "$pattern" ]; then
+      removed=1
+    else
+      printf '%s\n' "$line" >>"$temporary_file"
     fi
-
-    rm "$worktree_path"
+  done <"$gitignore_file"
+  if [ "$removed" -eq 1 ]; then
+    # Write through symlinks and retain the existing inode's ownership and mode.
+    command cat "$temporary_file" >"$gitignore_file"
   fi
-
-  if [ -e "$worktree_path" ]; then
-    [ "$(git -C "$worktree_path" rev-parse --show-toplevel)" = "$worktree_path" ]
-  elif git -C "$root_dir" show-ref --verify --quiet "refs/heads/$branch"; then
-    git -C "$root_dir" worktree add "$worktree_path" "$branch" >&2
-  else
-    git -C "$root_dir" worktree add -b "$branch" "$worktree_path" >&2
-  fi
-
-  if [ -f "$worktree_path/.gitmodules" ]; then
-    if ! GIT_TERMINAL_PROMPT=0 \
-      GIT_ASKPASS=/bin/false \
-      SSH_ASKPASS=/bin/false \
-      git -C "$worktree_path" \
-      -c credential.helper= \
-      -c protocol.file.allow=always \
-      submodule update --init --recursive >&2; then
-      printf 'Failed to initialize worktree submodules anonymously: %s\n' "$worktree_path" >&2
-      return 1
-    fi
-  fi
-
-  printf '%s\n' "$worktree_path"
-}
-
-ensure_worktree_local_env_link() {
-  local root_dir="$1"
-  local worktree_path="$2"
-  local link_path="$worktree_path/.codegeist/.local.env"
-  local link_target=""
-
-  mkdir -p "$(dirname "$link_path")"
-
-  if [ -e "$link_path" ] || [ -L "$link_path" ]; then
-    return 0
-  fi
-
-  link_target="$(realpath --relative-to="$(dirname "$link_path")" "$root_dir/.codegeist/.local.env")"
-  ln -s "$link_target" "$link_path"
-}
-
-prepare_selected_worktree() {
-  local root_dir="$1"
-  local branch_name="$2"
-  local worktree_path=""
-
-  if branch_selects_current_checkout "$root_dir" "$branch_name"; then
-    ensure_current_checkout_alias "$root_dir" "$branch_name"
-    return 0
-  fi
-
-  worktree_path="$(ensure_worktree "$root_dir" "$branch_name" "$branch_name")"
-
-  ensure_worktree_local_env_link "$root_dir" "$worktree_path"
+  rm -f "$temporary_file"
 }
 
 main() {
   local root_dir=""
-  local branch_name=""
-  local workspace_folder=""
-  local workspace_env_file=""
-  local workspace_xauthority_file=""
+  local common_dir=""
   local custom_initialize=""
 
-  case "${1:-}" in
-    "")
-      root_dir="$(repo_root)"
-      branch_name="${BRANCH:-}"
+  if [ "$#" -ne 0 ]; then
+    printf 'Usage: %s\n' "$0" >&2
+    return 1
+  fi
 
-      ensure_codegeist_dir "$root_dir"
-      migrate_legacy_compose_local "$root_dir"
-      ensure_codegeist_local_env "$root_dir"
-      write_merged_dockerfile "$root_dir"
-      ensure_opencode_local_config_dir "$root_dir"
-      ensure_worktrees_dir "$root_dir"
-      if ! has_tracked_opencode_local_overlay "$root_dir"; then
-        ensure_gitignore_pattern "$root_dir" "/.oc_local/"
-        ensure_gitignore_pattern "$root_dir" "/.oc_local/.gitignore"
-      fi
-      ensure_gitignore_pattern "$root_dir" "/.worktrees/"
-      ensure_gitignore_pattern "$root_dir" "/.codegeist/.local.env"
-      ensure_gitignore_pattern "$root_dir" "/.codegeist/secrets/"
-      ensure_gitignore_pattern "$root_dir" "/.chrome/"
-      ensure_gitignore_pattern "$root_dir" "/.tmp"
-      ensure_workspace_tmp_link "$root_dir"
-      if [ -n "$branch_name" ]; then
-        prepare_selected_worktree "$root_dir" "$branch_name"
-      fi
-      workspace_folder="$(selected_workspace_folder "$root_dir" "$branch_name")"
-      ensure_workspace_tmp_link "$workspace_folder"
-      workspace_env_file="$workspace_folder/.devcontainer/.env"
-      workspace_xauthority_file="$workspace_folder/.devcontainer/.Xauthority.gen"
-      discover_host_wayland
-      write_generated_xauthority "$workspace_xauthority_file"
-      write_generated_env "$script_dir/.env" "$root_dir" "$branch_name"
-      if [ "$workspace_env_file" != "$script_dir/.env" ]; then
-        write_generated_env "$workspace_env_file" "$root_dir" "$branch_name"
-      fi
-      write_generated_compose \
-        "$script_dir/compose.local.gen.yml" \
-        "$(generated_hostname "$root_dir" "$branch_name")" \
-        "$(generated_compose_project_name "$root_dir" "${branch_name:-$(current_branch_name "$root_dir")}")"
-      write_user_compose_bridge "$root_dir"
-      custom_initialize="$workspace_folder/.codegeist/extensions/custom_initialize.sh"
-      if [ -f "$custom_initialize" ]; then
-        (
-          cd "$workspace_folder"
-          bash "$custom_initialize"
-        )
-      fi
-      ;;
-    *)
-      printf 'Usage: %s\n' "$0" >&2
-      exit 1
-      ;;
-  esac
+  root_dir="$(repo_root)"
+  common_dir="$(git_common_dir "$root_dir")"
+  log "status=started workspace=$root_dir git_common_dir=$common_dir"
+
+  ensure_codegeist_state "$root_dir"
+  ensure_workspace_tmp_link "$root_dir"
+  ensure_opencode_local_config_dir "$root_dir"
+  write_merged_dockerfile "$root_dir"
+
+  if ! has_tracked_opencode_local_overlay "$root_dir"; then
+    ensure_gitignore_pattern "$root_dir" "/.oc_local/"
+    ensure_gitignore_pattern "$root_dir" "/.oc_local/.gitignore"
+  fi
+  ensure_gitignore_pattern "$root_dir" "/.worktrees/"
+  ensure_gitignore_pattern "$root_dir" "/.codegeist/.local.env"
+  ensure_gitignore_pattern "$root_dir" "/.codegeist/secrets/"
+  ensure_gitignore_pattern "$root_dir" "/.chrome/"
+  ensure_gitignore_pattern "$root_dir" "/.tmp"
+  remove_gitignore_pattern "$root_dir" "/.local.env"
+  remove_gitignore_pattern "$root_dir" "/compose.local.yml"
+  remove_gitignore_pattern "$root_dir" "/.worktrees/**/.codegeist/.local.env"
+  remove_gitignore_pattern "$root_dir" "/.worktrees/**/.local.env"
+
+  write_generated_xauthority "$script_dir/.Xauthority.gen"
+  write_generated_env "$script_dir/.env" "$root_dir" "$common_dir"
+  write_generated_compose "$script_dir/compose.local.gen.yml" "$root_dir"
+  write_user_compose_bridge "$root_dir"
+
+  custom_initialize="$root_dir/.codegeist/extensions/custom_initialize.sh"
+  if [ -f "$custom_initialize" ]; then
+    log "status=hook_started path=$custom_initialize"
+    (cd "$root_dir" && bash "$custom_initialize")
+  fi
+
+  log "status=completed workspace=$root_dir"
 }
 
 main "$@"

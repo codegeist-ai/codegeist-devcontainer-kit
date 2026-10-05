@@ -38,8 +38,9 @@ In a source `main` checkout, run `task check` as the normal fast contributor
 check. Run the broader `task tests-run` suite when a change affects the image,
 Dev Containers lifecycle, Docker/Compose behavior, QEMU, or browser runtime.
 The fast check uses cleanup-trapped OS temporary state and leaves no repo-local
-test directory behind. These source tasks are intentionally omitted from the
-generated runtime tree.
+test directory behind. Contributor tasks are intentionally omitted from the
+generated runtime tree; its separate Taskfile contains only the worktree
+workflow documented below.
 
 Codegeist's account-wide
 [Code of Conduct](https://github.com/codegeist-ai/.github/blob/main/CODE_OF_CONDUCT.md),
@@ -55,8 +56,8 @@ apply without being duplicated in this runtime tree.
 - Documented optional Linux PipeWire microphone forwarding through a fixed
   loopback-only OpenSSH remote forward, including connection multiplexing for
   parallel VS Code sessions, client usage, verification, and security limits.
-- Directly opened Git worktrees mount their exact common Git metadata while
-  worktree creation and submodule initialization remain explicit user steps.
+- Directly opened Git worktrees mount their exact common Git metadata. The
+  runtime Taskfile can explicitly create, initialize, and open a branch worktree.
 - The generated runtime manifest includes the canonical root `LICENSE`, so the
   license travels with every `.devcontainer/` release checkout.
 
@@ -94,9 +95,37 @@ kit:
 Do not ignore `/.oc_local/` if the consuming repository intentionally tracks a
 project-local OpenCode overlay there. Do not ignore `.codegeist/compose.local.yml`
 or `.codegeist/Dockerfile` if the repository creates them for intentional Compose
-or image overrides; they should stay visible to Git. `/.worktrees/` is only a
-conventional ignore for explicitly created repository-local worktrees; the kit
-does not create the directory.
+or image overrides; they should stay visible to Git. `/.worktrees/` is the
+conventional location used by the optional runtime worktree task;
+`initialize.sh` itself does not create the directory.
+
+## Create A Branch Worktree
+
+From a terminal in the running devcontainer, create a branch from the current
+checkout's `HEAD`, initialize its submodules, and open it in a new VS Code window:
+
+```bash
+task -t .devcontainer/Taskfile.yaml \
+  code:start:worktree -- feature/my-item
+```
+
+The task creates branch `feature/my-item` and worktree
+`.worktrees/feature-my-item`. Slashes are replaced only in the directory name.
+The final step invokes `code --new-window` with the absolute worktree path; the
+connected VS Code client can then initialize that checkout's devcontainer. The
+task requires `VSCODE_IPC_HOOK_CLI` from an attached VS Code session and fails
+instead of invoking an unconnected standalone `code` installation.
+
+Create the branch, worktree, and submodules without opening VS Code when needed:
+
+```bash
+task -t .devcontainer/Taskfile.yaml worktree:item:create -- feature/my-item
+```
+
+Existing branches and worktree paths are rejected. If worktree creation,
+submodule initialization, or VS Code startup fails after the branch is created,
+the task deliberately leaves existing Git state intact rather than deleting user
+data. Resolve the failure and run the appropriate remaining operation manually.
 
 If these patterns are missing, `initialize.sh` adds them to the consuming
 repository's root `.gitignore`. It never writes generated-file ignores to

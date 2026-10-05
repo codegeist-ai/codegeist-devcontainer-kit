@@ -15,6 +15,9 @@ Use this rule when making code, script, or workflow changes in this repository.
   another integration contract covered only by that suite.
 - Targeted tests are still useful while iterating, but they do not replace a
   relevant final `task check` or broad-suite attempt.
+- When a test runs `docker compose` directly against a generated fixture from
+  inside this repository's devcontainer, unset inherited `DEVCONTAINER_*`
+  workspace values first so the fixture's generated `.env` remains authoritative.
 - Do not run `docker system prune`, `docker builder prune`, or other Docker
   cleanup commands automatically before tests. If Docker storage is too tight,
   stop and ask for approval before pruning cache, images, containers, or volumes.

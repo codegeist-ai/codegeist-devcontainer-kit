@@ -51,7 +51,22 @@ HOME="$colon_fixture_dir" "$colon_fixture_dir/.devcontainer/initialize.sh"
 colon_common_dir="$(expected_git_common_dir "$colon_fixture_dir")"
 colon_compose_config="$(
   cd "$colon_fixture_dir/.devcontainer"
-  docker compose \
+  env \
+    -u DEVCONTAINER_HOST_NAME \
+    -u DEVCONTAINER_REPO_NAME \
+    -u DEVCONTAINER_REPO_ROOT \
+    -u DEVCONTAINER_GIT_COMMON_DIR \
+    -u DEVCONTAINER_BRANCH_NAME \
+    -u DEVCONTAINER_HOSTNAME \
+    -u DEVCONTAINER_WORKSPACE_FOLDER \
+    -u DEVCONTAINER_USER \
+    -u DEVCONTAINER_GROUP \
+    -u DEVCONTAINER_UID \
+    -u DEVCONTAINER_GID \
+    -u DEVCONTAINER_KVM_GID \
+    -u DEVCONTAINER_DISPLAY \
+    -u DEVCONTAINER_XAUTHORITY \
+    docker compose \
     -f docker-compose.yml \
     -f compose.local.gen.yml \
     -f compose.user.gen.yml \

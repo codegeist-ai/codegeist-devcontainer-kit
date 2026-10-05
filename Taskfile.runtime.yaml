@@ -1,0 +1,42 @@
+# Taskfile.runtime.yaml - worktree tasks shipped to consuming repositories
+#
+# Why this exists:
+# - gives a running devcontainer one command to create and open an isolated
+#   branch worktree without coupling the runtime release to contributor tasks
+# - keeps branch creation and VS Code startup available as separate operations
+#
+# Inputs:
+# - one Git branch name passed after `--`
+# - DEVCONTAINER_WORKSPACE_FOLDER, when set, selects the opened checkout
+#
+# Side effects:
+# - creates a local branch and `.worktrees/<slug>` checkout
+# - initializes that checkout's submodules
+# - asks the connected VS Code client to open the checkout in a new window
+#
+# Related files:
+# - scripts/worktree.sh
+# - scripts/release-build.sh
+
+version: '3'
+
+env:
+  DEVCONTAINER_WORKTREE_BRANCH: '{{.CLI_ARGS}}'
+
+tasks:
+  branch:create:
+    desc: Create a branch from the current checkout HEAD
+    cmds:
+      - '"{{.TASKFILE_DIR}}/scripts/worktree.sh" branch-create'
+
+  worktree:item:create:
+    desc: Create a branch worktree and initialize its submodules
+    cmds:
+      - task: branch:create
+      - '"{{.TASKFILE_DIR}}/scripts/worktree.sh" worktree-create'
+
+  code:start:worktree:
+    desc: Create and open a worktree; pass the new branch after --
+    cmds:
+      - task: worktree:item:create
+      - '"{{.TASKFILE_DIR}}/scripts/worktree.sh" code-start'

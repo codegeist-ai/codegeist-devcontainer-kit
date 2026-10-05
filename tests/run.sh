@@ -31,6 +31,7 @@ rm -f "$release_verification_file"
 
 run_timed "initialize bootstrap" "$WARN_FAST_SECONDS" "$script_dir/initialize.sh"
 run_timed "Dockerfile merge" "$WARN_FAST_SECONDS" "$script_dir/dockerfile-merge.sh"
+run_timed "runtime worktree task" "$WARN_FAST_SECONDS" "$script_dir/runtime-worktree-task.sh"
 run_timed "release build branch" "$WARN_FAST_SECONDS" "$script_dir/release-build.sh"
 run_timed "compose config" "$WARN_FAST_SECONDS" "$script_dir/compose-config.sh"
 run_timed "entrypoint Vault config" "$WARN_FAST_SECONDS" "$script_dir/entrypoint-vault.sh"

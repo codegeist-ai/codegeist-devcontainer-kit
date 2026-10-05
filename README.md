@@ -39,8 +39,9 @@ The consuming project should use the standard VS Code flow:
 3. Run `Dev Containers: Reopen in Container`.
 
 The kit should not require a root-level launcher such as `start.sh` for normal
-VS Code usage. It should also not open VS Code from its own scripts. VS Code and
-the Dev Containers extension own the container lifecycle.
+VS Code usage. Initialization and lifecycle scripts do not open VS Code; only
+the explicitly invoked runtime worktree task requests a new window. VS Code and
+the Dev Containers extension still own the container lifecycle.
 
 The devcontainer user follows the host `$USER`: `remoteUser` and
 `containerUser` both use `${localEnv:USER}`. `initialize.sh` writes matching
@@ -84,8 +85,8 @@ Ignore `/.oc_local/` only when the consuming repository does not intentionally
 track project-specific OpenCode overlay files there. Do not ignore
 `.codegeist/compose.local.yml` or `.codegeist/Dockerfile` if the repository
 creates them for intentional Compose or image overrides; they should stay
-visible to Git. `/.worktrees/` is only a conventional ignore for explicitly
-created repository-local worktrees; the kit does not create the directory.
+visible to Git. `/.worktrees/` is the conventional location used by the optional
+runtime worktree task; `initialize.sh` itself does not create the directory.
 
 If these patterns are missing, `initialize.sh` adds them to the repository root
 `.gitignore`. It never writes generated-file ignores to `.git/info/exclude`, so
@@ -100,8 +101,22 @@ Open the consuming repository root in VS Code and run
 code .
 ```
 
-To use a Git worktree, create it explicitly, initialize its submodules when the
-repository has any, and open that checkout directly:
+From a running devcontainer, create a branch from the current `HEAD`, initialize
+its worktree submodules, and open the checkout in a new VS Code window with the
+runtime Taskfile:
+
+```bash
+task -t .devcontainer/Taskfile.yaml \
+  code:start:worktree -- feature/feature-x
+```
+
+The task writes `.worktrees/feature-feature-x`, replacing `/` in the branch name
+with `-` only for the directory name. It fails rather than reusing an existing
+branch or worktree path. If a later submodule or VS Code step fails, the created
+branch and worktree remain available for inspection and retry.
+
+To manage a worktree manually instead, create it explicitly, initialize its
+submodules when the repository has any, and open that checkout directly:
 
 ```bash
 git worktree add .worktrees/feature-x feature-x
@@ -123,7 +138,8 @@ The Dev Containers CLI uses the same direct-checkout workflow:
 npx --yes @devcontainers/cli up --workspace-folder .worktrees/feature-x
 ```
 
-The kit does not create worktrees, aliases, branches, or submodules. A worktree
+The initializer does not create worktrees, aliases, branches, or submodules. The
+runtime task does so only when invoked explicitly. A manually created worktree
 may live under `.worktrees/` or elsewhere; only the opened checkout path matters.
 
 The first start creates local and generated files when missing:
@@ -959,31 +975,30 @@ disposable audio samples through real tmux, FFmpeg, Pulse audio, and `ffprobe`.
 Do not replace real dependencies with fakes or add weaker tests solely to make
 the suite runnable in CI.
 
-Run the fixture-backed reality test when you need to exercise the current kit
-source as a temporary consuming repository:
+Stage the current worktree, including uncommitted changes, in the exact runtime
+release layout and exercise it as a temporary consuming repository:
 
 ```bash
-task devcontainer-reality-test
+task test:release-build -- .tmp/current-release
+task devcontainer-reality-test -- .tmp/current-release
 ```
 
-The reality test copies the current source worktree, including uncommitted
-changes, into the fixture's `.devcontainer/`. It builds, starts, and verifies the
-temporary devcontainer through the Dev Containers CLI. It does not open VS Code:
-when invoked from this repository's own devcontainer, a nested `code` request
-would reuse the older caller runtime instead of attaching to the verified
-fixture. The fixture and running container remain available for manual CLI
-inspection after the command returns. To launch OpenCode in that exact runtime,
-use the command reported by the test, shaped as:
+The first task replaces the selected directory below `.tmp/` with the runtime
+allowlist and release filename mappings. It does not require a clean branch,
+verification attestation, commit, or release-branch update. The second task
+requires that staged release, builds and verifies it through the Dev Containers
+CLI, and opens Bash in the fixture container with the fixture root selected as
+its workspace. Run both steps with one command when preferred:
 
 ```bash
-devcontainer exec --container-id <reported-container-id> env -u TMUX oc <reported-fixture-workspace>
+task test:release-build:reality
 ```
 
-Do not use only `cd <reported-fixture> && oc`: that changes the directory but
-still runs the source container's installed tools. `env -u TMUX` also prevents
-the nested `oc` command from opening a window in the source container's tmux
-server. The final workspace argument is also required because container-ID
-execution otherwise starts commands in the container user's home directory.
+Exit that Bash to return from the task. The fixture and running container remain
+available afterward for further inspection.
+
+The combined task defaults to `.tmp/current-release`. Pass another directory
+below `.tmp/` after `--` when a separate staged release is needed.
 
 Update the runtime-only `release` branch when consuming repositories should pin
 the kit as a stable `.devcontainer` submodule branch:
@@ -1022,6 +1037,7 @@ Dockerfile
 Dockerfile.example
 LICENSE
 README.md
+Taskfile.yaml
 compose.local.yml.example
 devcontainer.json
 docker-compose.yml
@@ -1030,13 +1046,15 @@ initialize.sh
 cmds/oc
 cmds/oc-record
 scripts/chrome.sh
+scripts/worktree.sh
 ```
 
 `scripts/release-build.sh` copies source `Dockerfile.base` into the release tree
-as `Dockerfile` and ships `Dockerfile.example` as the on-demand template for root
-`.codegeist/Dockerfile`; do not add a tracked root `Dockerfile` to the source
-checkout for the kit base image. The source and generated runtime trees both ship
-the canonical 0BSD `LICENSE`.
+as `Dockerfile`, source `Taskfile.runtime.yaml` as `Taskfile.yaml`, and ships
+`Dockerfile.example` as the on-demand template for root `.codegeist/Dockerfile`;
+do not add a tracked root `Dockerfile` to the source checkout for the kit base
+image. The source and generated runtime trees both ship the canonical 0BSD
+`LICENSE`.
 
 ## OpenCode Workspace
 
@@ -1181,7 +1199,7 @@ VS Code attaches to the workspace service
 This means the kit should avoid old launcher-style behavior in the normal VS
 Code path:
 
-- no `code --new-window` from repository scripts
+- no implicit `code --new-window` from initialization or lifecycle scripts
 - no recursive reopen-in-container behavior
 - no root `start.sh` dependency
 - no project-specific assumptions such as `CODEGEIST_*`
@@ -1359,7 +1377,8 @@ The tests should verify at least:
 - the generated container hostname matches host, repo, and branch context
 - the generated runtime user and group match the host UID
 - repeated `devcontainer up` runs stay safe and idempotent
-- no VS Code window is opened by kit scripts
+- normal initialization and lifecycle scripts do not open VS Code windows;
+  only the explicitly invoked runtime worktree task does so
 - no project-specific names such as `CODEGEIST_*` are required
 - the workspace service starts and accepts a basic command
 - QEMU can download and boot a small pinned Alpine Linux ISO to its login prompt
@@ -1390,12 +1409,14 @@ Expected target layout when consumed as a subtree at `.devcontainer/`:
   docker-compose.yml
   Dockerfile            # kit base image file in the release branch
   Dockerfile.example    # template for root .codegeist/Dockerfile
+  Taskfile.yaml         # runtime-only branch and worktree tasks
   entrypoint.sh
   initialize.sh
   cmds/
     oc
   scripts/
     chrome.sh
+    worktree.sh
   .local.env.example
   compose.local.yml.example
   tests/
@@ -1411,6 +1432,8 @@ Roles:
   keep the same content as `Dockerfile.base`. Root `.codegeist/Dockerfile` can
   extend it through the generated `Dockerfile.merged.gen` file.
 - `entrypoint.sh` runs inside the container.
+- `Taskfile.yaml` exposes the explicit runtime worktree workflow and delegates
+  its Git and VS Code operations to `scripts/worktree.sh`.
 - `cmds/` contains user-facing commands copied into `/usr/local/bin` during the
   image build; `cmds/oc` provides the global `oc` command.
 - `entrypoint.sh` links `/usr/local/bin/chrome` to the mounted
@@ -1458,8 +1481,24 @@ optional and must not be required by `devcontainer.json`.
 
 ## Git Worktrees
 
-Git, not `initialize.sh`, owns worktree and branch creation. Create the checkout,
-initialize its submodules explicitly when required, and open that path directly:
+`initialize.sh` never creates or selects worktrees. From inside the running
+devcontainer, the released Taskfile can create a branch from the current `HEAD`,
+initialize its worktree submodules, and open the absolute checkout path through
+the connected VS Code CLI:
+
+```bash
+task -t .devcontainer/Taskfile.yaml \
+  code:start:worktree -- feature/feature-x
+```
+
+This creates `.worktrees/feature-feature-x` and runs `code --new-window` for
+that checkout. The branch name remains `feature/feature-x`; only the directory
+slug replaces `/` with `-`. Existing branches and paths are rejected, and the
+task does not remove Git state when a later step fails. `code:start:worktree`
+requires a `code` CLI connected through `VSCODE_IPC_HOOK_CLI`; it fails instead
+of silently invoking the image's standalone `/usr/bin/code`.
+
+The same workflow remains available as explicit Git commands:
 
 ```bash
 git worktree add .worktrees/feature-x feature-x
@@ -1486,26 +1525,27 @@ parallel directly opened worktrees use separate containers and runtime state.
 
 ## Devcontainer Reality Test
 
-Use the manual reality test to verify the current source worktree through a
-temporary consuming repository. It creates a temporary Git repository, copies
-the current kit files into `.devcontainer/`, builds and verifies its devcontainer,
-and checks the resulting workspace through `devcontainer exec`. It deliberately
-does not invoke `code`: from this source repository's own devcontainer, VS Code
-would open the fixture inside the older caller runtime rather than attach to the
-nested container that passed verification.
+Use the manual reality workflow to stage the current source worktree in its exact
+runtime release layout and verify that tree through a temporary consuming
+repository. The staged output may include uncommitted changes and does not alter
+the real `release` branch.
 
 ```bash
-task devcontainer-reality-test
+task test:release-build:reality
 ```
 
-The reality test accepts no branch argument. It verifies only the temporary
-fixture checkout that it creates and opens directly.
+`test:release-build` replaces only an explicitly selected directory below
+`.tmp/`. `devcontainer-reality-test` requires that directory after `--`, copies
+it into the fixture's `.devcontainer/`, and opens that checkout directly.
+The combined task uses `.tmp/current-release` by default and accepts an optional
+replacement path after `--`.
 
-The temporary fixture and running container are intentionally left in place for
-manual inspection after the command reports their path. Use its reported
-`devcontainer exec --container-id ... env -u TMUX oc <workspace>` command when
-manually checking runtime behavior; changing into the fixture directory alone
-does not enter its container.
+After verification, the task opens Bash in the temporary container with the
+fixture root as its workspace. Exit that shell to return from the task. The
+fixture and running container remain available for further inspection.
+When launched from a VS Code-attached devcontainer, the reality fixture also
+mounts that session's remote CLI and IPC socket so its runtime worktree task can
+open a real VS Code window.
 
 ## Local Generated Files
 
@@ -1551,7 +1591,7 @@ Avoid:
 - committed root `.env` or `.codegeist/.local.env`
 - direct project-specific edits inside shared `.devcontainer/` or `.opencode/`
   submodule checkouts
-- automatic VS Code window management
+- automatic VS Code window management outside explicit user-invoked tasks
 
 Prefer:
 

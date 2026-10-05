@@ -4,7 +4,8 @@
 # Why this exists:
 # - Consuming repositories can pin this kit as a `.devcontainer` submodule branch.
 # - The release branch contains only files needed by the Dev Containers runtime,
-#   not this repository's tests, documentation, Taskfile, or OpenCode workspace.
+#   including its focused worktree Taskfile but not contributor-only tasks,
+#   tests, source documentation, or the OpenCode workspace.
 # - The branch is created as an orphan branch the first time so runtime history
 #   stays separate from the development branch.
 # - Every generated commit uses one stable subject. Its body records the exact
@@ -20,11 +21,13 @@
 #
 # Related files:
 # - ../Taskfile.yaml
+# - ../Taskfile.runtime.yaml
 # - ../README_release.md
 # - ../LICENSE
 # - ../devcontainer.json
 # - ../docker-compose.yml
 # - ../Dockerfile.base
+# - stage-runtime-tree.sh
 
 set -euo pipefail
 
@@ -38,26 +41,6 @@ verified_browser_regression=""
 release_changelog=""
 
 release_subject="chore(release): update devcontainer runtime branch"
-
-runtime_files=(
-  ".gitignore"
-  ".local.env.example"
-  ".oc_local.gitignore.example"
-  ".oc_local.opencode.json.example"
-  "cmds/oc"
-  "cmds/oc-record"
-  "LICENSE"
-  "Dockerfile.example"
-  "compose.local.yml.example"
-  "devcontainer.json"
-  "docker-compose.yml"
-  "entrypoint.sh"
-  "initialize.sh"
-  "scripts/chrome.sh"
-)
-
-runtime_dockerfile_source="Dockerfile.base"
-runtime_readme_source="README_release.md"
 
 fail() {
   printf 'ERROR: %s\n' "$*" >&2
@@ -133,23 +116,12 @@ current_commit="$(git -C "$repo_root" rev-parse HEAD)"
   && [ "$verified_browser_regression" = "passed" ] \
   || fail "release verification is missing or stale; run task tests-run successfully on the current commit"
 
-for runtime_file in "${runtime_files[@]}"; do
-  [ -e "$repo_root/$runtime_file" ] || fail "runtime file is missing: $runtime_file"
-done
-[ -e "$repo_root/$runtime_dockerfile_source" ] || fail "runtime file is missing: $runtime_dockerfile_source"
-[ -e "$repo_root/$runtime_readme_source" ] || fail "runtime file is missing: $runtime_readme_source"
-
 trap cleanup EXIT
 
 tmp_index="$(mktemp)"
 tmp_tree="$(mktemp -d)"
 
-for runtime_file in "${runtime_files[@]}"; do
-  mkdir -p "$tmp_tree/$(dirname "$runtime_file")"
-  cp -p "$repo_root/$runtime_file" "$tmp_tree/$runtime_file"
-done
-cp -p "$repo_root/$runtime_dockerfile_source" "$tmp_tree/Dockerfile"
-cp -p "$repo_root/$runtime_readme_source" "$tmp_tree/README.md"
+RUNTIME_TREE_OUTPUT_DIR="$tmp_tree" "$repo_root/scripts/stage-runtime-tree.sh"
 
 GIT_INDEX_FILE="$tmp_index" git -C "$repo_root" read-tree --empty
 GIT_INDEX_FILE="$tmp_index" git --git-dir="$repo_root/.git" --work-tree="$tmp_tree" add -- .

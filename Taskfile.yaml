@@ -15,6 +15,7 @@
 # - cmds/
 # - entrypoint.sh
 # - scripts/release-build.sh
+# - scripts/stage-runtime-tree.sh
 # - tests/run.sh
 # - tests/devcontainer-reality-test.sh
 # - scripts/chrome.sh
@@ -50,6 +51,7 @@ tasks:
         "{{.TASKFILE_DIR}}"/scripts/*.sh
         "{{.TASKFILE_DIR}}"/tests/*.sh
       - '"{{.TASKFILE_DIR}}/tests/release-build.sh"'
+      - '"{{.TASKFILE_DIR}}/tests/runtime-worktree-task.sh"'
 
   docker-build:
     desc: Build the generic devcontainer kit image
@@ -101,9 +103,33 @@ tasks:
       - '{{.TASKFILE_DIR}}/tests/run.sh'
 
   devcontainer-reality-test:
-    desc: Verify the current kit in a temp consuming devcontainer
+    desc: Verify a staged test release and open its container Bash
+    env:
+      DEVCONTAINER_TEST_RELEASE_DIR: '{{default .CLI_ARGS .TEST_RELEASE_DIR}}'
     cmds:
       - '{{.TASKFILE_DIR}}/tests/devcontainer-reality-test.sh'
+
+  test:release-build:
+    desc: Stage the current worktree as a disposable runtime release
+    env:
+      RUNTIME_TREE_OUTPUT_DIR: '{{default .CLI_ARGS .TEST_RELEASE_DIR}}'
+      RUNTIME_TREE_REPLACE: 'true'
+    cmds:
+      - '"{{.TASKFILE_DIR}}/scripts/stage-runtime-tree.sh"'
+
+  test:release-build:reality:
+    # When invoked inside the parent devcontainer, the reality and worktree
+    # containers use its nested Docker daemon, not the SSH host Docker daemon.
+    desc: Stage a test release, verify it, and open its container Bash
+    vars:
+      TEST_RELEASE_DIR: '{{default ".tmp/current-release" .CLI_ARGS}}'
+    cmds:
+      - task: test:release-build
+        vars:
+          TEST_RELEASE_DIR: '{{.TEST_RELEASE_DIR}}'
+      - task: devcontainer-reality-test
+        vars:
+          TEST_RELEASE_DIR: '{{.TEST_RELEASE_DIR}}'
 
   release-build:
     desc: Update the runtime-only devcontainer release branch

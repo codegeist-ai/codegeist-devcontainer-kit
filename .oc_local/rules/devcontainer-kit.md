@@ -90,18 +90,27 @@ local override templates in this repository.
 
 ## Display Forwarding
 
-- Use `task devcontainer-reality-test` for manual current-source verification in
-  a temporary consuming repository. It must test the checkout opened directly,
-  enter the reported container by ID, and pass the fixture workspace explicitly;
-  do not add a parallel fake-CLI contract test for this manual helper.
+- Use `task test:release-build:reality` for manual current-source verification;
+  it defaults to `.tmp/current-release` and accepts an alternate path below
+  `.tmp/` after `--`. It must stage the exact runtime release tree,
+  test that tree in a directly opened temporary consumer, then open Bash by
+  container ID with the fixture passed as `--workspace-folder`; do not add a
+  parallel fake-CLI contract test for this manual helper.
+- When the reality task runs inside the parent devcontainer, its containers use
+  that parent's nested Docker daemon rather than the SSH host Docker daemon. It
+  may bridge the caller's VS Code remote CLI and IPC socket into the fixture for
+  worktree-window checks, but that bridge does not change Docker ownership.
 - Treat the checkout opened by VS Code or the Dev Containers CLI as the complete
   workspace-selection input. `initialize.sh` must not interpret `BRANCH`, create
   or repair worktrees, create current-branch aliases, or initialize worktree
   submodules.
-- Support ordinary linked worktrees only when Git or another explicit repository
-  workflow created them and the user opens that checkout directly. Resolve the
-  checkout and common Git metadata with Git rather than assuming a
-  `.worktrees/<branch>` layout.
+- Support ordinary linked worktrees when Git or an explicit repository workflow
+  creates them and the user opens that checkout directly. The released runtime
+  Taskfile may create `.worktrees/<branch-slug>` and request `code --new-window`
+  only through an explicit user invocation with a branch after `--`. Require a
+  connected `VSCODE_IPC_HOOK_CLI` and fail instead of falling back to the image's
+  standalone `/usr/bin/code`. Initialization must still resolve the opened
+  checkout and common Git metadata with Git rather than assuming that layout.
 - Do not reserve, increment, or guess SSH X11 forwarding ports in
   `initialize.sh`; SSH and VS Code own forwarding listener allocation.
 - Preserve the host-side `DISPLAY` visible to `initializeCommand` by writing it
@@ -119,9 +128,10 @@ local override templates in this repository.
   browser contract.
 - Keep `chrome --headless` available for automation, independently of visible
   display state. Do not use it as proof of the visible-browser contract.
-- For parallel visible-browser work, create each worktree explicitly and open
-  each checkout directly so generated display state, Xauthority, Compose state,
-  and Chrome profiles remain checkout-local.
+- For parallel visible-browser work, create each worktree explicitly, either
+  through Git or the user-invoked runtime task, and open each checkout directly
+  so generated display state, Xauthority, Compose state, and Chrome profiles
+  remain checkout-local.
 - For interactive account sign-in, use a manually launched visible `chrome`
   session from a terminal. Do not route login flows through OpenCode/Playwright
   MCP browser sessions because providers such as Google can reject

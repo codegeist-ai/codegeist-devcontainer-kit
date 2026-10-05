@@ -11,6 +11,7 @@
 # Related files:
 # - ../scripts/release-build.sh
 # - ../Taskfile.yaml
+# - ../Taskfile.runtime.yaml
 
 set -euo pipefail
 
@@ -24,6 +25,7 @@ release_repo="$test_tmp_dir/release-build-fixture"
 release_branch="release"
 expected_files="$test_tmp_dir/release-build-expected-files.txt"
 actual_files="$test_tmp_dir/release-build-actual-files.txt"
+staged_runtime="$release_repo/.tmp/staged-runtime"
 dirty_worktree_log="$test_tmp_dir/release-build-dirty-worktree.log"
 missing_verification_log="$test_tmp_dir/release-build-missing-verification.log"
 clean_readme="$test_tmp_dir/README_release.md"
@@ -38,12 +40,15 @@ release_source_files=(
   "Dockerfile.example"
   "LICENSE"
   "README_release.md"
+  "Taskfile.runtime.yaml"
   "compose.local.yml.example"
   "devcontainer.json"
   "docker-compose.yml"
   "entrypoint.sh"
   "initialize.sh"
   "scripts/chrome.sh"
+  "scripts/stage-runtime-tree.sh"
+  "scripts/worktree.sh"
   "scripts/release-build.sh"
 )
 
@@ -63,6 +68,19 @@ git -C "$release_repo" commit -m "initial devcontainer kit" >/dev/null
 
 main_commit="$(git -C "$release_repo" rev-parse main)"
 release_subject="chore(release): update devcontainer runtime branch"
+
+mkdir -p "$staged_runtime"
+printf 'stale test release\n' >"$staged_runtime/stale.txt"
+(cd "$release_repo" && \
+  RUNTIME_TREE_OUTPUT_DIR=.tmp/staged-runtime \
+  RUNTIME_TREE_REPLACE=true \
+  scripts/stage-runtime-tree.sh) >/dev/null
+[[ ! -e "$staged_runtime/stale.txt" ]] \
+  || fail "test release staging did not replace stale output"
+diff -u "$release_repo/Taskfile.runtime.yaml" "$staged_runtime/Taskfile.yaml" \
+  || fail "test release staging did not map the runtime Taskfile"
+diff -u "$release_repo/README_release.md" "$staged_runtime/README.md" \
+  || fail "test release staging did not map the runtime README"
 
 [[ "$(git -C "$release_repo" config --local --get commit.gpgSign)" = "false" ]] \
   || fail "fixture repository did not disable inherited commit signing"
@@ -115,12 +133,14 @@ Dockerfile
 Dockerfile.example
 LICENSE
 README.md
+Taskfile.yaml
 compose.local.yml.example
 devcontainer.json
 docker-compose.yml
 entrypoint.sh
 initialize.sh
 scripts/chrome.sh
+scripts/worktree.sh
 EOF
 sort -o "$expected_files" "$expected_files"
 
@@ -136,6 +156,9 @@ diff -u "$release_repo/Dockerfile.base" <(git -C "$release_repo" show "$release_
 
 diff -u "$release_repo/LICENSE" <(git -C "$release_repo" show "$release_branch:LICENSE") \
   || fail "release branch LICENSE does not match source LICENSE"
+
+diff -u "$release_repo/Taskfile.runtime.yaml" <(git -C "$release_repo" show "$release_branch:Taskfile.yaml") \
+  || fail "release branch Taskfile.yaml does not match Taskfile.runtime.yaml"
 
 if git -C "$release_repo" show "$release_branch:Dockerfile.example" | grep -Eiq '^[[:space:]]*FROM([[:space:]]|$)'; then
   fail "release branch Dockerfile.example must not contain FROM"

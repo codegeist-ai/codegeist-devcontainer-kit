@@ -5,6 +5,7 @@
 # - proves runtime user, KVM, workspace, and Git metadata mounts reach Docker
 # - verifies Remote SSH X11 state uses the reconnect-refreshable workspace copy
 # - protects checkout-local Bitwarden state and optional Compose behavior
+# - checks Buildx filesystem entitlement defaults, overrides, and runtime delivery
 #
 # Related files:
 # - ../docker-compose.yml
@@ -30,6 +31,7 @@ log_file="$suite_tmp_dir/compose-config-devcontainer.log"
 kvm_gid="$(stat -c %g /dev/kvm 2>/dev/null || printf '993')"
 expected_bitwarden_appdata="$fixture_dir/.codegeist/secrets/bitwarden-cli"
 expected_common_dir=""
+expected_buildx_fs="${BUILDX_BAKE_ENTITLEMENTS_FS:-0}"
 
 cleanup_devcontainer() {
   if [ -n "$container_id" ]; then
@@ -49,7 +51,9 @@ log "checking long-form checkout mounts with a colon in the host path"
 create_git_fixture_repo "$colon_fixture_dir"
 HOME="$colon_fixture_dir" "$colon_fixture_dir/.devcontainer/initialize.sh"
 colon_common_dir="$(expected_git_common_dir "$colon_fixture_dir")"
-colon_compose_config="$(
+# Resolve the prepared colon-path fixture without inheriting the caller's
+# checkout metadata. Optional arguments are forwarded to `docker compose config`.
+resolve_colon_compose_config() (
   cd "$colon_fixture_dir/.devcontainer"
   env \
     -u DEVCONTAINER_HOST_NAME \
@@ -70,12 +74,30 @@ colon_compose_config="$(
     -f docker-compose.yml \
     -f compose.local.gen.yml \
     -f compose.user.gen.yml \
-    config
+    config "$@"
+)
+
+colon_compose_config="$(
+  unset BUILDX_BAKE_ENTITLEMENTS_FS
+  resolve_colon_compose_config
 )"
 grep -F "source: $colon_fixture_dir" <<<"$colon_compose_config" >/dev/null \
   || fail "Compose did not preserve the checkout path containing a colon"
 grep -F "source: $colon_common_dir" <<<"$colon_compose_config" >/dev/null \
   || fail "Compose did not preserve the Git common path containing a colon"
+
+log "checking Buildx filesystem entitlement default and host override"
+grep -F 'BUILDX_BAKE_ENTITLEMENTS_FS: "0"' <<<"$colon_compose_config" >/dev/null \
+  || fail "Compose must default BUILDX_BAKE_ENTITLEMENTS_FS to 0 when unset"
+for buildx_input in "" "1"; do
+  resolved_buildx_fs="$(
+    BUILDX_BAKE_ENTITLEMENTS_FS="$buildx_input" \
+      resolve_colon_compose_config --format json \
+      | jq -r '.services.workspace.environment.BUILDX_BAKE_ENTITLEMENTS_FS'
+  )"
+  [[ "$resolved_buildx_fs" = "${buildx_input:-0}" ]] \
+    || fail "BUILDX_BAKE_ENTITLEMENTS_FS expected=${buildx_input:-0} actual=$resolved_buildx_fs"
+done
 
 DISPLAY=localhost:43.0 HOME="$fixture_dir" \
   devcontainer_cli up --workspace-folder "$fixture_dir" | tee "$log_file"
@@ -111,4 +133,9 @@ docker exec -u "$(expected_container_user)" -w "$fixture_dir" "$container_id" \
   git status --short >/dev/null \
   || fail "Git metadata is not usable from the workspace container"
 
-pass "Compose exposes checkout, Git metadata, KVM, and Remote SSH X11 state"
+actual_buildx_fs="$(docker exec -u "$(expected_container_user)" "$container_id" \
+  printenv BUILDX_BAKE_ENTITLEMENTS_FS)"
+[[ "$actual_buildx_fs" = "$expected_buildx_fs" ]] \
+  || fail "workspace BUILDX_BAKE_ENTITLEMENTS_FS expected=$expected_buildx_fs actual=$actual_buildx_fs"
+
+pass "Compose exposes checkout, Git metadata, KVM, Remote SSH X11, and overridable Buildx state"

@@ -84,6 +84,11 @@ local override templates in this repository.
 - Shared runtime behavior belongs in `docker-compose.yml` or generated
   `compose.local.gen.yml`; `compose.local.yml` is only the stable include point
   for local or consuming-repository customizations.
+- Default `BUILDX_BAKE_ENTITLEMENTS_FS` to `0` in the shared workspace service
+  when the host value is unset or empty. Keep it overridable through the host
+  Compose environment or `.codegeist/compose.local.yml`, not the service
+  `.codegeist/.local.env`. This runtime default does not configure the parent
+  host-side build process; see `README.md#buildx-filesystem-entitlements`.
 - Keep the `.devcontainer` and `.opencode` submodules configured with their
   `release` branches in `.gitmodules` so the shared update workflow can refresh
   both gitlinks non-interactively.

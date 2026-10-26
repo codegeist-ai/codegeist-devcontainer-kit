@@ -635,6 +635,35 @@ prerequisites required by this rootless path on the containerized workspace
 filesystem. It does not start a Podman API service, replace the `docker` command,
 or persist Podman storage across devcontainer recreation.
 
+### Buildx Filesystem Entitlements
+
+The workspace service defaults `BUILDX_BAKE_ENTITLEMENTS_FS` to `0` when the
+variable is unset or empty in the host Compose environment. This disables Bake's
+additional filesystem-entitlement checks for builds launched inside the
+workspace, allowing nested Dev Containers CLI builds to read their generated
+`Dockerfile-with-features` outside the checkout.
+
+Set `BUILDX_BAKE_ENTITLEMENTS_FS=1` in the environment of the host VS Code/Dev
+Containers/Compose process before creating the workspace to enable these checks.
+A project can also set the runtime value explicitly in
+`.codegeist/compose.local.yml`:
+
+```yaml
+services:
+  workspace:
+    environment:
+      BUILDX_BAKE_ENTITLEMENTS_FS: "1"
+```
+
+Recreate the container after changing the value. Setting it only in
+`.codegeist/.local.env` does not override the explicit `environment` mapping in
+`docker-compose.yml`; that file supplies service `env_file` values, not Compose
+interpolation inputs.
+
+This setting applies to the running workspace container. The host-side build
+that creates that container still uses the host's own Buildx environment; set
+the variable there separately when the initial build needs it.
+
 ## Docker Registry Credentials
 
 The release image includes `pass`, GnuPG, and the verified official

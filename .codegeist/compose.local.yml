@@ -1,13 +1,22 @@
 # compose.local.yml - repository-visible compose overrides for the devcontainer
 #
 # Why this exists:
-# - Provides the default root compose override included by devcontainer.json.
-# - Remains intentionally small because shared defaults live in docker-compose.yml;
-#   add repository-specific overrides here when needed.
-# - This file is intentionally not ignored, so new overrides are visible in Git.
+# - Forwards optional Vault connection inputs only for this repository.
+#
+# Inputs:
+# - VAULT_ADDR and VAULT_TOKEN must be inherited by the host Compose process.
+#   Missing or empty values become empty strings in the workspace container.
+#
+# Lifecycle:
+# - Initialization copies this overlay to .devcontainer/compose.user.gen.yml.
+# - Recreate the container after overlay or host variable changes to apply them.
 #
 # Related files:
-# - devcontainer.json
-# - docker-compose.yml
-# - initialize.sh
-services: {}
+# - .devcontainer/devcontainer.json
+# - .devcontainer/docker-compose.yml
+# - .devcontainer/initialize.sh
+services:
+  workspace:
+    environment:
+      VAULT_ADDR: ${VAULT_ADDR:-}
+      VAULT_TOKEN: ${VAULT_TOKEN:-}

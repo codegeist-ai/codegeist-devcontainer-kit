@@ -34,7 +34,7 @@ run_timed "Dockerfile merge" "$WARN_FAST_SECONDS" "$script_dir/dockerfile-merge.
 run_timed "runtime worktree task" "$WARN_FAST_SECONDS" "$script_dir/runtime-worktree-task.sh"
 run_timed "release build branch" "$WARN_FAST_SECONDS" "$script_dir/release-build.sh"
 run_timed "compose config" "$WARN_FAST_SECONDS" "$script_dir/compose-config.sh"
-run_timed "entrypoint Vault config" "$WARN_FAST_SECONDS" "$script_dir/entrypoint-vault.sh"
+run_timed "host initializer Vault config" "$WARN_FAST_SECONDS" "$script_dir/initialize-vault.sh"
 run_timed "chrome launcher" "$WARN_FAST_SECONDS" "$script_dir/chrome-launcher.sh"
 run_timed "opencode mounts" "$WARN_DOCKER_SECONDS" "$script_dir/opencode-mounts.sh"
 run_timed "docker image build" "$WARN_BUILD_SECONDS" "$script_dir/docker-build.sh"

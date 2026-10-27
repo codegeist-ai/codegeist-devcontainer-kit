@@ -358,6 +358,8 @@ copy_project_files() {
     --exclude='compose.local.yml' \
     --exclude='compose.user.gen.yml' \
     --exclude='.codegeist/.local.env' \
+    --exclude='.codegeist/secrets.env' \
+    --exclude='secrets.hcl' \
     --exclude='.codegeist/compose.local.yml' \
     --exclude='.codegeist/Dockerfile' \
     --exclude='Dockerfile.merged.gen' \

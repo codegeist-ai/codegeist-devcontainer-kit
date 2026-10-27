@@ -79,6 +79,11 @@ local override templates in this repository.
 
 ## Compose Overrides
 
+- Render optional root `secrets.hcl` on the host in `initialize.sh`, after
+  installing root ignore rules and before the custom hook and Compose startup.
+  Pass `VAULT_TOKEN` on stdin and keep Vault rendering out of `entrypoint.sh`.
+  Load `.codegeist/secrets.env` optionally with raw env-file format; ignore its
+  path before rendering. Do not add root `secrets.hcl` to consumer ignore rules.
 - Keep `compose.local.yml` and `compose.local.yml.example` empty by default with
   `services: {}` unless a concrete local override is needed.
 - Shared runtime behavior belongs in `docker-compose.yml` or generated

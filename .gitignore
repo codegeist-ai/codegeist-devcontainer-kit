@@ -12,7 +12,10 @@
 /.devcontainer/.Xauthority.gen
 /.devcontainer/.Xauthority.gen.*
 /.codegeist/.local.env
+/.codegeist/secrets.env
 /.codegeist/secrets/
+# Repository-local Vault configuration; not added to consumer root ignores.
+/secrets.hcl
 /.worktrees/
 /.tmp
 /.test-tmp/

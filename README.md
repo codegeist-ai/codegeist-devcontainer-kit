@@ -1004,15 +1004,34 @@ arguments.
 
 ### Workspace Vault Agent Configuration
 
-When `secrets.hcl` exists at the selected workspace root, the container entrypoint
-runs `vault agent -config=<workspace>/secrets.hcl` before the requested container
-command. A missing file is ignored, while an invalid configuration or another
-Vault Agent failure stops container startup. The configuration owns its render
-destinations and must let the Agent exit when rendering is complete.
+When `secrets.hcl` exists at the selected workspace root, `initialize.sh` runs
+`vault agent -config=<workspace>/secrets.hcl` on the host before the custom
+initialize hook and before Compose reads its env files. A missing file is
+ignored; invalid configuration or a Vault Agent failure stops initialization.
+The Vault CLI and required `VAULT_*` variables must be available on the SSH host.
+The configuration owns its render destinations and must let the Agent exit when
+rendering is complete.
 
-The workspace service always provides `/run/secrets` as a `tmpfs` for
-configurations that choose to render secrets there. Using that path is optional;
-the kit does not inspect or modify `secrets.hcl`.
+The kit does not inspect or modify `secrets.hcl`. Relative destinations resolve
+from the workspace root; absolute destinations refer to the host filesystem.
+The container's `/run/secrets` tmpfs is independent of host-side rendering.
+
+The Agent runs from the workspace root with `VAULT_TOKEN` supplied on stdin.
+Use `auto_auth` with the `token_file` method and `token_file_path = "/dev/stdin"`
+to consume that token. Address and TLS settings remain environment inputs.
+The Agent runs as the host user executing initialization. Set `exit_after_auth`
+to `true` for one-shot rendering before Compose starts. Rendering an env file
+does not update an existing container's environment.
+
+Compose optionally loads `.codegeist/secrets.env` after `.codegeist/.local.env`
+when creating the workspace container. Missing files are ignored. Raw env-file
+format preserves literal dollar signs and quotes without interpolation. Values
+override the earlier env files, while explicit Compose `environment` entries
+still take precedence. Initialization renders the file before Compose reads it,
+so it is available on first creation. Updated values require container recreation.
+Keep this secret-bearing file ignored by the consuming repository.
+`initialize.sh` adds `/.codegeist/secrets.env` to the root `.gitignore` even
+before the file exists, so the first Vault render is already ignored.
 
 OpenTofu is installed from its official signed APT repository and remains a
 separate native command rather than replacing or aliasing Terraform. From a

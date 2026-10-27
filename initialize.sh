@@ -9,11 +9,15 @@
 #   normal Git commands without mounting or managing another checkout.
 # - Bootstraps writable OpenCode state and runs the optional trusted
 #   `.codegeist/extensions/custom_initialize.sh` hook from the opened checkout.
+# - Renders optional workspace-root secrets.hcl on the host before Compose reads
+#   .codegeist/secrets.env. Requires the host Vault CLI only when HCL exists.
 #
 # Inputs and side effects:
 # - The script location identifies the opened checkout; caller cwd and BRANCH are
 #   intentionally ignored.
 # - DISPLAY and XAUTHORITY are captured for visible Remote SSH X11 Chrome.
+# - VAULT_TOKEN is supplied to Vault Agent on stdin; VAULT_ADDR and TLS settings
+#   are inherited from the host. Agent failures stop initialization.
 # - Generated files under `.devcontainer/` are replaced atomically. User-owned
 #   inputs remain under `.codegeist/` and `.oc_local/`.
 # - Git worktree creation, branch selection, and submodule initialization remain
@@ -342,6 +346,7 @@ main() {
   local root_dir=""
   local common_dir=""
   local custom_initialize=""
+  local secrets_config=""
 
   if [ "$#" -ne 0 ]; then
     printf 'Usage: %s\n' "$0" >&2
@@ -363,6 +368,7 @@ main() {
   fi
   ensure_gitignore_pattern "$root_dir" "/.worktrees/"
   ensure_gitignore_pattern "$root_dir" "/.codegeist/.local.env"
+  ensure_gitignore_pattern "$root_dir" "/.codegeist/secrets.env"
   ensure_gitignore_pattern "$root_dir" "/.codegeist/secrets/"
   ensure_gitignore_pattern "$root_dir" "/.chrome/"
   ensure_gitignore_pattern "$root_dir" "/.tmp"
@@ -375,6 +381,16 @@ main() {
   write_generated_env "$script_dir/.env" "$root_dir" "$common_dir"
   write_generated_compose "$script_dir/compose.local.gen.yml" "$root_dir"
   write_user_compose_bridge "$root_dir"
+
+  secrets_config="$root_dir/secrets.hcl"
+  if [ -f "$secrets_config" ]; then
+    log "status=vault_started path=$secrets_config"
+    (
+      cd "$root_dir"
+      vault agent -config="$secrets_config" <<<"${VAULT_TOKEN:-}"
+    )
+    log "status=vault_completed path=$secrets_config"
+  fi
 
   custom_initialize="$root_dir/.codegeist/extensions/custom_initialize.sh"
   if [ -f "$custom_initialize" ]; then

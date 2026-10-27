@@ -9,6 +9,9 @@
 #   mounts its exact Git common directory so linked-worktree metadata resolves.
 # - Provides the image build, privileged Docker-in-Docker runtime, and local env
 #   injection.
+# - Optionally loads .codegeist/secrets.env at container creation without value
+#   interpolation. initialize.sh renders it on the host before Compose starts;
+#   changed values require recreation of an existing container.
 # - Uses host networking so the generated SSH X11 forwarding value such as
 #   `DEVCONTAINER_DISPLAY=localhost:10.0` still points at the host-side SSH X11
 #   listener from inside the container.
@@ -95,6 +98,9 @@ services:
         required: false
       - path: ../.codegeist/.local.env
         required: false
+      - path: ../.codegeist/secrets.env
+        required: false
+        format: raw
     environment:
       BUILDX_BAKE_ENTITLEMENTS_FS: ${BUILDX_BAKE_ENTITLEMENTS_FS:-0}
       OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER: ${OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER:-true}

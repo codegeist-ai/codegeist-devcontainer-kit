@@ -398,8 +398,9 @@ nc -vz -w 3 127.0.0.1 47130
 
 The `ss` result must show `127.0.0.1:47130`, never `0.0.0.0:47130`,
 `[::]:47130`, or another non-loopback address. `nc` must report a successful TCP
-connection. Because the devcontainer uses host networking, the same loopback
-endpoint is available from inside the container.
+connection. The default devcontainer uses an isolated Compose network, so this
+host-loopback endpoint is not available inside it. The following audio examples
+require a separately configured transport and are not standard workspace checks.
 
 Do not run `ssh <remote-host>` from inside the remote devcontainer merely to
 perform these checks. The host alias and control socket belong to the local
@@ -618,6 +619,14 @@ generated bridge is an empty `services: {}` file by default, or a copy of
 
 ## Container Engines
 
+The workspace uses an isolated Compose network. After changing network settings,
+recreate the devcontainer; restarting the existing container is insufficient.
+To access a project server from your laptop, forward its workspace port in the
+VS Code **Ports** tab and open the forwarded address. Nested Docker published
+ports are available in the workspace, not automatically on the SSH host.
+Container `localhost` refers to the workspace; `host.docker.internal` does not
+provide access to services bound exclusively to host loopback.
+
 The release image provides both the existing Docker toolchain and Podman. Docker
 remains the default engine: the container entrypoint starts the nested Docker
 daemon, and Docker CLI, Compose, and Buildx continue to use it without
@@ -731,8 +740,9 @@ needed, normalizes only the requested display's matching `/unix:N` cookie into a
 private temporary authority file. It exits before Google Chrome starts when the
 display is missing, stale, unreachable, or unauthorized. Directly opened
 worktrees keep independent generated display state, Xauthority files, and
-`.chrome` profiles. Reconnect recovery uses host networking and refreshed
-checkout-local authority state. Use `chrome --headless ...` for automation when
+`.chrome` profiles. The default isolated network cannot reach the host-loopback
+X11 listener; refreshing authority state alone does not provide that transport.
+Use `chrome --headless ...` for automation when
 no supported visible session is available; broad host access such as `xhost +`
 is neither required nor recommended.
 

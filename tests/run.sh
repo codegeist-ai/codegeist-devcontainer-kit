@@ -4,8 +4,8 @@
 # Why this exists:
 # - provides one narrow entrypoint for validating the new kit behavior
 # - reports total runtime while keeping slow checks as warnings, not failures
-# - records a commit-bound release verification only after every test, including
-#   the real non-headless loopback X11 browser regression, succeeds
+# - records commit-bound isolated-network suite verification after every required
+#   test succeeds; host-forwarded X11 and audio are not release prerequisites
 #
 # Related files:
 # - ./helpers.sh
@@ -54,7 +54,7 @@ fi
 
 cat >"$release_verification_file" <<EOF
 commit=$(git -C "$project_root" rev-parse HEAD)
-browser-visible-x11=passed
+suite-isolated-network=passed
 EOF
 
 pass "all generic devcontainer kit tests passed"

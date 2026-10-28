@@ -147,7 +147,6 @@ docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc \
 docker run --rm --entrypoint bash codegeist-devcontainer-kit:local -ic \
   '_completion_loader task >/dev/null 2>&1; status="$?"; { [ "$status" -eq 0 ] || [ "$status" -eq 124 ]; } && complete -p task | grep -F "complete -F _task task" >/dev/null'
 docker run --rm \
-  --network host \
   --entrypoint bash \
   -e "DEVCONTAINER_PROJECT_ROOT=$project_root" \
   -e "suite_tmp_dir=$suite_tmp_dir" \
@@ -155,16 +154,8 @@ docker run --rm \
   -w "$project_root" \
   codegeist-devcontainer-kit:local \
   tests/opencode-tmux-wrapper.sh
-docker run --rm \
-  --network host \
-  --entrypoint bash \
-  -e "DEVCONTAINER_PROJECT_ROOT=$project_root" \
-  -e "suite_tmp_dir=$suite_tmp_dir" \
-  -e "OC_RECORD_BIN=/usr/local/bin/oc-record" \
-  --mount "type=bind,src=$project_root,dst=$project_root" \
-  -w "$project_root" \
-  codegeist-devcontainer-kit:local \
-  tests/oc-record.sh
+# Host-forwarded audio is not part of isolated-network acceptance. Retain the
+# recorder's missing-transport regression until its removal in T027.
 docker run --rm \
   --entrypoint bash \
   -e "DEVCONTAINER_PROJECT_ROOT=$project_root" \

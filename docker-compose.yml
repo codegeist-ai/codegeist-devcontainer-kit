@@ -12,9 +12,8 @@
 # - Optionally loads .codegeist/secrets.env at container creation without value
 #   interpolation. initialize.sh renders it on the host before Compose starts;
 #   changed values require recreation of an existing container.
-# - Uses host networking so the generated SSH X11 forwarding value such as
-#   `DEVCONTAINER_DISPLAY=localhost:10.0` still points at the host-side SSH X11
-#   listener from inside the container.
+# - Uses the default isolated Compose network. Reach project services through
+#   VS Code port forwarding; container localhost does not identify the SSH host.
 # - Passes `/dev/kvm` through explicitly and adds its numeric group so the
 #   workspace user can run KVM-accelerated QEMU without regenerating old local
 #   compose overlays on the common host group id.
@@ -40,8 +39,8 @@
 # - DEVCONTAINER_XAUTHORITY points into the selected workspace. initialize.sh
 #   atomically refreshes that ignored file after an SSH reconnect, avoiding a
 #   stale bind mount when the host replaces its original Xauthority file.
-# - This Compose file does not mount host-local display sockets; visible Chrome
-#   uses the Remote SSH loopback X11 listener through host networking.
+# - This Compose file does not mount host-local display sockets or provide access
+#   to host-loopback SSH X11 or microphone listeners.
 # - BUILDX_BAKE_ENTITLEMENTS_FS defaults to 0 for workspace-side builds so nested
 #   Dev Containers builds can read generated Dockerfiles outside their checkout.
 #   Set it to 1 in the host Compose environment to enable Bake filesystem checks.
@@ -86,7 +85,6 @@ services:
     group_add:
       - "${DEVCONTAINER_KVM_GID:-${KVM_GID:-993}}"
     init: true
-    network_mode: host
     tmpfs:
       - /run/secrets
     # Chrome and other browser processes need more than Docker's tiny default /dev/shm.

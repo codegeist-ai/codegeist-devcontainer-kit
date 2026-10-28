@@ -31,7 +31,8 @@ repository.
   fixture must launch non-headless Chrome over loopback X11 with matching
   Xauthority state shaped like Remote SSH forwarding.
 - Require `.test-tmp/release-verification` to match the current commit and attest
-  `browser-visible-x11=passed`; release creation must fail otherwise.
+  `suite-isolated-network=passed`; release creation must fail otherwise. Host SSH
+  X11 and microphone forwarding are not release prerequisites.
 - Run `tests/release-build.sh` before updating the release branch.
 - After `task release-build -- release --push`, verify `origin/release` exists.
 - Verify the `release` branch tree contains only runtime files.

@@ -50,10 +50,10 @@ directory, cache, log, or copied local state behind.
 Tests in this repository prioritize the real local runtime over CI portability.
 Do not add fakes, mocks, weaker assertions, or separate tests solely to make a
 workflow runnable in CI. Integration tests may require documented facilities
-such as Docker, KVM, a display server, or the SSH-forwarded Pulse endpoint. The
-recorder checks use real tmux, FFmpeg, Pulse audio, and `ffprobe`; they create
-short disposable microphone recordings and require the forwarding setup from
-`README.md` before `task tests-run`.
+such as Docker and KVM. `task tests-run` uses an isolated workspace network and
+does not require host SSH X11 or microphone forwarding. The browser regression
+creates its authenticated display inside the test container; the recorder check
+covers missing transport without recording host audio.
 
 ## Extension Boundaries
 

@@ -105,7 +105,7 @@ grep -F "release verification is missing or stale" "$missing_verification_log" >
 mkdir -p "$release_repo/.test-tmp"
 cat >"$release_repo/.test-tmp/release-verification" <<EOF
 commit=$main_commit
-browser-visible-x11=passed
+suite-isolated-network=passed
 EOF
 
 (cd "$release_repo" && scripts/release-build.sh) >/dev/null
@@ -193,7 +193,7 @@ done
 second_main_commit="$(git -C "$release_repo" rev-parse main)"
 cat >"$release_repo/.test-tmp/release-verification" <<EOF
 commit=$second_main_commit
-browser-visible-x11=passed
+suite-isolated-network=passed
 EOF
 
 (cd "$release_repo" && scripts/release-build.sh) >/dev/null

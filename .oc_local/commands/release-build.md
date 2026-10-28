@@ -60,7 +60,7 @@ finished successfully.
 Do not skip `task tests-run` after the save workflow and clean-worktree check;
 release builds must always retest the current saved state before publishing.
 Do not continue unless `.test-tmp/release-verification` matches the current commit
-and contains `browser-visible-x11=passed`; `scripts/release-build.sh` also
+and contains `suite-isolated-network=passed`; `scripts/release-build.sh` also
 enforces this gate.
 Do not skip updating `.devcontainer/` to the just-pushed `origin/release` commit
 after the release branch push succeeds.

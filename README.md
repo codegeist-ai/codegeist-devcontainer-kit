@@ -260,6 +260,14 @@ generated bridge is an empty `services: {}` file by default, or a copy of
 
 ## Container Engines
 
+The workspace uses an isolated Compose network. After changing network settings,
+recreate the devcontainer; restarting the existing container is insufficient.
+To access a project server from your laptop, forward its workspace port in the
+VS Code **Ports** tab and open the forwarded address. Nested Docker published
+ports are available in the workspace, not automatically on the SSH host.
+Container `localhost` refers to the workspace; `host.docker.internal` does not
+provide access to services bound exclusively to host loopback.
+
 The image provides both the existing Docker toolchain and Podman. Docker remains
 the default engine: the container entrypoint starts the nested Docker daemon,
 and Docker CLI, Compose, and Buildx continue to use it without redirection.
@@ -378,8 +386,9 @@ needed, normalizes only the requested display's matching `/unix:N` cookie into a
 private temporary authority file. It exits before Google Chrome starts when the
 display is missing, stale, unreachable, or unauthorized. Directly opened
 worktrees keep independent generated display state, Xauthority files, and
-`.chrome` profiles. Reconnect recovery uses host networking and refreshed
-checkout-local authority state. Use `chrome --headless ...` for automation when
+`.chrome` profiles. The default isolated network cannot reach the host-loopback
+X11 listener; refreshing authority state alone does not provide that transport.
+Use `chrome --headless ...` for automation when
 no supported visible session is available; broad host access such as `xhost +`
 is neither required nor recommended.
 
@@ -437,8 +446,8 @@ The repository test suite also includes Chrome DevTools Protocol regressions in
 container-local content. Separately, it starts a real non-headless Chrome process
 through authenticated loopback X11 shaped like Remote SSH forwarding, verifies
 the rendered page through CDP, and confirms that browser profile state stays in
-the opened checkout. This real visible-X11 regression must pass as part of
-`task tests-run` before `scripts/release-build.sh` accepts the current commit.
+the opened checkout. This container-local regression does not require a real
+SSH host display or host networking.
 
 ## QEMU Support
 
@@ -677,8 +686,9 @@ nc -vz -w 3 127.0.0.1 47130
 
 The `ss` result must show `127.0.0.1:47130`, never `0.0.0.0:47130`,
 `[::]:47130`, or another non-loopback address. `nc` must report a successful TCP
-connection. Because the devcontainer uses host networking, the same loopback
-endpoint is available from inside the container.
+connection. The default devcontainer uses an isolated Compose network, so this
+host-loopback endpoint is not available inside it. The following audio examples
+require a separately configured transport and are not standard workspace checks.
 
 Do not run `ssh <remote-host>` from inside the remote devcontainer merely to
 perform these checks. The host alias and control socket belong to the local
@@ -1028,9 +1038,8 @@ contract covered only by integration tests:
 task tests-run
 ```
 
-This suite prioritizes real local integrations over CI portability. It requires
-the documented SSH microphone forward at `tcp:127.0.0.1:47130` and records short
-disposable audio samples through real tmux, FFmpeg, Pulse audio, and `ffprobe`.
+This suite prioritizes real local integrations over CI portability. It does not
+require an SSH microphone forward or access to the SSH host's X11 listener.
 Do not replace real dependencies with fakes or add weaker tests solely to make
 the suite runnable in CI.
 
@@ -1077,8 +1086,7 @@ task release-build -- --push
 
 `task release-build` requires a commit-bound verification written only after
 `task tests-run` completes. This prevents a runtime release from being created
-without the real non-headless authenticated loopback-X11 Chrome regression
-passing on the exact commit being released.
+without the isolated-network suite passing on the exact commit being released.
 
 Every generated release commit uses the fixed subject
 `chore(release): update devcontainer runtime branch`. Its body records the full

@@ -80,7 +80,6 @@ tasks:
       - >-
         docker run --rm -it
         --privileged
-        --network host
         -e DEVCONTAINER_WORKSPACE_FOLDER={{.WORKSPACE}}
         -v {{.WORKSPACE}}:{{.WORKSPACE}}
         -w {{.WORKSPACE}}

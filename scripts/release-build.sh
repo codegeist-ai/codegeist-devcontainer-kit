@@ -17,7 +17,7 @@
 # - A configured Tea login is required for `--push`; Tea is registered as the
 #   host-specific Git credential helper before the non-interactive Gitea push.
 # - `.test-tmp/release-verification` must attest that `task tests-run` passed for
-#   the current commit, including the real non-headless loopback X11 regression.
+#   the current commit using the isolated-network suite contract.
 #
 # Related files:
 # - ../Taskfile.yaml
@@ -37,7 +37,7 @@ repo_root=""
 tmp_index=""
 tmp_tree=""
 verified_commit=""
-verified_browser_regression=""
+verified_isolated_suite=""
 release_changelog=""
 
 release_subject="chore(release): update devcontainer runtime branch"
@@ -104,8 +104,8 @@ if [ -f "$verification_file" ]; then
       commit)
         verified_commit="$verification_value"
         ;;
-      browser-visible-x11)
-        verified_browser_regression="$verification_value"
+      suite-isolated-network)
+        verified_isolated_suite="$verification_value"
         ;;
     esac
   done <"$verification_file"
@@ -113,7 +113,7 @@ fi
 
 current_commit="$(git -C "$repo_root" rev-parse HEAD)"
 [ "$verified_commit" = "$current_commit" ] \
-  && [ "$verified_browser_regression" = "passed" ] \
+  && [ "$verified_isolated_suite" = "passed" ] \
   || fail "release verification is missing or stale; run task tests-run successfully on the current commit"
 
 trap cleanup EXIT

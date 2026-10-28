@@ -182,10 +182,9 @@ local override templates in this repository.
   and preserve existing OpenCode argument, window, session, and clipboard
   behavior; document that direct `Alt+R` is captured globally in those tmux
   sessions.
-- Test the recorder with real tmux option inheritance, real FFmpeg/Pulse input,
-  real signals, and `ffprobe` output inspection. `task tests-run` requires the
-  SSH microphone forward and may record short disposable audio samples; do not
-  substitute fake tmux or FFmpeg implementations only for CI compatibility.
+- The isolated-network suite must not require SSH microphone forwarding. Retain
+  the recorder's missing-transport check until its removal in T027; do not add
+  host-mode fixtures or fake audio implementations.
 - Keep `README.md` and `README_release.md` aligned on the socket path, endpoint,
   multiplexing behavior, reconnect requirement, SSH server prerequisites,
   client-use examples, end-to-end audio check, and loopback safety warning.
@@ -210,7 +209,8 @@ local override templates in this repository.
 - `task tests-run` must exercise real non-headless Chrome over loopback X11 with
   Xauthority state shaped like Remote SSH forwarding. `scripts/release-build.sh`
   must reject a commit unless `.test-tmp/release-verification` matches the exact
-  commit and contains `browser-visible-x11=passed`.
+  commit and contains `suite-isolated-network=passed`. The browser fixture creates
+  its display inside the container; real host X11 is not a prerequisite.
 - After the release branch is pushed, update only the local `.devcontainer/`
   submodule checkout to `origin/release` and report the parent gitlink change;
   do not commit that gitlink automatically unless the user explicitly asks.

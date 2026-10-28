@@ -81,6 +81,9 @@ colon_compose_config="$(
   unset BUILDX_BAKE_ENTITLEMENTS_FS
   resolve_colon_compose_config
 )"
+if [[ "$colon_compose_config" == *"network_mode: host"* ]]; then
+  fail "default Compose configuration must not select host networking"
+fi
 grep -F "source: $colon_fixture_dir" <<<"$colon_compose_config" >/dev/null \
   || fail "Compose did not preserve the checkout path containing a colon"
 grep -F "source: $colon_common_dir" <<<"$colon_compose_config" >/dev/null \

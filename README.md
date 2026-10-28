@@ -225,6 +225,23 @@ oc --model provider/model
 oc /path/to/project
 ```
 
+Every OpenCode tool-shell start through `oc` uses the logging Bash wrapper at
+`/usr/local/lib/oc-shell/bash`, installed from `scripts/opencode-bash.sh`. It
+always appends a timestamp, PID, parent PID, working directory, and full shell
+arguments (`argv`) to
+`$DEVCONTAINER_WORKSPACE_FOLDER/.tmp/opencode-shell.log`. The initializer must
+have provided `.tmp/`; if the log cannot be written, the shell command does not
+start. New logs use mode `0600`. Arguments use Bash quoting to preserve argument
+boundaries and multiline commands in one record. This includes command text and
+can include sensitive argument values; environment and output are not recorded.
+The wrapper restores `SHELL=/bin/bash` and directly executes the
+normal Bash with unchanged arguments, PID, output, and exit status.
+
+This records shell starts, not individual child processes or their completion.
+It does not control daemons. A direct `opencode` invocation does not enable this
+wrapper, and an explicit OpenCode shell configuration takes precedence over
+`SHELL`. The log is disposable workspace state and has no automatic rotation.
+
 Outside tmux, each invocation creates and attaches to a new session. Inside
 tmux, it opens a new window in the current session instead of nesting tmux. The
 wrapper does not name or reuse sessions. It enables tmux's `set-clipboard on`

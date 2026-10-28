@@ -11,6 +11,8 @@
 #   so OpenCode's TUI copy action reaches the outer terminal clipboard.
 # - Binds tmux Prefix + R and direct Alt + R to toggle the workspace microphone
 #   recorder.
+# - Selects the logging Bash wrapper for OpenCode tool shells; see
+#   README.md#opencode-in-tmux for the mandatory metadata log contract.
 #
 # Related files:
 # - ../Dockerfile.base
@@ -22,10 +24,10 @@ if [ -n "${TMUX:-}" ]; then
   tmux set-option -s set-clipboard on
   tmux bind-key R run-shell -b 'oc-record "#{pane_id}"'
   tmux bind-key -n M-r run-shell -b 'oc-record "#{pane_id}"'
-  exec tmux new-window -c "$PWD" opencode --auto -c "$@"
+  exec tmux new-window -c "$PWD" env SHELL=/usr/local/lib/oc-shell/bash opencode --auto -c "$@"
 fi
 
 exec tmux start-server \; set-option -s set-clipboard on \; \
   bind-key R run-shell -b 'oc-record "#{pane_id}"' \; \
   bind-key -n M-r run-shell -b 'oc-record "#{pane_id}"' \; \
-  new-session -c "$PWD" opencode --auto -c "$@"
+  new-session -c "$PWD" env SHELL=/usr/local/lib/oc-shell/bash opencode --auto -c "$@"

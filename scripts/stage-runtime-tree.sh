@@ -60,6 +60,7 @@ runtime_files=(
   "entrypoint.sh"
   "initialize.sh"
   "scripts/chrome.sh"
+  "scripts/opencode-bash.sh"
   "scripts/worktree.sh"
 )
 

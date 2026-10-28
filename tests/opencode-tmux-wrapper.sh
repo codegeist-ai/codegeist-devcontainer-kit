@@ -49,6 +49,7 @@ set -euo pipefail
 
 {
   printf 'PWD=%s\n' "$PWD"
+  printf 'SHELL=%s\n' "$SHELL"
   printf 'ARG=%s\n' "$@"
 } >"$OPENCODE_CAPTURE"
 
@@ -68,6 +69,7 @@ assert_capture() {
 
   cat >"$expected_file" <<EOF
 PWD=$fixture_dir
+SHELL=/usr/local/lib/oc-shell/bash
 ARG=--auto
 ARG=-c
 ARG=--model

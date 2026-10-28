@@ -150,10 +150,11 @@ docker run --rm \
   --entrypoint bash \
   -e "DEVCONTAINER_PROJECT_ROOT=$project_root" \
   -e "suite_tmp_dir=$suite_tmp_dir" \
+  -e OC_SHELL_BIN=/usr/local/lib/oc-shell/bash \
   --mount "type=bind,src=$project_root,dst=$project_root" \
   -w "$project_root" \
   codegeist-devcontainer-kit:local \
-  tests/opencode-tmux-wrapper.sh
+  -c 'tests/opencode-tmux-wrapper.sh && tests/opencode-bash.sh'
 # Host-forwarded audio is not part of isolated-network acceptance. Retain the
 # recorder's missing-transport regression until its removal in T027.
 docker run --rm \

@@ -47,6 +47,7 @@ release_source_files=(
   "entrypoint.sh"
   "initialize.sh"
   "scripts/chrome.sh"
+  "scripts/opencode-bash.sh"
   "scripts/stage-runtime-tree.sh"
   "scripts/worktree.sh"
   "scripts/release-build.sh"
@@ -140,6 +141,7 @@ docker-compose.yml
 entrypoint.sh
 initialize.sh
 scripts/chrome.sh
+scripts/opencode-bash.sh
 scripts/worktree.sh
 EOF
 sort -o "$expected_files" "$expected_files"

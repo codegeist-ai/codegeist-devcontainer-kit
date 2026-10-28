@@ -499,6 +499,8 @@ RUN printf '%s\n' \
       > /etc/profile.d/codegeist-workspace-scripts.sh
 
 COPY --chmod=0755 .devcontainer/cmds/ /usr/local/bin/
+# Keep the basename bash so OpenCode preserves its Bash-specific startup flags.
+COPY --chmod=0755 .devcontainer/scripts/opencode-bash.sh /usr/local/lib/oc-shell/bash
 COPY .devcontainer/entrypoint.sh /usr/local/bin/devcontainer-entrypoint
 
 RUN chmod +x /usr/local/bin/devcontainer-entrypoint

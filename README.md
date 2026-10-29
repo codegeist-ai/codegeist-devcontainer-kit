@@ -260,6 +260,15 @@ generated bridge is an empty `services: {}` file by default, or a copy of
 
 ## Container Engines
 
+`devcontainer.json` explicitly selects `shutdownAction: stopCompose`. On normal
+closure of the final VS Code Dev Containers window attached to a workspace,
+VS Code is expected to stop its associated Compose services. Stopping the
+workspace ends its running processes; it does not require deleting the container
+or workspace files. Crashes and lost Remote SSH connections do not guarantee
+this shutdown action runs. Containers started independently through the CLI,
+including retained reality-test fixtures, are not tied to closing an editor
+window. This setting does not manage unrelated Compose projects.
+
 The workspace uses an isolated Compose network. After changing network settings,
 recreate the devcontainer; restarting the existing container is insufficient.
 To access a project server from your laptop, forward its workspace port in the

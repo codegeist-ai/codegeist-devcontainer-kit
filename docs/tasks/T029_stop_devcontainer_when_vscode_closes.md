@@ -2,7 +2,7 @@
 
 - ID: `T029`
 - Type: `fix`
-- Status: `specified`
+- Status: `open`
 - Parent: `none`
 - Public Tracking: `not requested`
 - Tracking Key: `e85dc218-ed44-4a79-a94b-bfec1fb121c6`
@@ -15,8 +15,8 @@ closes normally, so workspace processes do not keep running unattended.
 ## Context
 
 The workspace uses `sleep infinity` and runs independently of the editor.
-Dev Containers must explicitly stop it when the window closes. The current
-`devcontainer.json` omits `shutdownAction`; the Dev Container specification
+Dev Containers must explicitly stop it when the window closes. Previously,
+`devcontainer.json` omitted `shutdownAction`; the Dev Container specification
 already defaults to `stopCompose` for Compose projects. Making the value explicit
 documents intent but does not by itself prove the observed shutdown works.
 
@@ -83,3 +83,34 @@ reality-test retention, and publishing a release.
 ## Cancellation Reason
 
 Not cancelled.
+
+## Implementation And Verification Results
+
+- Source `devcontainer.json` now explicitly selects `stopCompose`. Source and
+  consumer documentation describe normal-close behavior and its limits.
+- The consumed `.devcontainer/` submodule was not edited for this task.
+- `jq -e '.shutdownAction == "stopCompose"' devcontainer.json`: passed.
+- `task check`: passed, including runtime release packaging.
+- `task tests-run`: passed in 504 seconds on 2026-10-29, including the CVE scan
+  and existing lifecycle integrations. These CLI checks do not prove editor-close
+  shutdown behavior.
+- `git diff --check`: passed.
+- Real editor-close verification remains pending and requires the user's
+  attached VS Code session plus a separate terminal on the outer Docker host.
+  The task remains open until this acceptance check is recorded.
+
+### Manual Close Check
+
+Use a consuming test checkout with the changed `devcontainer.json` and open it
+through VS Code Dev Containers. In a separate terminal on its Docker host:
+
+```bash
+docker ps --format 'table {{.ID}}\t{{.Names}}\t{{.Status}}'
+docker inspect --format '{{.State.Running}} {{.State.Status}}' <container-id>
+```
+
+Record the ID before closing the final attached test window, then repeat the
+inspect command after normal closure. Expect `false exited`. If VS Code removes
+the container instead, record that outcome and verify its absence. Do not close
+the active implementation session as an automated test or claim that manually
+running `docker stop` verifies the editor lifecycle.

@@ -89,7 +89,7 @@ docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc '
   test "$(command -v docker-credential-pass)" = "/usr/local/bin/docker-credential-pass"
   test -x /usr/local/bin/docker-credential-pass
   docker-credential-pass version \
-    | grep -Fx "docker-credential-pass (github.com/docker/docker-credential-helpers) v0.9.9" >/dev/null
+    | grep -Fx "docker-credential-pass (github.com/docker/docker-credential-helpers) v0.9.12" >/dev/null
 '
 docker run --rm --entrypoint codegeist -w /tmp codegeist-devcontainer-kit:local --version >/dev/null
 docker run --rm --entrypoint jbang codegeist-devcontainer-kit:local --version >/dev/null
@@ -105,12 +105,12 @@ docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc '
   printf "%s\n" "{}" >"$BITWARDENCLI_APPDATA_DIR/data.json"
   test "$(command -v bw)" = "/usr/local/bin/bw"
   test -x /usr/local/bin/bw
-  test "$(bw --version)" = "2026.8.0"
+  test "$(bw --version)" = "2026.10.1"
   rm -rf "$BITWARDENCLI_APPDATA_DIR"
 '
 docker run --rm --entrypoint gitleaks codegeist-devcontainer-kit:local version >/dev/null
 docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc \
-  'ffmpeg -version >/dev/null && whisper-cli --version | grep -F "1.9.4" >/dev/null && vhs --version >/dev/null && ttyd --version >/dev/null'
+  'ffmpeg -version >/dev/null && whisper-cli --version | grep -F "1.9.5" >/dev/null && vhs --version | grep -F "0.12.1" >/dev/null && ttyd --version >/dev/null && hugo version | grep -F "v0.169.0" >/dev/null && tea --version | grep -F "0.16.0" >/dev/null && java -version 2>&1 | grep -F "25.0.4.1.1" >/dev/null'
 docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc '
   set -e
   nvim --headless "+quit"

@@ -1089,9 +1089,15 @@ gitleaks dir --redact .
 Gitleaks reports potential secrets but does not remove or revoke them. Rotate a
 real exposed credential and clean the Git history when necessary.
 
-Trivy 0.74.0 is available inside the devcontainer. From the consuming project,
-scan Dockerfiles and other supported Infrastructure as Code configuration for
-policy and construction problems:
+Trivy 0.76.1 is available inside the devcontainer. From the consuming project,
+scan the built image as well as source configuration when reviewing CVEs.
+Keep tools on current compatible releases and apply available fixes. Remaining
+findings, including CRITICAL ones without a compatible released fix, should be
+recorded rather than automatically blocking a build or release. A fixed library
+version is not necessarily available in a tool's published binary.
+
+From the consuming project, scan Dockerfiles and other supported Infrastructure
+as Code configuration for policy and construction problems:
 
 ```bash
 trivy config --severity HIGH,CRITICAL --exit-code 1 .

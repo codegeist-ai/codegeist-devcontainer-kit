@@ -38,6 +38,7 @@ run_timed "host initializer Vault config" "$WARN_FAST_SECONDS" "$script_dir/init
 run_timed "chrome launcher" "$WARN_FAST_SECONDS" "$script_dir/chrome-launcher.sh"
 run_timed "opencode mounts" "$WARN_DOCKER_SECONDS" "$script_dir/opencode-mounts.sh"
 run_timed "docker image build" "$WARN_BUILD_SECONDS" "$script_dir/docker-build.sh"
+run_timed "image CVE scan" "$WARN_DOCKER_SECONDS" "$script_dir/image-cve-scan.sh"
 run_timed "qemu alpine smoke" "$WARN_DEVCONTAINER_SECONDS" "$script_dir/qemu-alpine-smoke.sh"
 run_timed "docker-run task" "$WARN_DOCKER_SECONDS" "$script_dir/docker-run.sh"
 run_timed "browser smoke" "$WARN_DEVCONTAINER_SECONDS" "$script_dir/browser-smoke.sh"

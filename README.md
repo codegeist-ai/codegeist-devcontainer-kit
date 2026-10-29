@@ -996,7 +996,7 @@ gitleaks dir --redact .
 Gitleaks reports potential secrets but does not remove or revoke them. Rotate a
 real exposed credential and clean the Git history when necessary.
 
-Trivy 0.74.0 provides local project, configuration, and container-image scans.
+Trivy 0.76.1 provides local project, configuration, and container-image scans.
 Scan Dockerfiles and other supported Infrastructure as Code configuration for
 policy and construction problems:
 
@@ -1015,6 +1015,14 @@ trivy image --severity HIGH,CRITICAL --exit-code 1 my-image:tag
 `trivy config` evaluates source configuration such as Dockerfile instructions;
 it does not determine which vulnerable packages are present in the resulting
 image. Use `trivy image` after building to inspect the final image contents.
+
+Image maintenance prioritizes current compatible tool releases and available
+security fixes. Record remaining findings, including CRITICAL ones, when no
+compatible fix has shipped; they do not automatically block a build or release.
+An available library fix is not necessarily available in a tool's published
+binary. Review Nixpkgs source lockfiles and kernel-header findings separately
+from installed executable components. Do not suppress unfixed findings in the
+review report.
 `--severity` limits reported findings, while `--exit-code 1` makes matching
 findings fail a CI step instead of returning Trivy's default successful status.
 
@@ -1057,6 +1065,12 @@ task tests-run
 
 This suite prioritizes real local integrations over CI portability. It does not
 require an SSH microphone forward or access to the SSH host's X11 listener.
+After building the image, it runs a Trivy image CVE scan. The latest HIGH/CRITICAL
+report is `.tmp/image-cve-scan/report.json`; `.tmp/image-cve-scan/cache/` reuses
+downloaded databases between runs. CVE findings are advisory and do not fail the
+suite; scanner execution failures do. The scan needs registry access for database
+updates and can take longer on its first run. Run `tests/image-cve-scan.sh` to
+scan an already-built `codegeist-devcontainer-kit:local` image independently.
 Do not replace real dependencies with fakes or add weaker tests solely to make
 the suite runnable in CI.
 

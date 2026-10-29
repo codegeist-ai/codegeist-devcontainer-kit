@@ -52,21 +52,22 @@ ARG CONTAINER_USER=vscode
 ARG CONTAINER_GROUP=vscode
 ARG CONTAINER_UID=1000
 ARG CONTAINER_GID=1000
-ARG GRAALVM_VERSION=25.0.2
-ARG HUGO_VERSION=0.147.9
-ARG VHS_VERSION=0.11.0
+ARG GRAALVM_VERSION=25i4-25.0.4.1.1
+ARG GRAALVM_RELEASE=graal-25.4.4.1.1
+ARG HUGO_VERSION=0.169.0
+ARG VHS_VERSION=0.12.1
 ARG TTYD_VERSION=1.7.7
-ARG TEA_VERSION=0.14.2
-ARG BITWARDEN_CLI_VERSION=2026.8.0
-ARG BITWARDEN_CLI_SHA256=367f618e9fcccaac4980ec12c7bafd01df739b5f3cb1af31bc9045cf75eea1d6
-ARG DOCKER_CREDENTIAL_PASS_VERSION=0.9.9
-ARG DOCKER_CREDENTIAL_PASS_SHA256=ae80a143101672b53c65cd5aa05028897068d39e2649adff83a520ef3218355d
-ARG TRIVY_VERSION=0.74.0
+ARG TEA_VERSION=0.16.0
+ARG BITWARDEN_CLI_VERSION=2026.10.1
+ARG BITWARDEN_CLI_SHA256=eb09c3715291c21cf744819b873a255c1247b1b8b45bae138621a644ec7ad8f5
+ARG DOCKER_CREDENTIAL_PASS_VERSION=0.9.12
+ARG DOCKER_CREDENTIAL_PASS_SHA256=0369caf75820b2a927b8f7435cdd6b447583e0bb30f2b0633ed83f24b4d59a37
+ARG TRIVY_VERSION=0.76.1
 ARG GITLEAKS_VERSION=8.30.1
 ARG GITLEAKS_SHA256=551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
-ARG WHISPER_CPP_VERSION=1.9.4
-ARG WHISPER_CPP_SHA256=57e280cee375ab02425b806ad5146b99f6eb9357e3c2b31357c8a6af2e2e44ae
-ARG POWERSHELL_VERSION=7.6.6
+ARG WHISPER_CPP_VERSION=1.9.5
+ARG WHISPER_CPP_SHA256=ff1a9053feb509ff9d7729703355541ae9690073a6b1c40eb692c962e0dc1720
+ARG POWERSHELL_VERSION=7.6.9
 
 ENV LANG=C.UTF-8 \
     LC_CTYPE=C.UTF-8 \
@@ -222,7 +223,12 @@ RUN curl -fsSL \
 RUN curl -LsSf https://astral.sh/uv/install.sh \
   | env UV_UNMANAGED_INSTALL=/usr/local/bin sh
 
-RUN npm install -g --prefix /usr/local opencode-ai renovate repomix @ast-grep/cli @devcontainers/cli @mermaid-js/mermaid-cli tiktoken-cli \
+# Refresh npm independently: the NodeSource bundle can lag npm dependency fixes.
+# npm 12 supports the image's Node.js 24 channel (requires Node >=24.15).
+# Preserve build-time lifecycle scripts: OpenCode and native CLI dependencies
+# require postinstall. This flag applies only to the managed image-tool install.
+RUN npm install -g --prefix /usr npm@12 \
+ && npm install -g --dangerously-allow-all-scripts --prefix /usr/local opencode-ai renovate repomix @ast-grep/cli @devcontainers/cli @mermaid-js/mermaid-cli tiktoken-cli \
  && rm -f /usr/local/bin/sg \
  && rm -rf /tmp/opencode \
  && npm cache clean --force
@@ -421,7 +427,7 @@ RUN curl -fsSL "https://github.com/mikefarah/yq/releases/latest/download/yq_linu
  && curl -fsSL https://talos.dev/install | sh \
  && talosctl version --client
 
-RUN curl -fsSL "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_Linux-64bit.tar.gz" \
+RUN curl -fsSL "https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-amd64.tar.gz" \
       -o /tmp/hugo.tar.gz \
   && tar -xzf /tmp/hugo.tar.gz -C /tmp hugo \
   && install -m 0755 /tmp/hugo /usr/local/bin/hugo \
@@ -443,7 +449,8 @@ RUN install -d -m 0755 /etc/opt/chrome/policies/managed \
       '}' \
       > /etc/opt/chrome/policies/managed/disable-hardware-accel.json
 
-RUN curl -fsSL "https://github.com/graalvm/graalvm-ce-builds/releases/download/jdk-${GRAALVM_VERSION}/graalvm-community-jdk-${GRAALVM_VERSION}_linux-x64_bin.tar.gz" \
+# Graal release tags and the JDK archive version use separate upstream names.
+RUN curl -fsSL "https://github.com/graalvm/graalvm-ce-builds/releases/download/${GRAALVM_RELEASE}/graalvm-community-jdk-${GRAALVM_VERSION}_linux-x64_bin.tar.gz" \
       -o /tmp/graalvm.tar.gz \
  && install -d -m 0755 /opt/graalvm \
  && tar -xzf /tmp/graalvm.tar.gz --strip-components=1 -C /opt/graalvm \

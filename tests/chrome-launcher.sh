@@ -3,7 +3,7 @@
 #
 # Why this exists:
 # - proves workspace-generated display state replaces stale container environment
-# - verifies loopback X11 recovery uses only the requested Xauthority cookie
+# - verifies TCP X11 recovery uses only the requested address and display cookie
 # - protects independent profiles and display state for directly opened worktrees
 # - keeps deterministic launcher checks separate from the real X11 browser smoke
 #
@@ -119,9 +119,9 @@ args_a="$suite_tmp_dir/chrome-launcher-a-args.txt"
 args_b="$suite_tmp_dir/chrome-launcher-b-args.txt"
 write_xauthority "$authority_a" 82
 write_xauthority "$authority_b" 83
-write_generated_display "$fixture_a" "localhost:82.0" "$authority_a"
-write_generated_display "$fixture_b" "127.0.0.1:83.0" "$authority_b"
-printf '%s\n' "localhost:82.0" "127.0.0.1:83.0" >"$reachable_displays"
+write_generated_display "$fixture_a" "10.77.0.5:82.1" "$authority_a"
+write_generated_display "$fixture_b" "host.docker.internal:83" "$authority_b"
+printf '%s\n' "10.77.0.5:82.1" "host.docker.internal:83" >"$reachable_displays"
 
 DISPLAY=localhost:10.0 run_launcher "$fixture_a" "$capture_a" "$args_a" about:blank &
 launcher_a_pid="$!"
@@ -130,10 +130,10 @@ launcher_b_pid="$!"
 wait "$launcher_a_pid"
 wait "$launcher_b_pid"
 
-grep -Fx "DISPLAY=localhost:82.0" "$capture_a" >/dev/null \
+grep -Fx "DISPLAY=10.77.0.5:82.1" "$capture_a" >/dev/null \
   || fail "workspace A did not replace stale DISPLAY"
-grep -Fx "DISPLAY=127.0.0.1:83.0" "$capture_b" >/dev/null \
-  || fail "workspace B did not preserve its loopback DISPLAY"
+grep -Fx "DISPLAY=host.docker.internal:83" "$capture_b" >/dev/null \
+  || fail "workspace B did not preserve its hostname DISPLAY without a screen"
 grep -Fx "XAUTHORITY=$authority_a" "$capture_a" >/dev/null \
   || fail "workspace A did not use its generated Xauthority"
 grep -Fx "XAUTHORITY=$authority_b" "$capture_b" >/dev/null \
@@ -142,6 +142,16 @@ grep -Fx -- "--user-data-dir=$fixture_a/.chrome" "$args_a" >/dev/null \
   || fail "workspace A did not use its own Chrome profile"
 grep -Fx -- "--user-data-dir=$fixture_b/.chrome" "$args_b" >/dev/null \
   || fail "workspace B did not use its own Chrome profile"
+
+write_xauthority "$authority_a" 84
+write_generated_display "$fixture_a" "10.77.0.5:84" "$authority_a"
+printf '%s\n' "10.77.0.5:84" "host.docker.internal:83" >"$reachable_displays"
+DISPLAY=10.77.0.5:82.1 run_launcher "$fixture_a" "$capture_a" "$args_a" about:blank
+run_launcher "$fixture_b" "$capture_b" "$args_b" about:blank
+grep -Fx "DISPLAY=10.77.0.5:84" "$capture_a" >/dev/null \
+  || fail "workspace A did not reread its display after reconnect"
+grep -Fx "DISPLAY=host.docker.internal:83" "$capture_b" >/dev/null \
+  || fail "workspace A reconnect changed workspace B's display"
 
 explicit_profile_dir="$suite_tmp_dir/explicit-chrome-profile"
 run_launcher "$fixture_b" "$capture_b" "$args_b" \
@@ -155,25 +165,40 @@ log "checking requested-cookie-only SSH X11 recovery"
 recovery_capture="$suite_tmp_dir/chrome-launcher-recovery-environment.txt"
 recovery_args="$suite_tmp_dir/chrome-launcher-recovery-args.txt"
 write_xauthority "$authority_a" 70 72
-write_generated_display "$fixture_a" "localhost:72.0" "$authority_a"
-printf '%s\n' "localhost:72.0" >"$reachable_displays"
-FAKE_XDPYINFO_REQUIRE_NORMALIZED_DISPLAY=localhost:72.0 \
-  FAKE_XDPYINFO_SOURCE_AUTHORITY="$authority_a" \
-  DISPLAY=localhost:9.0 \
-  run_launcher "$fixture_a" "$recovery_capture" "$recovery_args" about:blank
+for requested_display in localhost:72.0 127.0.0.1:72 10.77.0.5:72.3; do
+  write_generated_display "$fixture_a" "$requested_display" "$authority_a"
+  printf '%s\n' "$requested_display" >"$reachable_displays"
+  recovery_log="$suite_tmp_dir/chrome-launcher-recovery.log"
+  FAKE_XDPYINFO_REQUIRE_NORMALIZED_DISPLAY="$requested_display" \
+    FAKE_XDPYINFO_SOURCE_AUTHORITY="$authority_a" \
+    DISPLAY=localhost:9.0 \
+    run_launcher "$fixture_a" "$recovery_capture" "$recovery_args" about:blank >"$recovery_log" 2>&1
 
-recovered_authority="$(extract_key_value "$(<"$recovery_capture")" XAUTHORITY)"
-case "$recovered_authority" in
-  /tmp/chrome-xauthority.*) ;;
-  *) fail "SSH recovery used an unexpected Xauthority path: $recovered_authority" ;;
-esac
-normalized_entries="$(xauth -f "$recovered_authority" list 2>/dev/null || true)"
-[[ "$normalized_entries" == *":72"* ]] || fail "normalized authority lacks requested display 72"
-[[ "$normalized_entries" != *":70"* ]] || fail "normalized authority copied an unrelated display cookie"
-rm -f "$recovered_authority"
+  recovered_authority="$(extract_key_value "$(<"$recovery_capture")" XAUTHORITY)"
+  case "$recovered_authority" in
+    /tmp/chrome-xauthority.*) ;;
+    *) fail "SSH recovery used an unexpected Xauthority path: $recovered_authority" ;;
+  esac
+  [[ "$(stat -c %a "$recovered_authority")" = 600 ]] \
+    || fail "normalized authority permissions are not 0600"
+  # Query real xauth by the requested address, not just by a display-number
+  # substring. Never include cookie-bearing records in assertion diagnostics.
+  normalized_entries="$(xauth -n -f "$recovered_authority" list 2>/dev/null)"
+  requested_entries="$(xauth -n -f "$recovered_authority" list "$requested_display" 2>/dev/null)"
+  [[ -n "$requested_entries" && "$normalized_entries" = "$requested_entries" ]] \
+    || fail "normalized authority must contain only the requested address/display"
+  [[ "$normalized_entries" != *$'\n'* && "$normalized_entries" == *"$(printf '%032x' 2)" ]] \
+    || fail "normalized authority must contain exactly the requested display's cookie"
+  grep -Fx "DISPLAY=$requested_display" "$recovery_capture" >/dev/null \
+    || fail "normalization changed the requested display or screen"
+  if grep -Eq '[[:xdigit:]]{32}' "$recovery_log"; then
+    fail "launcher emitted an Xauthority cookie"
+  fi
+  rm -f "$recovered_authority"
+done
 
 log "checking unsupported and stale displays fail before Chrome starts"
-for unsupported_display in ":0" "host.docker.internal:4.0"; do
+for unsupported_display in ":0" "unix:4.0" "[::1]:4.0"; do
   error_capture="$suite_tmp_dir/chrome-launcher-unsupported-${unsupported_display//[^a-zA-Z0-9]/_}.txt"
   write_generated_display "$fixture_a" "$unsupported_display" "$authority_a"
   rm -f "$capture_a" "$args_a" "$error_capture"
@@ -181,12 +206,12 @@ for unsupported_display in ":0" "host.docker.internal:4.0"; do
     fail "chrome launcher accepted unsupported DISPLAY=$unsupported_display"
   fi
   [ ! -e "$capture_a" ] || fail "Chrome started for unsupported DISPLAY=$unsupported_display"
-  grep -F "Remote SSH loopback X11" "$error_capture" >/dev/null \
+  grep -F "TCP X11" "$error_capture" >/dev/null \
     || fail "unsupported display diagnostic did not explain the X11 contract"
 done
 
 write_xauthority "$authority_a" 90 91
-write_generated_display "$fixture_a" "localhost:90.0" "$authority_a"
+write_generated_display "$fixture_a" "10.77.0.5:90.0" "$authority_a"
 : >"$reachable_displays"
 error_capture="$suite_tmp_dir/chrome-launcher-stale-error.txt"
 rm -f "$capture_a" "$args_a" "$error_capture"
@@ -194,7 +219,7 @@ if DISPLAY=localhost:10.0 run_launcher "$fixture_a" "$capture_a" "$args_a" about
   fail "chrome launcher accepted stale SSH X11"
 fi
 [ ! -e "$capture_a" ] || fail "Chrome started with stale SSH X11"
-grep -F "Detected stale SSH DISPLAY=localhost:90.0" "$error_capture" >/dev/null \
+grep -F "Detected stale SSH DISPLAY=10.77.0.5:90.0" "$error_capture" >/dev/null \
   || fail "stale SSH X11 diagnostic is missing"
 
 log "checking headless mode remains display-independent"

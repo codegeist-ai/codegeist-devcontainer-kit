@@ -15,7 +15,8 @@
 # Inputs and side effects:
 # - The script location identifies the opened checkout; caller cwd and BRANCH are
 #   intentionally ignored.
-# - DISPLAY and XAUTHORITY are captured for visible Remote SSH X11 Chrome.
+# - DISPLAY, SSH_CONNECTION, and XAUTHORITY provide visible SSH X11 state. TCP
+#   displays use SSH's server IPv4 address in the container, retaining their suffix.
 # - VAULT_TOKEN is supplied to Vault Agent on stdin; VAULT_ADDR and TLS settings
 #   are inherited from the host. Agent failures stop initialization.
 # - Generated files under `.devcontainer/` are replaced atomically. User-owned
@@ -188,6 +189,34 @@ write_generated_xauthority() {
   mv -f "$temporary_file" "$target_file"
 }
 
+# Derive only TCP displays from the active SSH endpoint, without DNS/interface
+# discovery or changing host DISPLAY. Missing inputs, local X11, and unsupported
+# server addresses keep their previous behavior. Diagnostics contain no cookies
+# or full SSH environment. See README.md#browser-support for transport prerequisites.
+container_display() {
+  local display="${DISPLAY:-}"
+  local ssh_connection=missing
+  local client_address="" client_port="" server_address="" server_port=""
+
+  [ -z "${SSH_CONNECTION:-}" ] || ssh_connection=present
+  if [ "$ssh_connection" = present ] && [[ "$display" != unix:* \
+    && "$display" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*:[0-9]+(\.[0-9]+)?$ ]]; then
+    read -r client_address client_port server_address server_port <<<"$SSH_CONNECTION"
+    if [[ "$client_port" =~ ^[0-9]+$ && "$server_port" =~ ^[0-9]+$ \
+      && "$server_address" =~ ^([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})\.([0-9]{1,3})$ ]] \
+      && (( 10#${BASH_REMATCH[1]} <= 255 && 10#${BASH_REMATCH[2]} <= 255 \
+        && 10#${BASH_REMATCH[3]} <= 255 && 10#${BASH_REMATCH[4]} <= 255 )); then
+      display="$server_address:${display#*:}"
+      log "status=display_derived ssh_connection=present display=$display"
+    else
+      log "status=display_preserved ssh_connection=present reason=unsupported_ssh_server"
+    fi
+  else
+    log "status=display_preserved ssh_connection=$ssh_connection reason=not_applicable"
+  fi
+  printf '%s\n' "$display"
+}
+
 write_generated_env() {
   local target_file="$1"
   local root_dir="$2"
@@ -214,7 +243,7 @@ DEVCONTAINER_GROUP=$(id -gn)
 DEVCONTAINER_UID=$(id -u)
 DEVCONTAINER_GID=$(id -u)
 DEVCONTAINER_KVM_GID=$(stat -c %g /dev/kvm 2>/dev/null || id -g)
-DEVCONTAINER_DISPLAY=${DISPLAY:-}
+DEVCONTAINER_DISPLAY=$(container_display)
 DEVCONTAINER_XAUTHORITY=$root_dir/.devcontainer/.Xauthority.gen
 EOF
   mv -f "$temporary_file" "$target_file"

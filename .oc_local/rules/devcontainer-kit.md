@@ -123,19 +123,20 @@ local override templates in this repository.
   checkout and common Git metadata with Git rather than assuming that layout.
 - Do not reserve, increment, or guess SSH X11 forwarding ports in
   `initialize.sh`; SSH and VS Code own forwarding listener allocation.
-- Preserve the host-side `DISPLAY` visible to `initializeCommand` by writing it
-  to generated `.devcontainer/.env` as `DEVCONTAINER_DISPLAY`, then pass that
-  value into the container as `DISPLAY` from `docker-compose.yml`. Treat it as a
-  candidate until the launcher proves the Remote SSH loopback X11 endpoint is
-  reachable and has matching Xauthority state.
-- Keep visible Chrome limited to Remote SSH loopback X11 displays such as
-  `localhost:N.0` and `127.0.0.1:N.0`. Reread the directly opened checkout's
-  generated display and authority state on every launch, probe the requested
-  display, and normalize only its matching cookie before Chrome starts.
+- Leave the host-side `DISPLAY` unchanged. For TCP displays, derive
+  `DEVCONTAINER_DISPLAY` using the server IPv4 address from field three of
+  `SSH_CONNECTION`, retaining the complete display/screen suffix. Preserve the
+  original value when inputs are missing or unsupported; never guess a host
+  address through DNS/interface enumeration. Verify SSH context in the actual
+  `initializeCommand` environment when exercising the live path.
+- Support hostname/IPv4 TCP X11 displays, including loopback, in visible Chrome.
+  Reread the checkout's generated display and authority state on every launch,
+  probe the requested display, and normalize only its matching display-number
+  cookie for that destination in a private temporary file. The SSH listener must
+  already be reachable from the bridge; do not add host proxies or change policy.
 - Do not preserve Wayland discovery, generated socket mounts, runtime-directory
-  setup, launcher selection, or Wayland browser verification. Local X11 displays
-  and arbitrary non-loopback X11 hosts are also outside the supported visible
-  browser contract.
+  setup, launcher selection, or Wayland browser verification. Local `:N`, `unix:N`,
+  and IPv6 displays remain outside the supported visible browser contract.
 - Keep `chrome --headless` available for automation, independently of visible
   display state. Do not use it as proof of the visible-browser contract.
 - For parallel visible-browser work, create each worktree explicitly, either

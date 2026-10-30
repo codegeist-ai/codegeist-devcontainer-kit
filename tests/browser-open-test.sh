@@ -3,13 +3,13 @@
 #
 # Why this exists:
 # - exercises the normal Dev Containers lifecycle and the real `chrome` command
-# - verifies a genuine SSH-loopback display creates a detectable browser process
+# - verifies a genuine SSH TCP display creates a detectable browser process
 # - leaves the fixture and browser running for manual keyboard/pointer inspection
 #
 # Inputs:
 # - Optional URL argument, defaulting to a local data URL.
-# - DISPLAY must be a Remote SSH loopback X11 value and XAUTHORITY must identify
-#   a readable authority file.
+# - DISPLAY identifies SSH X11; SSH_CONNECTION supplies the server IPv4 address
+#   to initialize.sh when available. XAUTHORITY identifies a readable file.
 #
 # Related files:
 # - ../scripts/chrome.sh
@@ -41,10 +41,9 @@ case "$url" in
   -h|--help) usage; exit 0 ;;
 esac
 
-if [[ "${DISPLAY:-}" != localhost:[0-9]* ]] \
-  && [[ "${DISPLAY:-}" != 127.0.0.1:[0-9]* ]]; then
-  fail "DISPLAY must be a Remote SSH loopback X11 value such as localhost:10.0"
-fi
+# The initializer derives the destination; the real launcher owns format,
+# reachability, and authentication checks rather than a second display filter.
+[ -n "${DISPLAY:-}" ] || fail "DISPLAY must identify an active SSH X11 display"
 source_authority="${XAUTHORITY:-${HOME:-}/.Xauthority}"
 if [ -z "$source_authority" ] || [ ! -r "$source_authority" ]; then
   fail "XAUTHORITY must identify a readable Remote SSH X11 authority file"
@@ -67,6 +66,7 @@ HOME="$fixture_dir" XAUTHORITY="$source_authority" DISPLAY="$DISPLAY" \
   devcontainer_cli up --workspace-folder "$fixture_dir" | tee "$log_file"
 container_id="$(extract_container_id_from_log "$log_file" || true)"
 [[ -n "$container_id" ]] || fail "could not extract workspace container id"
+requested_display="$(extract_key_value "$(<"$fixture_dir/.devcontainer/.env")" DEVCONTAINER_DISPLAY)"
 
 docker exec -d -u "$expected_user_name" \
   -e BROWSER_OPEN_TEST_URL="$url" \
@@ -103,7 +103,7 @@ if [ "$chrome_started" != "true" ]; then
     bash -lc 'printf "Chrome log:\n" >&2; cat /tmp/browser-open-test.chrome.log >&2 || true' || true
   cat >&2 <<EOF
 
-Visible Chrome requires the active SSH X11 listener for DISPLAY=$DISPLAY and a
+Visible Chrome requires the active SSH X11 listener for DISPLAY=$requested_display and a
 matching cookie copied to $fixture_dir/.devcontainer/.Xauthority.gen. Reconnect
 the Remote SSH session if its display forwarding is stale.
 EOF

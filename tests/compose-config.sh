@@ -3,7 +3,7 @@
 #
 # Why this exists:
 # - proves runtime user, KVM, workspace, and Git metadata mounts reach Docker
-# - verifies Remote SSH X11 state uses the reconnect-refreshable workspace copy
+# - verifies derived SSH server IPv4 and reconnect-refreshable Xauthority handoff
 # - protects checkout-local Bitwarden state and optional Compose behavior
 # - checks Buildx filesystem entitlement defaults, overrides, and runtime delivery
 #
@@ -17,6 +17,8 @@ script_dir="$(dirname "$(readlink -f "$0")")"
 
 # shellcheck source=./helpers.sh
 source "$script_dir/helpers.sh"
+
+unset SSH_CONNECTION
 
 local_suite=0
 if [ -z "${suite_tmp_dir:-}" ]; then
@@ -102,7 +104,7 @@ for buildx_input in "" "1"; do
     || fail "BUILDX_BAKE_ENTITLEMENTS_FS expected=${buildx_input:-0} actual=$resolved_buildx_fs"
 done
 
-DISPLAY=localhost:43.0 HOME="$fixture_dir" \
+DISPLAY=ssh-host:43.2 SSH_CONNECTION='192.0.2.10 50000 10.77.0.5 22' HOME="$fixture_dir" \
   devcontainer_cli up --workspace-folder "$fixture_dir" | tee "$log_file"
 container_id="$(extract_container_id_from_log "$log_file" || true)"
 [[ -n "$container_id" ]] || fail "could not extract workspace container id from devcontainer output"
@@ -111,8 +113,8 @@ container_id="$(extract_container_id_from_log "$log_file" || true)"
   || fail "initializeCommand created an optional Compose override"
 grep -Fx "DEVCONTAINER_KVM_GID=$kvm_gid" "$fixture_dir/.devcontainer/.env" >/dev/null \
   || fail "initializeCommand did not write KVM GID"
-grep -Fx "DEVCONTAINER_DISPLAY=localhost:43.0" "$fixture_dir/.devcontainer/.env" >/dev/null \
-  || fail "initializeCommand did not write DISPLAY"
+grep -Fx "DEVCONTAINER_DISPLAY=10.77.0.5:43.2" "$fixture_dir/.devcontainer/.env" >/dev/null \
+  || fail "initializeCommand did not derive DISPLAY from the SSH server address"
 grep -Fx "DEVCONTAINER_GIT_COMMON_DIR=$expected_common_dir" "$fixture_dir/.devcontainer/.env" >/dev/null \
   || fail "initializeCommand did not write the Git common directory"
 if grep -q 'WAYLAND' "$fixture_dir/.devcontainer/.env" "$fixture_dir/.devcontainer/compose.local.gen.yml"; then
@@ -122,7 +124,7 @@ fi
 container_config="$(docker inspect "$container_id")"
 [[ "$container_config" == *'"PathOnHost": "/dev/kvm"'* ]] || fail "workspace container did not mount /dev/kvm"
 [[ "$container_config" == *'"'"$kvm_gid"'"'* ]] || fail "workspace container did not add KVM group"
-[[ "$container_config" == *'"DISPLAY=localhost:43.0"'* ]] || fail "workspace container did not use generated DISPLAY"
+[[ "$container_config" == *'"DISPLAY=10.77.0.5:43.2"'* ]] || fail "workspace container did not use derived DISPLAY"
 [[ "$container_config" == *'"BITWARDENCLI_APPDATA_DIR='"$expected_bitwarden_appdata"'"'* ]] \
   || fail "workspace container did not use checkout-local Bitwarden state"
 [[ "$container_config" == *'"XAUTHORITY='"$fixture_dir"'/.devcontainer/.Xauthority.gen"'* ]] \

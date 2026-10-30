@@ -6,6 +6,7 @@
 # - rejects legacy root configuration imports and managed BRANCH worktrees
 # - verifies direct linked worktrees retain independent generated and local state
 # - protects atomic X11/Xauthority refresh and the custom initialization hook
+# - derives TCP displays from SSH's IPv4 server address without shared state
 #
 # Related files:
 # - ../initialize.sh
@@ -44,6 +45,8 @@ cleanup_test() {
 }
 trap cleanup_test EXIT
 
+# Existing non-SSH fixtures must not inherit the test caller's SSH connection.
+unset SSH_CONNECTION
 create_git_fixture_repo "$fixture_dir"
 rm -rf "$fixture_dir/.codegeist" "$fixture_dir/.oc_local" "$fixture_dir/.tmp" "$fixture_dir/.worktrees"
 rm -f "$fixture_dir/.devcontainer/.env" \
@@ -141,6 +144,7 @@ cat >"$fixture_dir/.codegeist/extensions/custom_initialize.sh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "$PWD" >.codegeist/custom-initialize.result
+printf '%s\n' "${DISPLAY:-}" >.codegeist/custom-initialize.display
 EOF
 printf 'second-authority\n' >"$host_xauthority"
 HOME="$fixture_dir" XAUTHORITY="$host_xauthority" DISPLAY=127.0.0.1:43.0 \
@@ -184,6 +188,48 @@ done
   || fail "linked worktree did not receive independent authority state"
 [[ -f "$worktree_path/.codegeist/.local.env" && ! -L "$worktree_path/.codegeist/.local.env" ]] \
   || fail "linked worktree did not receive its own local environment file"
+
+log "checking IPv4 SSH display derivation and unchanged host display"
+# Exercise the real initializer. The custom hook runs after env generation and
+# observes the original host DISPLAY, not the container-facing derived value.
+while IFS='|' read -r host_display ssh_connection expected_display; do
+  HOME="$fixture_dir" DISPLAY="$host_display" SSH_CONNECTION="$ssh_connection" \
+    XAUTHORITY="$host_xauthority" "$fixture_dir/.devcontainer/initialize.sh"
+  grep -Fx "DEVCONTAINER_DISPLAY=$expected_display" "$fixture_dir/.devcontainer/.env" >/dev/null \
+    || fail "SSH display expected=$expected_display input=$host_display"
+  [[ "$(<"$fixture_dir/.codegeist/custom-initialize.display")" = "$host_display" ]] \
+    || fail "initializer changed the host DISPLAY passed to the custom hook"
+done <<'EOF'
+hetzner-dev:11.0|192.0.2.10 50000 10.77.0.5 22|10.77.0.5:11.0
+hetzner-dev:12|192.0.2.10 50000 10.77.0.5 22|10.77.0.5:12
+localhost:0011.02|192.0.2.10 50000 10.77.0.5 22|10.77.0.5:0011.02
+127.0.0.1:13.1|192.0.2.10 50000 10.77.0.6 22|10.77.0.6:13.1
+hetzner-dev:11.0||hetzner-dev:11.0
+:12|192.0.2.10 50000 10.77.0.5 22|:12
+unix:12|192.0.2.10 50000 10.77.0.5 22|unix:12
+ssh-host:11.0|192.0.2.10 50000 999.0.0.5 22|ssh-host:11.0
+ssh-host:11.0|2001:db8::1 50000 2001:db8::2 22|ssh-host:11.0
+EOF
+env -u DISPLAY HOME="$fixture_dir" SSH_CONNECTION='192.0.2.10 50000 10.77.0.5 22' \
+  "$fixture_dir/.devcontainer/initialize.sh"
+grep -Fx 'DEVCONTAINER_DISPLAY=' "$fixture_dir/.devcontainer/.env" >/dev/null \
+  || fail "initializer invented a display when DISPLAY was missing"
+
+log "checking SSH reconnect refresh stays checkout-local"
+HOME="$worktree_path" DISPLAY=ssh-host:21.0 SSH_CONNECTION='192.0.2.10 50000 10.77.0.6 22' \
+  XAUTHORITY="$host_xauthority" "$worktree_path/.devcontainer/initialize.sh"
+worktree_env_before="$(<"$worktree_path/.devcontainer/.env")"
+worktree_authority_before="$(<"$worktree_path/.devcontainer/.Xauthority.gen")"
+printf 'reconnected-authority\n' >"$host_xauthority"
+HOME="$fixture_dir" DISPLAY=ssh-host:14.1 SSH_CONNECTION='192.0.2.10 50001 10.77.0.5 22' \
+  XAUTHORITY="$host_xauthority" "$fixture_dir/.devcontainer/initialize.sh"
+grep -Fx 'DEVCONTAINER_DISPLAY=10.77.0.5:14.1' "$fixture_dir/.devcontainer/.env" >/dev/null \
+  || fail "SSH reconnect did not refresh the display number and screen"
+[[ "$(<"$fixture_dir/.devcontainer/.Xauthority.gen")" = reconnected-authority ]] \
+  || fail "SSH reconnect did not refresh authority state"
+[[ "$(<"$worktree_path/.devcontainer/.env")" = "$worktree_env_before" \
+  && "$(<"$worktree_path/.devcontainer/.Xauthority.gen")" = "$worktree_authority_before" ]] \
+  || fail "SSH reconnect changed another checkout's generated display state"
 
 log "checking repository identity for a worktree backed by a bare common directory"
 git clone --bare "$fixture_dir" "$bare_repo_dir" >/dev/null

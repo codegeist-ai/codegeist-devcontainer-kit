@@ -88,8 +88,6 @@ services:
       - /run/secrets
     # Chrome and other browser processes need more than Docker's tiny default /dev/shm.
     shm_size: '1gb'
-    extra_hosts:
-      - host.docker.internal:host-gateway
     env_file:
       - path: .env
         required: false

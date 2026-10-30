@@ -89,6 +89,9 @@ local override templates in this repository.
 - Shared runtime behavior belongs in `docker-compose.yml` or generated
   `compose.local.gen.yml`; `compose.local.yml` is only the stable include point
   for local or consuming-repository customizations.
+- Keep the shared Compose default free of the unused `host.docker.internal`
+  host-gateway alias. Preserve the separate generated container-hostname mapping;
+  alias removal is not a host-network access restriction.
 - Default `BUILDX_BAKE_ENTITLEMENTS_FS` to `0` in the shared workspace service
   when the host value is unset or empty. Keep it overridable through the host
   Compose environment or `.codegeist/compose.local.yml`, not the service
@@ -110,6 +113,11 @@ local override templates in this repository.
   that parent's nested Docker daemon rather than the SSH host Docker daemon. It
   may bridge the caller's VS Code remote CLI and IPC socket into the fixture for
   worktree-window checks, but that bridge does not change Docker ownership.
+- To open a host-side test checkout through the in-container VS Code CLI, use
+  `--new-window` with an explicit `--folder-uri` such as
+  `vscode-remote://ssh-remote+<alias>/absolute/path`. Positional file paths are
+  rewritten to the current container authority even when `--remote` is supplied.
+  Confirm the selected checkout before Reopen in Container.
 - Treat the checkout opened by VS Code or the Dev Containers CLI as the complete
   workspace-selection input. `initialize.sh` must not interpret `BRANCH`, create
   or repair worktrees, create current-branch aliases, or initialize worktree

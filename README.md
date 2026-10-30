@@ -281,8 +281,9 @@ recreate the devcontainer; restarting the existing container is insufficient.
 To access a project server from your laptop, forward its workspace port in the
 VS Code **Ports** tab and open the forwarded address. Nested Docker published
 ports are available in the workspace, not automatically on the SSH host.
-Container `localhost` refers to the workspace; `host.docker.internal` does not
-provide access to services bound exclusively to host loopback.
+Container `localhost` refers to the workspace. The kit does not add a
+`host.docker.internal` mapping. Host services require a reachable host address;
+omitting the alias does not restrict network access to the host.
 
 The image provides both the existing Docker toolchain and Podman. Docker remains
 the default engine: the container entrypoint starts the nested Docker daemon,

@@ -50,7 +50,6 @@ rm -f "$merged_dockerfile" "$root_dockerfile"
 [[ -z "$(git -C "$fixture_dir" status --porcelain -- .devcontainer/Dockerfile.merged.gen)" ]] || fail "merged Dockerfile is not ignored"
 compose_config="$(cd "$fixture_dir/.devcontainer" && docker compose -f docker-compose.yml -f compose.local.gen.yml -f compose.user.gen.yml config)"
 [[ "$compose_config" == *"Dockerfile.merged.gen"* ]] || fail "compose config does not build from the merged Dockerfile"
-[[ "$compose_config" == *"host.docker.internal"* ]] || fail "compose config lost host.docker.internal extra host"
 [[ "$compose_config" == *"$(expected_generated_hostname "$fixture_dir" "")"* ]] || fail "compose config does not resolve generated hostname"
 [[ "$compose_config" == *$'tmpfs:\n      - /run/secrets'* ]] || fail "compose config does not mount /run/secrets as tmpfs"
 

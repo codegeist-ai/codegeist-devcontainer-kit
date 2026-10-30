@@ -120,8 +120,8 @@ args_b="$suite_tmp_dir/chrome-launcher-b-args.txt"
 write_xauthority "$authority_a" 82
 write_xauthority "$authority_b" 83
 write_generated_display "$fixture_a" "10.77.0.5:82.1" "$authority_a"
-write_generated_display "$fixture_b" "host.docker.internal:83" "$authority_b"
-printf '%s\n' "10.77.0.5:82.1" "host.docker.internal:83" >"$reachable_displays"
+write_generated_display "$fixture_b" "ssh-host.example:83" "$authority_b"
+printf '%s\n' "10.77.0.5:82.1" "ssh-host.example:83" >"$reachable_displays"
 
 DISPLAY=localhost:10.0 run_launcher "$fixture_a" "$capture_a" "$args_a" about:blank &
 launcher_a_pid="$!"
@@ -132,7 +132,7 @@ wait "$launcher_b_pid"
 
 grep -Fx "DISPLAY=10.77.0.5:82.1" "$capture_a" >/dev/null \
   || fail "workspace A did not replace stale DISPLAY"
-grep -Fx "DISPLAY=host.docker.internal:83" "$capture_b" >/dev/null \
+grep -Fx "DISPLAY=ssh-host.example:83" "$capture_b" >/dev/null \
   || fail "workspace B did not preserve its hostname DISPLAY without a screen"
 grep -Fx "XAUTHORITY=$authority_a" "$capture_a" >/dev/null \
   || fail "workspace A did not use its generated Xauthority"
@@ -145,12 +145,12 @@ grep -Fx -- "--user-data-dir=$fixture_b/.chrome" "$args_b" >/dev/null \
 
 write_xauthority "$authority_a" 84
 write_generated_display "$fixture_a" "10.77.0.5:84" "$authority_a"
-printf '%s\n' "10.77.0.5:84" "host.docker.internal:83" >"$reachable_displays"
+printf '%s\n' "10.77.0.5:84" "ssh-host.example:83" >"$reachable_displays"
 DISPLAY=10.77.0.5:82.1 run_launcher "$fixture_a" "$capture_a" "$args_a" about:blank
 run_launcher "$fixture_b" "$capture_b" "$args_b" about:blank
 grep -Fx "DISPLAY=10.77.0.5:84" "$capture_a" >/dev/null \
   || fail "workspace A did not reread its display after reconnect"
-grep -Fx "DISPLAY=host.docker.internal:83" "$capture_b" >/dev/null \
+grep -Fx "DISPLAY=ssh-host.example:83" "$capture_b" >/dev/null \
   || fail "workspace A reconnect changed workspace B's display"
 
 explicit_profile_dir="$suite_tmp_dir/explicit-chrome-profile"

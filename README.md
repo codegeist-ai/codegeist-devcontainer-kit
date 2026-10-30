@@ -645,6 +645,13 @@ this shutdown action runs. Containers started independently through the CLI
 are not tied to closing an editor window. This setting does not manage unrelated
 Compose projects.
 
+Remote SSH shutdown is affected by known upstream issues, including
+[vscode-remote-release#8818](https://github.com/microsoft/vscode-remote-release/issues/8818).
+The explicit setting is not a verified shutdown guarantee for that workflow.
+If a container remains running after normal closure, inspect VS Code's
+`Dev Containers Developer: Show All Logs...` → `shutdownMonitor` log. Avoid
+sharing configuration records containing the full environment or credentials.
+
 The workspace uses an isolated Compose network. After changing network settings,
 recreate the devcontainer; restarting the existing container is insufficient.
 To access a project server from your laptop, forward its workspace port in the
@@ -741,8 +748,8 @@ the user's home directory and out of the repository.
 
 The release kit includes Google Chrome for visible, headless, and automated UI
 browser checks that must use the devcontainer's DNS, networking, and installed
-certificates. Visible interactive Chrome is supported only through a Remote SSH
-loopback X11 display. It also includes `Xvfb` for tools that need a virtual X11
+certificates. Visible interactive Chrome is supported through an authenticated SSH
+TCP X11 display. It also includes `Xvfb` for tools that need a virtual X11
 display without a host UI. Start visible Chrome from inside the container when a
 resource is only reachable from that runtime context:
 
@@ -750,27 +757,41 @@ resource is only reachable from that runtime context:
 chrome https://example.test
 ```
 
-The visible command does not start VNC or noVNC, and it validates display
-transport before starting Google Chrome. It accepts only
-`DISPLAY=localhost:N[.screen]` or `127.0.0.1:N[.screen]` from Remote SSH X11
-forwarding. Local `DISPLAY=:N`, arbitrary non-loopback X11 hosts, and Wayland are
-not supported visible transports. The shared Compose configuration does not
-mount host display sockets.
+The visible command accepts `DISPLAY=hostname:N[.screen]` or an IPv4 address,
+including `localhost` and `127.0.0.1`. Local `:N`, `unix:N`, IPv6 displays, and
+Wayland are not supported visible transports.
 
-VS Code SSH reconnects can allocate a new loopback display number while reusing
-an existing container. Each initialize run atomically refreshes the opened
-checkout's `.devcontainer/.env` and ignored `.devcontainer/.Xauthority.gen`.
-The launcher rereads those files on every visible start, probes
-`DISPLAY=localhost:N.0` or `127.0.0.1:N.0` with a short `xdpyinfo` check, and, if
-needed, normalizes only the requested display's matching `/unix:N` cookie into a
-private temporary authority file. It exits before Google Chrome starts when the
-display is missing, stale, unreachable, or unauthorized. Directly opened
-worktrees keep independent generated display state, Xauthority files, and
-`.chrome` profiles. The default isolated network cannot reach the host-loopback
-X11 listener; refreshing authority state alone does not provide that transport.
-Use `chrome --headless ...` for automation when
-no supported visible session is available; broad host access such as `xhost +`
-is neither required nor recommended.
+During host-side initialization, `initialize.sh` derives TCP display addresses
+from the server IPv4 address in the third field of `SSH_CONNECTION`. For example,
+`DISPLAY=ssh-host:11.0` and an SSH server address of `10.77.0.5` produce
+`DEVCONTAINER_DISPLAY=10.77.0.5:11.0`. These are examples, not configured defaults.
+The display number and optional screen suffix are preserved exactly; the host's
+original `DISPLAY` is untouched. Missing inputs, local displays, or unsupported
+SSH server address forms preserve the original value. There is no hostname/IP
+guessing or display allocation in the kit.
+
+The SSH X11 listener must already accept connections on the selected server
+address from the bridge network. Replacing an address does not make a listener
+bound only to host loopback reachable. The kit does not change SSH/firewall
+configuration or add a proxy. The initializer logs `status=display_derived
+ssh_connection=present` and the selected display, or `status=display_preserved`
+with an availability/reason field. Check this in the actual VS Code initialize
+log when diagnosing missing SSH context; no cookies or full environment are logged.
+
+VS Code SSH reconnects can allocate a new display number while reusing an existing
+container. Each initialize run atomically refreshes the opened checkout's
+`.devcontainer/.env` and ignored `.devcontainer/.Xauthority.gen`. The launcher
+rereads those files on every visible start and performs a short `xdpyinfo`
+reachability/authentication check. If needed, it normalizes only the requested
+display number's matching `/unix:N` cookie for the requested destination in a
+unique mode-`0600` temporary authority file. It exits before Google Chrome starts
+when the display is missing, stale, unreachable, or unauthorized.
+
+Parallel projects and directly opened worktrees keep independent generated
+display state, authority copies, and `.chrome` profiles. Use separate checkout
+directories: containers sharing one checkout also share those files. Use
+`chrome --headless ...` for automation when no supported visible session is
+available; broad host access such as `xhost +` is neither required nor recommended.
 
 Plain visible `chrome` uses `$DEVCONTAINER_WORKSPACE_FOLDER/.chrome` unless the
 caller passes an explicit `--user-data-dir`. Visible Chrome also disables

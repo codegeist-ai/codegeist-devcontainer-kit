@@ -2,15 +2,15 @@
 # chrome.sh - start Chrome through Remote SSH X11 or in headless mode
 #
 # Why this exists:
-# - Plain `chrome` opens an interactive browser through a verified Remote SSH
-#   loopback X11 display and uses a workspace-local profile by default.
+# - Plain `chrome` opens an interactive browser through a verified SSH TCP X11
+#   display and uses a workspace-local profile by default.
 # - The launcher rereads generated display state on every visible start so an
 #   existing container recovers after VS Code reconnects with a new display.
 # - `chrome --headless` remains display-independent for deterministic automation.
 #
 # Inputs:
-# - Visible mode accepts `DISPLAY=localhost:N[.screen]` or
-#   `DISPLAY=127.0.0.1:N[.screen]` plus a matching generated Xauthority file.
+# - Visible mode accepts `DISPLAY=hostname:N[.screen]` or an IPv4 address,
+#   including loopback, plus a matching generated Xauthority file.
 # - `DEVCONTAINER_WORKSPACE_FOLDER` identifies reconnect-refreshed `.env` state
 #   and the default `.chrome` profile.
 #
@@ -19,6 +19,7 @@
 # - ../docker-compose.yml
 # - ../tests/chrome-launcher.sh
 # - ../tests/browser-smoke.sh
+# - ../README.md#browser-support
 
 set -euo pipefail
 
@@ -38,12 +39,14 @@ Usage: chrome [--headless] [chrome-args...]
 Starts Google Chrome with devcontainer-safe defaults.
 
 Modes:
-  default      Start visible Chrome through Remote SSH loopback X11.
+  default      Start visible Chrome through SSH TCP X11.
   --headless   Start headless Chrome for tests and automation.
 
-Visible mode requires DISPLAY=localhost:N[.screen] or 127.0.0.1:N[.screen].
+Visible mode requires DISPLAY=hostname:N[.screen] or an IPv4 address.
+Local :N, unix:N, and IPv6 displays are unsupported. initialize.sh derives
+the destination from SSH_CONNECTION when its server address is IPv4.
 The launcher probes the display with xdpyinfo and, when required, normalizes
-only its matching /unix:N Xauthority cookie into a private temporary file.
+only its matching /unix:N cookie for the requested address in a private file.
 DISPLAY and XAUTHORITY are refreshed from the current workspace's
 .devcontainer/.env on every launch, including after VS Code SSH reconnects.
 Plain `chrome` uses $DEVCONTAINER_WORKSPACE_FOLDER/.chrome unless the caller
@@ -139,19 +142,16 @@ probe_x11_display() {
 }
 
 create_normalized_xauthority() {
-  local display_number="$1"
+  local requested_display="$1"
   local cookie="$2"
   local normalized_xauthority=""
 
   normalized_xauthority="$(mktemp /tmp/chrome-xauthority.XXXXXX)"
   chmod 600 "$normalized_xauthority"
 
-  # Keep only aliases for the requested display. Copying the source file could
-  # expose cookies belonging to another parallel SSH or VS Code session.
-  if ! xauth -f "$normalized_xauthority" add "localhost:${display_number}" MIT-MAGIC-COOKIE-1 "$cookie" >/dev/null 2>&1 \
-    || ! xauth -f "$normalized_xauthority" add "localhost:${display_number}.0" MIT-MAGIC-COOKIE-1 "$cookie" >/dev/null 2>&1 \
-    || ! xauth -f "$normalized_xauthority" add "127.0.0.1:${display_number}" MIT-MAGIC-COOKIE-1 "$cookie" >/dev/null 2>&1 \
-    || ! xauth -f "$normalized_xauthority" add "127.0.0.1:${display_number}.0" MIT-MAGIC-COOKIE-1 "$cookie" >/dev/null 2>&1; then
+  # Scope recovery to the requested address/display. xauth ignores the screen
+  # suffix; no other aliases or parallel sessions' cookies belong in this file.
+  if ! xauth -f "$normalized_xauthority" add "$requested_display" MIT-MAGIC-COOKIE-1 "$cookie" >/dev/null 2>&1; then
     rm -f "$normalized_xauthority"
     return 1
   fi
@@ -160,11 +160,10 @@ create_normalized_xauthority() {
 
 try_normalized_ssh_display() {
   local requested_display="$1"
-  local display_number="$2"
-  local cookie="$3"
+  local cookie="$2"
   local candidate_xauthority=""
 
-  candidate_xauthority="$(create_normalized_xauthority "$display_number" "$cookie")" || return 1
+  candidate_xauthority="$(create_normalized_xauthority "$requested_display" "$cookie")" || return 1
   tested_ssh_displays+=("$requested_display")
   if probe_x11_display "$requested_display" "$candidate_xauthority"; then
     export DISPLAY="$requested_display"
@@ -208,7 +207,7 @@ resolve_ssh_x11() {
     [ "$candidate_number" = "$requested_number" ] || continue
     [ "$authority_family" = "MIT-MAGIC-COOKIE-1" ] || continue
     [[ "$authority_cookie" =~ ^[[:xdigit:]]+$ ]] || continue
-    if try_normalized_ssh_display "$requested_display" "$candidate_number" "$authority_cookie"; then
+    if try_normalized_ssh_display "$requested_display" "$authority_cookie"; then
       return 0
     fi
   done < <(xauth -f "$authority_file" list 2>/dev/null)
@@ -221,7 +220,8 @@ resolve_visible_display() {
   local display_value="${DISPLAY:-}"
 
   x11_error=""
-  if [[ "$display_value" =~ ^(localhost|127\.0\.0\.1):([0-9]+)(\.[0-9]+)?$ ]]; then
+  if [[ "$display_value" != unix:* \
+    && "$display_value" =~ ^([A-Za-z0-9][A-Za-z0-9.-]*):([0-9]+)(\.[0-9]+)?$ ]]; then
     resolve_ssh_x11 "$display_value" "${BASH_REMATCH[2]}"
     return
   fi
@@ -229,14 +229,14 @@ resolve_visible_display() {
   if [ -z "$display_value" ]; then
     x11_error="DISPLAY is not set."
   else
-    x11_error="DISPLAY=$display_value is not a supported Remote SSH loopback X11 value."
+    x11_error="DISPLAY=$display_value is not a supported TCP X11 value (hostname or IPv4)."
   fi
   return 1
 }
 
 report_unusable_visible_display() {
   cat >&2 <<EOF
-Chrome needs usable Remote SSH loopback X11.
+Chrome needs usable SSH TCP X11 (hostname or IPv4).
 
 $x11_error
 SSH X11 candidates tested: ${tested_ssh_displays[*]:-none}

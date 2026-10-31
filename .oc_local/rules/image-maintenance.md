@@ -12,3 +12,6 @@
   kernel-header findings from installed executable components.
 - Keep unfixed findings visible in review reports. Do not add a blanket severity
   gate that contradicts this remediation policy.
+- OpenCode can install npm dependencies after image creation. Assess those from
+  generated lockfiles or installed packages; an image-only scan does not cover
+  runtime downloads. T037 owns adding their required pre-release verification.

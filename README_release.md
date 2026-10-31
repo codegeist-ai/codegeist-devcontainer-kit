@@ -288,6 +288,49 @@ download or transcription failure preserves the finalized WAV and reports the
 disappears before insertion, the finalized WAV and TXT remain available and the
 recorder retains the same diagnostic log.
 
+## OpenCode HTTP Logging
+
+`entrypoint.sh` starts one `mitmdump` forward proxy at `127.0.0.1:18080` for the
+container lifetime. All `oc` panes share it; closing a pane leaves it running.
+The image installs mitmproxy 12.3.1 in an isolated Python environment.
+
+`oc` sets `HTTP_PROXY`, `HTTPS_PROXY`, and their lowercase equivalents for
+OpenCode and its children. Existing `NO_PROXY`/`no_proxy` exclusions are extended
+with `localhost,127.0.0.1,::1` so local OpenCode connections stay direct. The proxy
+connects directly upstream and replaces existing HTTP proxy settings for `oc`.
+
+Mitmproxy generates its own CA in the private mode-`0700`
+`$DEVCONTAINER_WORKSPACE_FOLDER/.tmp/opencode-http/` directory and reuses it while
+present. `oc` points `NODE_EXTRA_CA_CERTS`, `SSL_CERT_FILE`, `CURL_CA_BUNDLE`,
+`REQUESTS_CA_BUNDLE`, and `GIT_SSL_CAINFO` directly at `mitmproxy-ca-cert.pem`.
+The kit does not generate certificates or merge CA bundles. TLS verification
+remains enabled, and system trust is unchanged. Private upstream CAs use
+mitmproxy's native `config.yaml` in that directory; clients bypassing the proxy
+may need their own CA settings. All proxy state is disposable with `.tmp/`.
+No CA private key ships in the image. Startup checks the CA file and listener;
+a proxy that exits just after opening its port can pass this readiness check.
+`event=oc_http` diagnostics point to `.tmp/opencode-http/proxy.log`.
+
+`scripts/opencode-http-log.py` appends `http_request` and matching
+`http_response`/`http_error` records to `.tmp/opencode-http.jsonl`, correlated by
+`request_id`. Fields include `time`, `method`, `scheme`, `host`, `port`, `path`,
+`status`, and `duration_ms`. Bodies stream immediately; duration includes stream
+completion. Failures before HTTP headers may only appear in the proxy diagnostic
+log. Query strings, headers, cookies, bodies, and raw error text are excluded
+from JSONL. Paths can still contain sensitive data. New logs use mode `0600` and
+have no automatic rotation. The separate shell-start log contains full arguments.
+
+Inspect completed requests with:
+
+```bash
+jq -c 'select(.event == "http_response") | {method, host, path, status, duration_ms}' \
+  .tmp/opencode-http.jsonl
+```
+
+Coverage depends on clients honoring proxy/trust variables. Independent browsers
+and daemons such as Docker are not covered. Direct `opencode` starts do not set
+these variables. Rebuild the container and start a new `oc` pane to use this setup.
+
 ## SSH Microphone Forwarding
 
 VS Code Remote SSH does not forward microphone audio. A local Linux client that

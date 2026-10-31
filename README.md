@@ -607,6 +607,49 @@ download or transcription failure preserves the finalized WAV and reports the
 disappears before insertion, the finalized WAV and TXT remain available and the
 recorder retains the same diagnostic log.
 
+## OpenCode HTTP Logging
+
+`entrypoint.sh` starts one `mitmdump` forward proxy at `127.0.0.1:18080` for the
+container lifetime. All `oc` panes share it; closing a pane leaves it running.
+The image installs mitmproxy 12.3.1 in an isolated Python environment.
+
+`oc` sets `HTTP_PROXY`, `HTTPS_PROXY`, and their lowercase equivalents for
+OpenCode and its children. Existing `NO_PROXY`/`no_proxy` exclusions are extended
+with `localhost,127.0.0.1,::1` so local OpenCode connections stay direct. The proxy
+connects directly upstream and replaces existing HTTP proxy settings for `oc`.
+
+Mitmproxy generates its own CA in the private mode-`0700`
+`$DEVCONTAINER_WORKSPACE_FOLDER/.tmp/opencode-http/` directory and reuses it while
+present. `oc` points `NODE_EXTRA_CA_CERTS`, `SSL_CERT_FILE`, `CURL_CA_BUNDLE`,
+`REQUESTS_CA_BUNDLE`, and `GIT_SSL_CAINFO` directly at `mitmproxy-ca-cert.pem`.
+The kit does not generate certificates or merge CA bundles. TLS verification
+remains enabled, and system trust is unchanged. Private upstream CAs use
+mitmproxy's native `config.yaml` in that directory; clients bypassing the proxy
+may need their own CA settings. All proxy state is disposable with `.tmp/`.
+No CA private key ships in the image. Startup checks the CA file and listener;
+a proxy that exits just after opening its port can pass this readiness check.
+`event=oc_http` diagnostics point to `.tmp/opencode-http/proxy.log`.
+
+`scripts/opencode-http-log.py` appends `http_request` and matching
+`http_response`/`http_error` records to `.tmp/opencode-http.jsonl`, correlated by
+`request_id`. Fields include `time`, `method`, `scheme`, `host`, `port`, `path`,
+`status`, and `duration_ms`. Bodies stream immediately; duration includes stream
+completion. Failures before HTTP headers may only appear in the proxy diagnostic
+log. Query strings, headers, cookies, bodies, and raw error text are excluded
+from JSONL. Paths can still contain sensitive data. New logs use mode `0600` and
+have no automatic rotation. The separate shell-start log contains full arguments.
+
+Inspect completed requests with:
+
+```bash
+jq -c 'select(.event == "http_response") | {method, host, path, status, duration_ms}' \
+  .tmp/opencode-http.jsonl
+```
+
+Coverage depends on clients honoring proxy/trust variables. Independent browsers
+and daemons such as Docker are not covered. Direct `opencode` starts do not set
+these variables. Rebuild the container and start a new `oc` pane to use this setup.
+
 ## SSH Microphone Forwarding
 
 VS Code Remote SSH does not forward microphone audio. A local Linux client that
@@ -1105,36 +1148,42 @@ scan an already-built `codegeist-devcontainer-kit:local` image independently.
 Do not replace real dependencies with fakes or add weaker tests solely to make
 the suite runnable in CI.
 
-Stage the current worktree, including uncommitted changes, in the exact runtime
-release layout and exercise it as a temporary consuming repository:
+Try the current worktree, including uncommitted changes, in the exact runtime
+release layout through a temporary consuming repository:
 
 ```bash
-task test:release-build -- .tmp/current-release
-task devcontainer-reality-test -- .tmp/current-release
+task devcontainer:try
 ```
 
-The first task replaces the selected directory below `.tmp/` with the runtime
-allowlist and release filename mappings. It does not require a clean branch,
-verification attestation, commit, or release-branch update. The second task
-requires that staged release, builds and verifies it through the Dev Containers
-CLI, and opens Bash in the fixture container with the fixture root selected as
-its workspace. Run both steps with one command when preferred:
+This stages the runtime under `.tmp/current-release`, builds and verifies it
+through the Dev Containers CLI, and opens Bash in the fixture container. Its
+workspace is the temporary consuming repository. Exit Bash to return from the
+task; the fixture and running container remain available for inspection.
+
+The two steps are also available separately:
 
 ```bash
-task test:release-build:reality
+task devcontainer:stage
+task devcontainer:try-staged
 ```
 
-Exit that Bash to return from the task. The fixture and running container remain
-available afterward for further inspection.
+All three tasks default to `.tmp/current-release`. Pass another directory after
+`--` to select a different staged tree, for example:
 
-The combined task defaults to `.tmp/current-release`. Pass another directory
-below `.tmp/` after `--` when a separate staged release is needed.
+```bash
+task devcontainer:try -- .tmp/my-test
+```
+
+`devcontainer:stage` replaces the selected directory below `.tmp/` with the
+runtime allowlist and filename mappings. It does not require a clean branch,
+verification attestation, commit, or release-branch update. `devcontainer:try-staged`
+requires that prepared tree and uses it without staging the source again.
 
 Update the runtime-only `release` branch when consuming repositories should pin
 the kit as a stable `.devcontainer` submodule branch:
 
 ```bash
-task release-build
+task release:update
 ```
 
 The release task must run from a clean `main` checkout. The first run creates an
@@ -1143,10 +1192,10 @@ Containers runtime. Later runs update the same runtime-only branch. Add `--push`
 to push the branch after it is updated locally:
 
 ```bash
-task release-build -- --push
+task release:update -- --push
 ```
 
-`task release-build` requires a commit-bound verification written only after
+`task release:update` requires a commit-bound verification written only after
 `task tests-run` completes. This prevents a runtime release from being created
 without the isolated-network suite passing on the exact commit being released.
 
@@ -1176,6 +1225,7 @@ cmds/oc
 cmds/oc-record
 scripts/chrome.sh
 scripts/opencode-bash.sh
+scripts/opencode-http-log.py
 scripts/worktree.sh
 ```
 
@@ -1546,6 +1596,8 @@ Expected target layout when consumed as a subtree at `.devcontainer/`:
     oc
   scripts/
     chrome.sh
+    opencode-bash.sh
+    opencode-http-log.py
     worktree.sh
   .local.env.example
   compose.local.yml.example
@@ -1653,22 +1705,22 @@ does not link or synchronize this state between worktrees. The actual checked-ou
 branch still determines the branch-aware Compose project name and hostname, so
 parallel directly opened worktrees use separate containers and runtime state.
 
-## Devcontainer Reality Test
+## Try The Current Devcontainer
 
-Use the manual reality workflow to stage the current source worktree in its exact
+Use the manual try workflow to stage the current source worktree in its exact
 runtime release layout and verify that tree through a temporary consuming
 repository. The staged output may include uncommitted changes and does not alter
 the real `release` branch.
 
 ```bash
-task test:release-build:reality
+task devcontainer:try
 ```
 
-`test:release-build` replaces only an explicitly selected directory below
-`.tmp/`. `devcontainer-reality-test` requires that directory after `--`, copies
-it into the fixture's `.devcontainer/`, and opens that checkout directly.
-The combined task uses `.tmp/current-release` by default and accepts an optional
-replacement path after `--`.
+The individual steps are `devcontainer:stage` and `devcontainer:try-staged`.
+All three tasks use `.tmp/current-release` by default and accept an optional
+directory after `--`. Staging replaces that directory and is restricted to paths
+below `.tmp/`. Trying a staged tree requires it to exist already, copies it into
+the fixture's `.devcontainer/`, and opens that checkout directly.
 
 After verification, the task opens Bash in the temporary container with the
 fixture root as its workspace. Exit that shell to return from the task. The

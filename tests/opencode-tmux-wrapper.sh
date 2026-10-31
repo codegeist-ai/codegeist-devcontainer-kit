@@ -8,6 +8,10 @@
 # - OpenCode's OSC 52 copy path requires tmux to accept application-originated
 #   clipboard updates instead of its default external-only behavior.
 # - The same wrapper must register both microphone recorder shortcuts.
+# - Both paths use the same container proxy, which survives pane closure.
+#   OpenCode capture isolates argv/OSC 52 behavior; real
+#   HTTP/TLS/streaming and OpenCode traffic are covered in opencode-http.py.
+# - Repeated entrypoint calls (the Dev Containers postStart path) reuse it too.
 #
 # Related files:
 # - ../cmds/oc
@@ -40,12 +44,26 @@ attached_pid=""
 [ "$(command -v oc)" = "/usr/local/bin/oc" ] \
   || fail "oc is not installed globally at /usr/local/bin/oc"
 
+proxy_pid="$(pgrep -x mitmdump)"
+/usr/local/bin/devcontainer-entrypoint true
+[ "$(pgrep -x mitmdump)" = "$proxy_pid" ] || fail "postStart replaced the shared proxy"
+
 mkdir -p "$fake_bin"
 chmod 700 "$tmux_tmp_dir"
 
 cat >"$fake_bin/opencode" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
+
+python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+names = ("HTTPS_PROXY", "HTTP_PROXY", "https_proxy", "http_proxy", "NO_PROXY", "no_proxy",
+         "NODE_EXTRA_CA_CERTS", "SSL_CERT_FILE", "CURL_CA_BUNDLE", "REQUESTS_CA_BUNDLE", "GIT_SSL_CAINFO")
+Path(os.environ["OPENCODE_CAPTURE"] + ".proxy").write_text(
+    json.dumps({name: os.environ[name] for name in names}))
+PY
 
 {
   printf 'PWD=%s\n' "$PWD"
@@ -97,6 +115,31 @@ assert_recorder_bindings() {
     || fail "oc did not bind Alt + R to the microphone recorder"
 }
 
+# Verify the actual pane environment, not just the launch command's text.
+assert_proxy() {
+  wait_for_file "$1.proxy"
+  python3 - "$1.proxy" <<'PY'
+import json
+from pathlib import Path
+import socket
+import sys
+from urllib.parse import urlsplit
+state = json.loads(Path(sys.argv[1]).read_text())
+endpoint = urlsplit(state["HTTPS_PROXY"])
+assert state["HTTPS_PROXY"] == "http://127.0.0.1:18080", state
+assert all(state[name] == state["HTTPS_PROXY"] for name in ("HTTP_PROXY", "https_proxy", "http_proxy"))
+assert state["NO_PROXY"] == state["no_proxy"]
+assert "localhost" in state["NO_PROXY"] and "127.0.0.1" in state["NO_PROXY"]
+assert "existing-bypass.test" in state["NO_PROXY"], state
+assert Path(state["NODE_EXTRA_CA_CERTS"]).is_file(), state
+assert Path(state["NODE_EXTRA_CA_CERTS"]).name == "mitmproxy-ca-cert.pem", state
+assert all(state[name] == state["NODE_EXTRA_CA_CERTS"] for name in
+           ("SSL_CERT_FILE", "CURL_CA_BUNDLE", "REQUESTS_CA_BUNDLE", "GIT_SSL_CAINFO"))
+with socket.create_connection((endpoint.hostname, endpoint.port), timeout=2):
+    pass
+PY
+}
+
 tmux_cmd() {
   TMUX="" TMUX_TMPDIR="$tmux_tmp_dir" tmux "$@"
 }
@@ -126,6 +169,7 @@ cleanup() {
 }
 
 trap cleanup EXIT
+export NO_PROXY=existing-bypass.test
 
 # Outside tmux, `oc` attaches to a new session. `script` supplies the PTY while
 # this test controls the isolated server through separate tmux client commands.
@@ -147,10 +191,12 @@ wait_for_file "$outside_capture"
 assert_capture "$outside_capture"
 assert_clipboard
 assert_recorder_bindings
+assert_proxy "$outside_capture"
 
 tmux_cmd kill-server
 wait "$attached_pid" 2>/dev/null || true
 attached_pid=""
+assert_proxy "$outside_capture"
 
 # A process launched in an existing session receives TMUX from the server. The
 # wrapper should add one OpenCode window while the original control window stays.
@@ -172,5 +218,10 @@ done
 assert_capture "$inside_capture"
 assert_clipboard
 assert_recorder_bindings
+assert_proxy "$inside_capture"
+tmux_cmd kill-server
+assert_proxy "$inside_capture"
+cmp "$outside_capture.proxy" "$inside_capture.proxy" \
+  || fail "oc panes did not share the container proxy and mitmproxy CA"
 
-pass "oc preserves arguments and configures clipboard and recording in tmux"
+pass "oc preserves arguments, clipboard, and recording while sharing one container proxy"

@@ -11,7 +11,8 @@
 # - Opens Bash in the verified container and leaves the fixture available afterward.
 #
 # Inputs:
-# - DEVCONTAINER_TEST_RELEASE_DIR must select a staged runtime release tree.
+# - DEVCONTAINER_TEST_RELEASE_DIR selects a staged runtime tree; the
+#   devcontainer:try-staged task supplies .tmp/current-release by default.
 # - KEEP_REALITY_FIXTURE_DIR can select an empty fixture directory instead of a
 #   newly allocated operating-system temporary directory.
 #
@@ -30,7 +31,7 @@ script_dir="$(dirname "$(readlink -f "$0")")"
 # shellcheck source=./helpers.sh
 source "$script_dir/helpers.sh"
 
-fixture_dir="${KEEP_REALITY_FIXTURE_DIR:-$(mktemp -d -t devcontainer-reality-XXXXXX)}"
+fixture_dir=""
 requested_release_dir="${DEVCONTAINER_TEST_RELEASE_DIR:-}"
 release_dir=""
 remote_workspace_folder=""
@@ -80,16 +81,17 @@ EOF
 }
 
 [ -n "$requested_release_dir" ] \
-  || fail "pass the staged release directory after --"
+  || fail "DEVCONTAINER_TEST_RELEASE_DIR is required; use task devcontainer:try"
 case "$requested_release_dir" in
   /*) release_dir="$(realpath -m "$requested_release_dir")" ;;
   *) release_dir="$(realpath -m "$project_root/$requested_release_dir")" ;;
 esac
 [ -f "$release_dir/devcontainer.json" ] \
-  || fail "staged release is missing devcontainer.json: $release_dir"
+  || fail "staged runtime is missing devcontainer.json: $release_dir; prepare it with task devcontainer:stage"
 [ -f "$release_dir/Dockerfile" ] \
-  || fail "staged release is missing Dockerfile: $release_dir"
+  || fail "staged runtime is missing Dockerfile: $release_dir; prepare it with task devcontainer:stage"
 
+fixture_dir="${KEEP_REALITY_FIXTURE_DIR:-$(mktemp -d -t devcontainer-reality-XXXXXX)}"
 if [ -e "$fixture_dir" ] && [ -n "$(ls -A "$fixture_dir" 2>/dev/null)" ]; then
   fail "fixture directory is not empty: $fixture_dir"
 fi

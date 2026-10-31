@@ -8,7 +8,7 @@ repository.
 - Prefer the local `/release-build` command from `.oc_local/commands/` for
   release branch work.
 - The release command must use the repo task entrypoint:
-  `task release-build -- release --push`.
+  `task release:update -- release --push`.
 - The release artifact is the orphan `release` branch, not a version tag.
 - After the release branch is pushed, update the parent checkout's
   `.devcontainer` submodule to `origin/release` so the gitlink is ready for a
@@ -34,7 +34,7 @@ repository.
   `suite-isolated-network=passed`; release creation must fail otherwise. Host SSH
   X11 and microphone forwarding are not release prerequisites.
 - Run `tests/release-build.sh` before updating the release branch.
-- After `task release-build -- release --push`, verify `origin/release` exists.
+- After `task release:update -- release --push`, verify `origin/release` exists.
 - Verify the `release` branch tree contains only runtime files.
 - Fetch `origin/release` in `.devcontainer`, check it out there, and verify the
   submodule commit matches the release branch.

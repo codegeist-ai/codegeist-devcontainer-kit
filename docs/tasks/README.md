@@ -4,6 +4,9 @@ This directory stores lightweight, resumable task handoff files for this
 repository. GitHub Issues are the public discussion and tracking entrypoint;
 local task files retain implementation detail that is useful across sessions.
 
+See [OVERVIEW.md](OVERVIEW.md) for unfinished tasks and their recorded dependencies
+and blockers. Individual task files remain authoritative.
+
 GitHub Mirror: https://github.com/codegeist-ai/codegeist-devcontainer-kit
 
 ## Conventions

@@ -9,6 +9,9 @@
 #   and is passed as DEVCONTAINER_WORKSPACE_FOLDER for entrypoint setup.
 # - COMMAND selects the docker-run command, defaulting to devcontainer up.
 # - CONTAINER_* values can align the image user with the caller.
+# - devcontainer:try, :stage, and :try-staged accept a directory after --,
+#   defaulting to .tmp/current-release. Staging replaces that disposable tree.
+# - release:update accepts an optional branch name and --push.
 #
 # Related files:
 # - Dockerfile.base
@@ -26,6 +29,7 @@ version: '3'
 
 vars:
   IMAGE: codegeist-devcontainer-kit:local
+  TEST_RELEASE_DIR: '{{default ".tmp/current-release" (join " " .CLI_ARGS_LIST)}}'
   WORKSPACE:
     sh: printf '%s' "${WORKSPACE:-$PWD}"
   COMMAND:
@@ -101,36 +105,34 @@ tasks:
     cmds:
       - '{{.TASKFILE_DIR}}/tests/run.sh'
 
-  devcontainer-reality-test:
-    desc: Verify a staged test release and open its container Bash
+  devcontainer:try-staged:
+    desc: Verify staged runtime and open container Bash (default .tmp/current-release)
     env:
-      DEVCONTAINER_TEST_RELEASE_DIR: '{{default .CLI_ARGS .TEST_RELEASE_DIR}}'
+      DEVCONTAINER_TEST_RELEASE_DIR: '{{.TEST_RELEASE_DIR}}'
     cmds:
-      - '{{.TASKFILE_DIR}}/tests/devcontainer-reality-test.sh'
+      - '"{{.TASKFILE_DIR}}/tests/devcontainer-reality-test.sh"'
 
-  test:release-build:
-    desc: Stage the current worktree as a disposable runtime release
+  devcontainer:stage:
+    desc: Copy current runtime files to a staging directory (default .tmp/current-release)
     env:
-      RUNTIME_TREE_OUTPUT_DIR: '{{default .CLI_ARGS .TEST_RELEASE_DIR}}'
+      RUNTIME_TREE_OUTPUT_DIR: '{{.TEST_RELEASE_DIR}}'
       RUNTIME_TREE_REPLACE: 'true'
     cmds:
       - '"{{.TASKFILE_DIR}}/scripts/stage-runtime-tree.sh"'
 
-  test:release-build:reality:
+  devcontainer:try:
     # When invoked inside the parent devcontainer, the reality and worktree
     # containers use its nested Docker daemon, not the SSH host Docker daemon.
-    desc: Stage a test release, verify it, and open its container Bash
-    vars:
-      TEST_RELEASE_DIR: '{{default ".tmp/current-release" .CLI_ARGS}}'
+    desc: Stage current runtime, build and verify a temporary container, then open Bash
     cmds:
-      - task: test:release-build
+      - task: devcontainer:stage
         vars:
           TEST_RELEASE_DIR: '{{.TEST_RELEASE_DIR}}'
-      - task: devcontainer-reality-test
+      - task: devcontainer:try-staged
         vars:
           TEST_RELEASE_DIR: '{{.TEST_RELEASE_DIR}}'
 
-  release-build:
+  release:update:
     desc: Update the runtime-only devcontainer release branch
     cmds:
-      - '{{.TASKFILE_DIR}}/scripts/release-build.sh {{.CLI_ARGS}}'
+      - '"{{.TASKFILE_DIR}}/scripts/release-build.sh" {{.CLI_ARGS}}'

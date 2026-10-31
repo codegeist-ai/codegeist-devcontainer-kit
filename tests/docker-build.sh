@@ -40,6 +40,7 @@ docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc '
   code --version >/dev/null
   python3 -c "import graphify, lxml_html_clean, trafilatura"
   ddgr --version >/dev/null
+  mitmdump --version >/dev/null
   ssh-audit -h >/dev/null
   qemu-system-x86_64 --version >/dev/null
 '
@@ -146,15 +147,41 @@ docker run --rm --entrypoint sh codegeist-devcontainer-kit:local -lc \
   '
 docker run --rm --entrypoint bash codegeist-devcontainer-kit:local -ic \
   '_completion_loader task >/dev/null 2>&1; status="$?"; { [ "$status" -eq 0 ] || [ "$status" -eq 124 ]; } && complete -p task | grep -F "complete -F _task task" >/dev/null'
-docker run --rm \
-  --entrypoint bash \
+# Exercise the normal entrypoint with mitmproxy's native upstream CA settings
+# for the local TLS origin. Both tmux paths and real clients share its listener.
+oc_workspace="$suite_tmp_dir/opencode-workspace"
+mkdir -p "$oc_workspace/.tmp/opencode-http"
+openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=oc-http-test \
+  -addext subjectAltName=IP:127.0.0.2 \
+  -keyout "$oc_workspace/origin.key" -out "$oc_workspace/origin.pem" >/dev/null 2>&1
+cat >"$oc_workspace/.tmp/opencode-http/config.yaml" <<EOF
+ssl_verify_upstream_trusted_ca: "$oc_workspace/origin.pem"
+ssl_verify_upstream_trusted_confdir: /etc/ssl/certs
+EOF
+docker run --rm --privileged \
+  -e "DEVCONTAINER_WORKSPACE_FOLDER=$oc_workspace" \
   -e "DEVCONTAINER_PROJECT_ROOT=$project_root" \
   -e "suite_tmp_dir=$suite_tmp_dir" \
   -e OC_SHELL_BIN=/usr/local/lib/oc-shell/bash \
   --mount "type=bind,src=$project_root,dst=$project_root" \
   -w "$project_root" \
   codegeist-devcontainer-kit:local \
-  -c 'tests/opencode-tmux-wrapper.sh && tests/opencode-bash.sh'
+  bash -c 'tests/opencode-tmux-wrapper.sh && tests/opencode-bash.sh && python3 tests/opencode-http.py "$suite_tmp_dir/opencode-tmux-wrapper/outside.capture.proxy"'
+
+# A separate container proves a log-open failure prevents startup rather than
+# accidentally reaching the already running listener from the previous test.
+failed_workspace="$suite_tmp_dir/opencode-invalid-log"
+mkdir -p "$failed_workspace/.tmp/opencode-http.jsonl"
+if docker run --rm --privileged \
+  -e "DEVCONTAINER_WORKSPACE_FOLDER=$failed_workspace" \
+  --mount "type=bind,src=$project_root,dst=$project_root" \
+  codegeist-devcontainer-kit:local touch "$failed_workspace/must-not-start" \
+  >"$failed_workspace/startup.log" 2>&1; then
+  fail "container startup ignored an unwritable HTTP log"
+fi
+[ ! -e "$failed_workspace/must-not-start" ] || fail "command ran despite proxy startup failure"
+grep -F 'IsADirectoryError' "$failed_workspace/.tmp/opencode-http/proxy.log" >/dev/null \
+  || fail "proxy failed for a reason other than opening its log"
 # Host-forwarded audio is not part of isolated-network acceptance. Retain the
 # recorder's missing-transport regression until its removal in T027.
 docker run --rm \

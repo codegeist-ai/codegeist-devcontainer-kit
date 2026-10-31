@@ -48,7 +48,7 @@ fail() {
 }
 
 usage() {
-  printf 'Usage: task release-build -- [release-branch] [--push]\n' >&2
+  printf 'Usage: task release:update -- [release-branch] [--push]\n' >&2
 }
 
 cleanup() {
@@ -92,7 +92,7 @@ git -C "$repo_root" check-ref-format --branch "$release_branch" >/dev/null \
   || fail "invalid release branch name: $release_branch"
 
 [ "$current_branch" = "main" ] \
-  || fail "release-build must run from main, current branch is $current_branch"
+  || fail "release:update must run from main, current branch is $current_branch"
 
 [ -z "$(git -C "$repo_root" status --porcelain)" ] \
   || fail "working tree must be clean"

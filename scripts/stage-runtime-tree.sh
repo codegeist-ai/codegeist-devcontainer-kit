@@ -61,6 +61,7 @@ runtime_files=(
   "initialize.sh"
   "scripts/chrome.sh"
   "scripts/opencode-bash.sh"
+  "scripts/opencode-http-log.py"
   "scripts/worktree.sh"
 )
 

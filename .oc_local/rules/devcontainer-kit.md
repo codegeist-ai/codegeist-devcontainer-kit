@@ -76,6 +76,20 @@ local override templates in this repository.
   invocation.
 - These assumptions do not apply to host-side scripts or optional tools that are
   explicitly intended to run outside the built devcontainer image.
+- Prefer a single lifecycle owner and a straight-line startup path. Add service
+  coordination, recovery, or supervision only for demonstrated requirements.
+
+## OpenCode HTTP Logging
+
+- Use one container-lifetime mitmdump listener at `127.0.0.1:18080`, shared by
+  `oc` panes. Set client proxy/trust variables through `oc`; keep proxy lifecycle
+  management out of individual panes.
+- Let mitmproxy generate and manage its CA. Point clients at its public CA file
+  directly instead of generating certificates or assembling custom CA bundles.
+- Keep HTTP logs metadata-only. Count logical requests by `request_id`, not
+  JSONL lines, and do not infer command completion or session ownership from
+  fields the logs do not contain. Proxy-variable coverage is not network
+  enforcement.
 
 ## Compose Overrides
 
@@ -103,12 +117,14 @@ local override templates in this repository.
 
 ## Display Forwarding
 
-- Use `task test:release-build:reality` for manual current-source verification;
+- Use `task devcontainer:try` for manual current-source verification;
   it defaults to `.tmp/current-release` and accepts an alternate path below
   `.tmp/` after `--`. It must stage the exact runtime release tree,
   test that tree in a directly opened temporary consumer, then open Bash by
   container ID with the fixture passed as `--workspace-folder`; do not add a
   parallel fake-CLI contract test for this manual helper.
+- `devcontainer:stage` and `devcontainer:try-staged` expose the individual steps
+  with the same default directory and optional path argument.
 - When the reality task runs inside the parent devcontainer, its containers use
   that parent's nested Docker daemon rather than the SSH host Docker daemon. It
   may bridge the caller's VS Code remote CLI and IPC socket into the fixture for
@@ -210,7 +226,7 @@ local override templates in this repository.
   so pending task work is committed, rebased, and synchronized on `main`.
 - After save, require a clean worktree, rerun `task tests-run`, run
   `tests/release-build.sh`, then publish with
-  `task release-build -- release --push`.
+  `task release:update -- release --push`.
 - Keep every generated release commit subject exactly
   `chore(release): update devcontainer runtime branch`. Its body must identify
   the full source commit and include the latest five source commit subjects as a

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# entrypoint.sh - start dockerd for the devcontainer, then run the requested command
+# entrypoint.sh - start container services, then run the requested command
 #
 # Why this exists:
 # - The devcontainer needs Docker tooling available inside the workspace.
@@ -9,14 +9,19 @@
 #   `.devcontainer/scripts/chrome.sh` do not require an image rebuild.
 # - The Dockerfile sets USER to the workspace user, so dockerd is started through
 #   passwordless sudo configured during image build.
+# - One mitmdump on 127.0.0.1:18080 serves every oc pane in this container.
+#   CA state lives in workspace .tmp/opencode-http; only oc sets proxy variables.
 #
 # Inputs:
 # - The requested container command from Docker, Compose, or Dev Containers CLI.
 # - CONTAINER_GROUP controls the dockerd socket group.
+# - DEVCONTAINER_WORKSPACE_FOLDER selects disposable proxy state and HTTP logs.
 #
 # Related files:
 # - Dockerfile.base
 # - Taskfile.yaml
+# - devcontainer.json (postStartCommand also invokes this entrypoint)
+# - cmds/oc, scripts/opencode-http-log.py, README.md#opencode-http-logging
 
 set -euo pipefail
 
@@ -111,10 +116,42 @@ ensure_docker_daemon() {
   return 1
 }
 
+# The image entrypoint and Dev Containers postStartCommand can overlap. Serialize
+# just this startup and reuse a ready proxy; the daemon does not inherit the lock.
+start_opencode_proxy() (
+  umask 077
+  proxy_dir="$DEVCONTAINER_WORKSPACE_FOLDER/.tmp/opencode-http"
+  install -d -m 0700 "$proxy_dir"
+  exec 9>"$proxy_dir/start.lock"
+  flock 9
+  if [ -s "$proxy_dir/mitmproxy-ca-cert.pem" ] && nc -z 127.0.0.1 18080; then
+    printf 'level=info event=oc_http status=reused proxy=http://127.0.0.1:18080\n' >&2
+    return 0
+  fi
+  printf 'level=info event=oc_http status=starting proxy=http://127.0.0.1:18080\n' >&2
+  PYTHONDONTWRITEBYTECODE=1 mitmdump --quiet \
+    --listen-host 127.0.0.1 --listen-port 18080 \
+    --set "confdir=$proxy_dir" \
+    --scripts /usr/local/lib/oc-http/opencode-http-log.py \
+    </dev/null >"$proxy_dir/proxy.log" 2>&1 9>&- &
+  proxy_pid="$!"
+  for _ in {1..100}; do
+    kill -0 "$proxy_pid" 2>/dev/null || break
+    if [ -s "$proxy_dir/mitmproxy-ca-cert.pem" ] && nc -z 127.0.0.1 18080; then
+      printf 'level=info event=oc_http status=ready proxy=http://127.0.0.1:18080\n' >&2
+      return 0
+    fi
+    sleep 0.1
+  done
+  printf 'level=error event=oc_http status=failed log=%s/proxy.log\n' "$proxy_dir" >&2
+  return 1
+)
+
 ensure_system_dbus
 prepend_workspace_scripts_path
 ensure_chrome_launcher
 ensure_docker_daemon
+start_opencode_proxy
 
 if [ "$#" -eq 0 ]; then
   set -- bash

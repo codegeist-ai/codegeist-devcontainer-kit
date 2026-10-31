@@ -7,6 +7,8 @@
 # - Exercises the real `scripts/release-build.sh` workflow from a bounded source
 #   input set in a cleanup-trapped OS temporary Git repository, so ignored local
 #   state is not copied and the current checkout is not changed.
+# - Covers the public devcontainer:stage defaults/path override and release:update
+#   task entrypoints while keeping release commits inside this disposable fixture.
 #
 # Related files:
 # - ../scripts/release-build.sh
@@ -25,7 +27,8 @@ release_repo="$test_tmp_dir/release-build-fixture"
 release_branch="release"
 expected_files="$test_tmp_dir/release-build-expected-files.txt"
 actual_files="$test_tmp_dir/release-build-actual-files.txt"
-staged_runtime="$release_repo/.tmp/staged-runtime"
+staged_runtime="$release_repo/.tmp/current-release"
+custom_runtime="$release_repo/.tmp/custom runtime"
 dirty_worktree_log="$test_tmp_dir/release-build-dirty-worktree.log"
 missing_verification_log="$test_tmp_dir/release-build-missing-verification.log"
 clean_readme="$test_tmp_dir/README_release.md"
@@ -40,6 +43,7 @@ release_source_files=(
   "Dockerfile.example"
   "LICENSE"
   "README_release.md"
+  "Taskfile.yaml"
   "Taskfile.runtime.yaml"
   "compose.local.yml.example"
   "devcontainer.json"
@@ -48,6 +52,7 @@ release_source_files=(
   "initialize.sh"
   "scripts/chrome.sh"
   "scripts/opencode-bash.sh"
+  "scripts/opencode-http-log.py"
   "scripts/stage-runtime-tree.sh"
   "scripts/worktree.sh"
   "scripts/release-build.sh"
@@ -72,16 +77,17 @@ release_subject="chore(release): update devcontainer runtime branch"
 
 mkdir -p "$staged_runtime"
 printf 'stale test release\n' >"$staged_runtime/stale.txt"
-(cd "$release_repo" && \
-  RUNTIME_TREE_OUTPUT_DIR=.tmp/staged-runtime \
-  RUNTIME_TREE_REPLACE=true \
-  scripts/stage-runtime-tree.sh) >/dev/null
+(cd "$release_repo" && task --silent devcontainer:stage) >/dev/null
 [[ ! -e "$staged_runtime/stale.txt" ]] \
   || fail "test release staging did not replace stale output"
 diff -u "$release_repo/Taskfile.runtime.yaml" "$staged_runtime/Taskfile.yaml" \
   || fail "test release staging did not map the runtime Taskfile"
 diff -u "$release_repo/README_release.md" "$staged_runtime/README.md" \
   || fail "test release staging did not map the runtime README"
+
+(cd "$release_repo" && task --silent devcontainer:stage -- '.tmp/custom runtime') >/dev/null
+diff -ru "$staged_runtime" "$custom_runtime" \
+  || fail "devcontainer:stage did not preserve an explicit directory with spaces"
 
 [[ "$(git -C "$release_repo" config --local --get commit.gpgSign)" = "false" ]] \
   || fail "fixture repository did not disable inherited commit signing"
@@ -90,14 +96,14 @@ diff -u "$release_repo/README_release.md" "$staged_runtime/README.md" \
 
 cp -p "$release_repo/README_release.md" "$clean_readme"
 printf '\nDirty worktree marker.\n' >>"$release_repo/README_release.md"
-if (cd "$release_repo" && scripts/release-build.sh) >"$dirty_worktree_log" 2>&1; then
+if (cd "$release_repo" && task --silent release:update) >"$dirty_worktree_log" 2>&1; then
   fail "release-build accepted an uncommitted source change"
 fi
 grep -F "working tree must be clean" "$dirty_worktree_log" >/dev/null \
   || fail "release-build did not explain the clean-worktree requirement"
 cp -p "$clean_readme" "$release_repo/README_release.md"
 
-if (cd "$release_repo" && scripts/release-build.sh) >"$missing_verification_log" 2>&1; then
+if (cd "$release_repo" && task --silent release:update) >"$missing_verification_log" 2>&1; then
   fail "release-build accepted a commit without full-suite verification"
 fi
 grep -F "release verification is missing or stale" "$missing_verification_log" >/dev/null \
@@ -109,7 +115,7 @@ commit=$main_commit
 suite-isolated-network=passed
 EOF
 
-(cd "$release_repo" && scripts/release-build.sh) >/dev/null
+(cd "$release_repo" && task --silent release:update) >/dev/null
 
 [[ "$(git -C "$release_repo" rev-parse --abbrev-ref HEAD)" = "main" ]] \
   || fail "release-build did not return to main"
@@ -142,6 +148,7 @@ entrypoint.sh
 initialize.sh
 scripts/chrome.sh
 scripts/opencode-bash.sh
+scripts/opencode-http-log.py
 scripts/worktree.sh
 EOF
 sort -o "$expected_files" "$expected_files"
@@ -198,7 +205,7 @@ commit=$second_main_commit
 suite-isolated-network=passed
 EOF
 
-(cd "$release_repo" && scripts/release-build.sh) >/dev/null
+(cd "$release_repo" && task --silent release:update) >/dev/null
 
 [[ "$(git -C "$release_repo" rev-list --parents -n 1 "$release_branch" | wc -w)" = "2" ]] \
   || fail "subsequent release branch commit does not retain release history"
@@ -218,4 +225,4 @@ Changelog:
 diff -u "$release_repo/README_release.md" <(git -C "$release_repo" show "$release_branch:README.md") \
   || fail "subsequent release branch README.md does not match README_release.md"
 
-pass "release-build creates exact runtime commits with stable traceable messages"
+pass "devcontainer:stage supports default/custom paths and release:update creates exact runtime commits"

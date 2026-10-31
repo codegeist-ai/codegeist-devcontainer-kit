@@ -8,7 +8,7 @@ the local `.devcontainer/` submodule checkout to the pushed release commit.
 Always execute @.opencode/commands/save.md first so pending task work is
 committed, rebased, and synchronized before the release branch is built. Only
 after that save workflow finishes successfully, use the existing
-`task release-build -- release --push` workflow. This repository publishes the
+`task release:update -- release --push` workflow. This repository publishes the
 runtime artifact through the `release` branch, not through SemVer or Git release
 tags.
 
@@ -24,7 +24,7 @@ Then:
 5. Run `tests/release-build.sh`.
 6. Confirm `tea login list` contains the Gitea login, repair its persistent Git
    integration with `tea login helper setup`, and run
-   `task release-build -- release --push`. The release script suppresses Askpass
+   `task release:update -- release --push`. The release script suppresses Askpass
    and uses only Tea's host-specific credential helper for the Gitea push.
 7. Verify the remote release branch exists with
    `GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=/bin/false SSH_ASKPASS=/bin/false git -c

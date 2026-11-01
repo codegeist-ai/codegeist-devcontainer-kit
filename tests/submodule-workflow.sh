@@ -55,6 +55,7 @@ HOME="$consumer_dir" devcontainer_cli up \
   --workspace-folder "$consumer_dir" | tee "$log_file"
 container_id="$(extract_container_id_from_log "$log_file" || true)"
 [[ -n "$container_id" ]] || fail "could not extract submodule-consumer container id"
+wait_for_check "Docker" docker exec -u "$(expected_container_user)" "$container_id" docker info
 [[ "$(extract_remote_workspace_folder_from_log "$log_file" || true)" = "$consumer_dir" ]] \
   || fail "submodule consumer did not open its current checkout"
 

@@ -7,6 +7,8 @@ Use this rule when making code, script, or workflow changes in this repository.
 - Run `task check` as the normal deterministic verification before handing off
   changes. It covers shell syntax and focused source-to-release contracts
   without Docker, QEMU, browser, or Dev Containers builds.
+- Invoke `bash -n` once per script; extra filenames are positional arguments,
+  not additional syntax-check targets.
 - Keep the focused release fixture in a cleanup-trapped OS temporary directory
   and copy only its explicit source inputs. `task check` must not create
   `.test-tmp/` or copy ignored workspace state, caches, profiles, or logs.
@@ -18,6 +20,12 @@ Use this rule when making code, script, or workflow changes in this repository.
 - When a test runs `docker compose` directly against a generated fixture from
   inside this repository's devcontainer, unset inherited `DEVCONTAINER_*`
   workspace values first so the fixture's generated `.env` remains authoritative.
+- Stage consuming fixtures and image-build contexts through
+  `scripts/stage-runtime-tree.sh` instead of copying the source checkout with an
+  expanding exclusion list.
+- Wait only for services a test actually exercises. Keep combined service and
+  singleton assertions in the lifecycle test, and fail simple image-tool checks
+  immediately rather than masking failures with later successful commands.
 - Do not run `docker system prune`, `docker builder prune`, or other Docker
   cleanup commands automatically before tests. If Docker storage is too tight,
   stop and ask for approval before pruning cache, images, containers, or volumes.

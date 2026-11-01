@@ -76,8 +76,12 @@ local override templates in this repository.
   invocation.
 - These assumptions do not apply to host-side scripts or optional tools that are
   explicitly intended to run outside the built devcontainer image.
-- Prefer a single lifecycle owner and a straight-line startup path. Add service
-  coordination, recovery, or supervision only for demonstrated requirements.
+- Run `entrypoint.sh` only through Docker's ENTRYPOINT, once per container start.
+  Keep startup straight-line and asynchronous; readiness waits belong to explicit
+  callers and tests, not a second lifecycle hook or a runtime supervisor.
+- Do not start a system DBus service in the workspace. The tested browser paths
+  work without it; visible Chrome may use its own `dbus-run-session` session bus.
+  Browser and lifecycle regressions must distinguish these two bus types.
 
 ## OpenCode HTTP Logging
 

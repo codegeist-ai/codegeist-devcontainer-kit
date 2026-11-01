@@ -66,6 +66,8 @@ HOME="$fixture_dir" XAUTHORITY="$source_authority" DISPLAY="$DISPLAY" \
   devcontainer_cli up --workspace-folder "$fixture_dir" | tee "$log_file"
 container_id="$(extract_container_id_from_log "$log_file" || true)"
 [[ -n "$container_id" ]] || fail "could not extract workspace container id"
+wait_for_check "Chrome launcher" docker exec -u "$expected_user_name" "$container_id" \
+  test -x /usr/local/bin/chrome
 requested_display="$(extract_key_value "$(<"$fixture_dir/.devcontainer/.env")" DEVCONTAINER_DISPLAY)"
 
 docker exec -d -u "$expected_user_name" \

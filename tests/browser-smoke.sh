@@ -6,6 +6,7 @@
 # - verifies stale Remote SSH X11 state rejects launch before Chrome starts
 # - exercises real non-headless Chrome through authenticated loopback X11 without
 #   substituting a Wayland compositor for the supported display transport
+# - the CDP driver checks system-bus absence before and during both rendering modes
 #
 # Related files:
 # - ../scripts/chrome.sh
@@ -45,6 +46,8 @@ prepare_devcontainer_home "$fixture_dir"
   --workspace-folder "$fixture_dir") | tee "$log_file"
 container_id="$(extract_container_id_from_log "$log_file" || true)"
 [[ -n "$container_id" ]] || fail "could not extract browser workspace container id"
+wait_for_check "Chrome launcher" docker exec -u "$expected_user_name" "$container_id" \
+  test -x /usr/local/bin/chrome
 docker cp "$script_dir/browser-ui-cdp.mjs" "$container_id:$ui_driver_file"
 
 log "checking stale SSH X11 is rejected before Google Chrome starts"

@@ -59,6 +59,7 @@ HOME="$worktree_path" devcontainer_cli up \
   --workspace-folder "$worktree_path" | tee "$log_file"
 container_id="$(extract_container_id_from_log "$log_file" || true)"
 [[ -n "$container_id" ]] || fail "could not extract linked-worktree container id"
+wait_for_check "Docker" docker exec -u "$expected_user_name" "$container_id" docker info
 [[ "$(extract_remote_workspace_folder_from_log "$log_file" || true)" = "$worktree_path" ]] \
   || fail "Dev Containers did not open the linked worktree directly"
 

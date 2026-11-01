@@ -47,13 +47,16 @@ tasks:
   check:
     desc: Run fast deterministic contributor checks
     cmds:
-      - >-
-        bash -n
-        "{{.TASKFILE_DIR}}"/cmds/*
-        "{{.TASKFILE_DIR}}/entrypoint.sh"
-        "{{.TASKFILE_DIR}}/initialize.sh"
-        "{{.TASKFILE_DIR}}"/scripts/*.sh
-        "{{.TASKFILE_DIR}}"/tests/*.sh
+      # Bash accepts one script; additional filenames would only become argv.
+      - |
+        for file in \
+          "{{.TASKFILE_DIR}}"/cmds/* \
+          "{{.TASKFILE_DIR}}/entrypoint.sh" \
+          "{{.TASKFILE_DIR}}/initialize.sh" \
+          "{{.TASKFILE_DIR}}"/scripts/*.sh \
+          "{{.TASKFILE_DIR}}"/tests/*.sh; do
+          bash -n "$file" || exit "$?"
+        done
       - '"{{.TASKFILE_DIR}}/tests/release-build.sh"'
       - '"{{.TASKFILE_DIR}}/tests/runtime-worktree-task.sh"'
 
@@ -61,18 +64,17 @@ tasks:
     desc: Build the generic devcontainer kit image
     cmds:
       - >-
-        bash -lc 'tmp_dir="$(mktemp -d)";
+        bash -euc 'tmp_dir="$(mktemp -d)";
         cleanup() { rm -rf "$tmp_dir"; };
         trap cleanup EXIT;
-        mkdir -p "$tmp_dir/.devcontainer";
-        cp -R "{{.TASKFILE_DIR}}/." "$tmp_dir/.devcontainer/";
-        rm -rf "$tmp_dir/.devcontainer/tests";
+        RUNTIME_TREE_OUTPUT_DIR="$tmp_dir/.devcontainer" RUNTIME_TREE_REPLACE=false
+        "{{.TASKFILE_DIR}}/scripts/stage-runtime-tree.sh";
         docker build
         --build-arg CONTAINER_USER={{.CONTAINER_USER}}
         --build-arg CONTAINER_GROUP={{.CONTAINER_GROUP}}
         --build-arg CONTAINER_UID={{.CONTAINER_UID}}
         --build-arg CONTAINER_GID={{.CONTAINER_GID}}
-        -f "$tmp_dir/.devcontainer/Dockerfile.base"
+        -f "$tmp_dir/.devcontainer/Dockerfile"
         -t {{.IMAGE}}
         "$tmp_dir"'
 

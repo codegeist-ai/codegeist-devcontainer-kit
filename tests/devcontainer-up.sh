@@ -4,6 +4,8 @@
 # Why this exists:
 # - devcontainer up is the closest CLI smoke path for the VS Code workflow
 # - assertions that need inner Docker run inside the workspace container
+# - the image entrypoint alone starts services once per actual boot; reconnects
+#   must not rerun it, and restarts must recover Docker and proxy without a system bus
 #
 # Related files:
 # - ../devcontainer.json
@@ -25,17 +27,23 @@ expected_user="$(id -u):$(id -u)"
 expected_user_name="$(expected_container_user)"
 expected_workspace_folder=""
 expected_remote_workspace_folder=""
-workspace_ready=""
 opencode_output_file="$suite_tmp_dir/devcontainer-up-opencode.log"
 
 cleanup_devcontainer() {
+  local status="$?"
   if [ -n "$container_id" ]; then
+    if [ "$status" -ne 0 ]; then
+      docker logs "$container_id" >&2 || true
+      docker exec "$container_id" cat /tmp/dockerd.log >&2 || true
+    fi
     docker rm -f "$container_id" >/dev/null 2>&1 || true
   fi
 }
 trap cleanup_devcontainer EXIT
 
 create_git_fixture_repo "$fixture_dir"
+jq -e 'has("postStartCommand") | not' "$fixture_dir/.devcontainer/devcontainer.json" >/dev/null \
+  || fail "runtime must use only the image entrypoint for service startup"
 rm -rf "$fixture_dir/.codegeist" "$fixture_dir/.oc_local"
 
 prepare_devcontainer_home "$fixture_dir"
@@ -60,16 +68,47 @@ container_id="$(extract_container_id_from_log "$log_file" || true)"
 [[ -n "$container_id" ]] || fail "could not extract workspace container id from devcontainer output"
 [[ "$(extract_remote_workspace_folder_from_log "$log_file" || true)" = "$expected_remote_workspace_folder" ]] || fail "devcontainer up did not report expected remote workspace folder"
 
-for _ in 1 2 3 4 5 6 7 8 9 10; do
-  if docker exec -u "$expected_user_name" "$container_id" bash -lc 'test "$(id -un)" = "'"$expected_user_name"'" && test "$(hostname)" = "'"$expected_hostname"'" && getent hosts "$(hostname)" >/dev/null && test "$DEVCONTAINER_HOSTNAME" = "'"$expected_hostname"'" && test "$DEVCONTAINER_USER" = "'"$expected_user_name"'" && test "$DEVCONTAINER_UID:$DEVCONTAINER_GID" = "'"$expected_user"'" && docker ps >/dev/null'; then
-    workspace_ready=1
-    break
-  fi
+# This lifecycle test owns the combined service/singleton contract. Other tests
+# wait only for the service they exercise, so an unrelated daemon cannot block them.
+wait_for_services() {
+  wait_for_check "Docker and proxy" docker exec -u "$expected_user_name" "$container_id" bash -ec '
+    docker info >/dev/null
+    test -s "$DEVCONTAINER_WORKSPACE_FOLDER/.tmp/opencode-http/mitmproxy-ca-cert.pem"
+    test "$(pgrep -cx mitmdump)" = 1
+    nc -z -w 1 127.0.0.1 18080
+  '
+}
+wait_for_services
+docker exec -u "$expected_user_name" "$container_id" bash -lc '
+  set -eu
+  test "$(id -un)" = "'"$expected_user_name"'"
+  test "$(hostname)" = "'"$expected_hostname"'"
+  getent hosts "$(hostname)" >/dev/null
+  test "$DEVCONTAINER_HOSTNAME" = "'"$expected_hostname"'"
+  test "$DEVCONTAINER_USER" = "'"$expected_user_name"'"
+  test "$DEVCONTAINER_UID:$DEVCONTAINER_GID" = "'"$expected_user"'"
+  case ":$PATH:" in
+    *":$DEVCONTAINER_WORKSPACE_FOLDER/.devcontainer/scripts:"*) ;;
+    *) exit 1 ;;
+  esac
+'
 
-  sleep 1
-done
-
-[[ -n "$workspace_ready" ]] || fail "devcontainer workspace did not expose nested Docker to the remote user"
+# The structured startup event survives exec and is counted across Docker
+# restarts. Also reject the removed system service while allowing session buses.
+assert_boot() {
+  local expected="$1" actual=""
+  actual="$(docker logs "$container_id" 2>&1 | grep -c '^level=info event=entrypoint status=starting$' || true)"
+  [ "$actual" = "$expected" ] || fail "entrypoint starts expected=$expected actual=$actual"
+  docker exec -u "$expected_user_name" "$container_id" bash -ec '
+    test ! -S /run/dbus/system_bus_socket
+    status=0
+    pgrep -f "[d]bus-daemon .*--system([[:space:]]|$)" >/dev/null || status=$?
+    test "$status" = 1
+  ' || fail "workspace boot must not start system DBus"
+}
+assert_boot 1
+first_started_at="$(docker inspect --format '{{.State.StartedAt}}' "$container_id")"
+first_proxy_pid="$(docker exec "$container_id" pgrep -x mitmdump)"
 
 docker exec -u "$expected_user_name" "$container_id" \
   podman run --rm docker.io/library/hello-world >/dev/null \
@@ -93,4 +132,34 @@ case "$(<"$opencode_output_file")" in
     ;;
 esac
 
-pass "devcontainer up starts a workspace with Docker, Podman, and OpenCode available"
+HOME="$fixture_dir" devcontainer_cli up --workspace-folder "$fixture_dir" \
+  >"$suite_tmp_dir/devcontainer-reconnect.log" 2>&1
+[ "$(extract_container_id_from_log "$suite_tmp_dir/devcontainer-reconnect.log")" = "$container_id" ] \
+  || fail "reconnect replaced the container"
+[ "$(docker inspect --format '{{.State.StartedAt}}' "$container_id")" = "$first_started_at" ] \
+  || fail "reconnect restarted the container"
+[ "$(docker exec "$container_id" pgrep -x mitmdump)" = "$first_proxy_pid" ] \
+  || fail "reconnect replaced the proxy"
+assert_boot 1
+
+docker stop --timeout 10 "$container_id" >/dev/null
+HOME="$fixture_dir" devcontainer_cli up --workspace-folder "$fixture_dir" \
+  >"$suite_tmp_dir/devcontainer-restart.log" 2>&1
+[ "$(extract_container_id_from_log "$suite_tmp_dir/devcontainer-restart.log")" = "$container_id" ] \
+  || fail "starting the stopped workspace replaced the container"
+wait_for_services
+assert_boot 2
+restarted_at="$(docker inspect --format '{{.State.StartedAt}}' "$container_id")"
+[ "$restarted_at" != "$first_started_at" ] || fail "stopped workspace was not restarted"
+
+docker restart --timeout 10 "$container_id" >/dev/null
+wait_for_services
+assert_boot 3
+[ "$(docker inspect --format '{{.State.StartedAt}}' "$container_id")" != "$restarted_at" ] \
+  || fail "Docker restart did not start a new boot"
+docker exec -u "$expected_user_name" "$container_id" curl --fail --silent --show-error --max-time 20 \
+  --proxy http://127.0.0.1:18080 --noproxy '' \
+  --cacert "$expected_workspace_folder/.tmp/opencode-http/mitmproxy-ca-cert.pem" \
+  --output /dev/null https://example.com
+
+pass "entrypoint starts once per boot, preserves running sessions, and restores services on restart"

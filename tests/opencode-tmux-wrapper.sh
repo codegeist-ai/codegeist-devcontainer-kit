@@ -11,7 +11,6 @@
 # - Both paths use the same container proxy, which survives pane closure.
 #   OpenCode capture isolates argv/OSC 52 behavior; real
 #   HTTP/TLS/streaming and OpenCode traffic are covered in opencode-http.py.
-# - Repeated entrypoint calls (the Dev Containers postStart path) reuse it too.
 #
 # Related files:
 # - ../cmds/oc
@@ -44,9 +43,10 @@ attached_pid=""
 [ "$(command -v oc)" = "/usr/local/bin/oc" ] \
   || fail "oc is not installed globally at /usr/local/bin/oc"
 
-proxy_pid="$(pgrep -x mitmdump)"
-/usr/local/bin/devcontainer-entrypoint true
-[ "$(pgrep -x mitmdump)" = "$proxy_pid" ] || fail "postStart replaced the shared proxy"
+wait_for_check "OpenCode proxy" bash -ec '
+  test -s "$DEVCONTAINER_WORKSPACE_FOLDER/.tmp/opencode-http/mitmproxy-ca-cert.pem"
+  nc -z -w 1 127.0.0.1 18080
+'
 
 mkdir -p "$fake_bin"
 chmod 700 "$tmux_tmp_dir"

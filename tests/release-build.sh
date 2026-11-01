@@ -9,6 +9,8 @@
 #   state is not copied and the current checkout is not changed.
 # - Covers the public devcontainer:stage defaults/path override and release:update
 #   task entrypoints while keeping release commits inside this disposable fixture.
+# - Checks consuming test fixtures against the independent release file list so
+#   source-only files and ignored workspace state cannot enter their runtime tree.
 #
 # Related files:
 # - ../scripts/release-build.sh
@@ -152,6 +154,13 @@ scripts/opencode-http-log.py
 scripts/worktree.sh
 EOF
 sort -o "$expected_files" "$expected_files"
+
+consumer_fixture="$test_tmp_dir/runtime-consumer"
+create_fixture_repo "$consumer_fixture"
+(cd "$consumer_fixture/.devcontainer" && find . -mindepth 1 ! -type d -printf '%P\n') \
+  | sort >"$actual_files"
+diff -u "$expected_files" "$actual_files" \
+  || fail "consuming test fixture contains files outside the runtime release"
 
 git -C "$release_repo" ls-tree -r --name-only "$release_branch" | sort >"$actual_files"
 diff -u "$expected_files" "$actual_files" \

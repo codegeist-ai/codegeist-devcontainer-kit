@@ -59,17 +59,17 @@ management, automatic proxy restarts, and release publication.
 
 ## Implementation Notes
 
-The startup-only lock serializes the current image-entrypoint and
-`postStartCommand` calls, which can overlap; the daemon closes the lock
-descriptor before it starts serving. The entrypoint-only alternative was
-verified separately below. Mitmproxy owns all certificate generation. The kit
-neither copies CA files nor assembles trust bundles.
+The shared proxy and native CA are implemented here. Startup ownership and error
+handling are superseded by [T035](T035_minimize_container_entrypoint.md): one
+asynchronous image-entrypoint call per boot, with no startup lock or duplicate
+`postStartCommand`. The historical verification below describes the earlier
+startup contract. Mitmproxy owns all certificate generation; the kit neither
+copies CA files nor assembles trust bundles.
 
-A later full-suite run reproduced a readiness race: the port check can pass
-before mitmproxy exits on a log-open error. The recorded successful runs below
-do not establish a reliable fail-fast guarantee. This finding and the selected
-minimal asynchronous-startup follow-up are tracked in
-[T035](T035_minimize_container_entrypoint.md).
+A later full-suite run exposed the earlier port-readiness race on a log-open
+error. T035 replaces that unreliable fail-fast expectation with an explicit
+asynchronous contract: diagnostics remain visible and the foreground command
+owns the container lifetime and exit status.
 
 ## Verification Results
 

@@ -121,6 +121,11 @@ if [ "${DEVCONTAINER_REALITY_TEST_SKIP_UP:-false}" != "true" ]; then
     || fail "devcontainer CLI reported $remote_workspace_folder, expected $expected_remote_workspace_folder"
   container_id="$(extract_container_id_from_log "$devcontainer_log")"
   [ -n "$container_id" ] || fail "devcontainer CLI did not report a container ID"
+  wait_for_check "Docker" docker exec -u "$(expected_container_user)" "$container_id" docker info
+  wait_for_check "OpenCode proxy" docker exec -u "$(expected_container_user)" "$container_id" bash -ec '
+    test -s "$DEVCONTAINER_WORKSPACE_FOLDER/.tmp/opencode-http/mitmproxy-ca-cert.pem"
+    nc -z -w 1 127.0.0.1 18080
+  '
 
   devcontainer_cli exec \
     --workspace-folder "$fixture_dir" \

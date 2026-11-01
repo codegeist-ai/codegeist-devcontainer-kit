@@ -5,6 +5,8 @@
 // - runs inside a Dev Containers CLI-started workspace container
 // - proves Chrome can render container-local content without a desktop stack
 // - captures a screenshot and compares browser-exposed accessibility text
+// - checks system-bus absence before launch and while Chrome is rendering;
+//   the visible launcher's separate session bus is allowed
 //
 // Inputs:
 // - --url: file:// or http(s):// URL to open in Chrome
@@ -16,9 +18,10 @@
 //
 // Related files:
 // - tests/browser-smoke.sh
-// - Dockerfile
+// - Dockerfile.base
 
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import http from 'node:http';
 import os from 'node:os';
@@ -38,6 +41,7 @@ if (!['headless', 'visible'].includes(mode)) {
   throw new Error(`unsupported --mode value: ${mode}`);
 }
 
+assertNoSystemBus('before_launch');
 const port = await reservePort();
 const profileRoot = process.env.BROWSER_UI_PROFILE_ROOT ?? os.tmpdir();
 const userDataDir = await mkdtemp(path.join(profileRoot, '.chrome-ui-cdp.'));
@@ -95,6 +99,7 @@ try {
 
     const tree = await cdp.send('Accessibility.getFullAXTree');
     const renderedText = collectAccessibleText(tree.nodes ?? []);
+    assertNoSystemBus('rendered');
 
     if (!renderedText.includes(args.expected)) {
       console.error(`Expected rendered text: ${args.expected}`);
@@ -120,6 +125,16 @@ try {
     await waitForExit(chrome);
   }
   await rm(userDataDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+}
+
+// A session daemon started by dbus-run-session is independent of the removed
+// container system service. Fail on a system daemon/socket or a failed probe.
+function assertNoSystemBus(phase) {
+  const daemon = spawnSync('pgrep', ['-f', '[d]bus-daemon .*--system([[:space:]]|$)']);
+  if (existsSync('/run/dbus/system_bus_socket') || daemon.error || daemon.status !== 1) {
+    throw new Error(`system DBus must be absent during browser checks: phase=${phase}`);
+  }
+  console.log(`level=info event=browser_system_dbus status=absent mode=${mode} phase=${phase}`);
 }
 
 function parseArgs(rawArgs) {

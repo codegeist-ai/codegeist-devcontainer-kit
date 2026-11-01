@@ -307,9 +307,9 @@ The kit does not generate certificates or merge CA bundles. TLS verification
 remains enabled, and system trust is unchanged. Private upstream CAs use
 mitmproxy's native `config.yaml` in that directory; clients bypassing the proxy
 may need their own CA settings. All proxy state is disposable with `.tmp/`.
-No CA private key ships in the image. Startup checks the CA file and listener;
-a proxy that exits just after opening its port can pass this readiness check.
-`event=oc_http` diagnostics point to `.tmp/opencode-http/proxy.log`.
+No CA private key ships in the image. The proxy and CA start asynchronously;
+callers must wait for readiness when needed. Startup and runtime errors are
+written to `.tmp/opencode-http/proxy.log` without stopping the foreground command.
 
 `scripts/opencode-http-log.py` appends `http_request` and matching
 `http_response`/`http_error` records to `.tmp/opencode-http.jsonl`, correlated by
@@ -676,6 +676,29 @@ cp .devcontainer/compose.local.yml.example .codegeist/compose.local.yml
 `initialize.sh` writes `.devcontainer/compose.user.gen.yml` on every start. The
 generated bridge is an empty `services: {}` file by default, or a copy of
 `.codegeist/compose.local.yml` when that on-demand override exists.
+
+## Container Startup
+
+Docker invokes `entrypoint.sh` once per container start, including restarts.
+There is no service-starting `postStartCommand`; reconnecting to a running
+workspace does not invoke the entrypoint again. It prepares runtime paths, links
+the Chrome launcher, launches Docker and the HTTP proxy in the
+background, then executes the requested foreground command (`sleep infinity` in
+the standard Compose workspace).
+
+The kit does not start a system DBus service. Headless Chrome and visible Chrome
+over authenticated X11 are verified without it. The visible launcher may start
+its own session bus through `dbus-run-session`; DBus libraries and that separate
+per-browser session support are included in the image.
+
+`event=entrypoint status=starting` marks a new startup attempt.
+`status=handoff services=starting` marks the foreground handoff, not service
+readiness. `devcontainer up` may return before Docker or the proxy is ready;
+callers needing immediate access must wait for their required services.
+Synchronous preparation errors fail startup. Background service errors remain in
+`/tmp/dockerd.log` and `.tmp/opencode-http/proxy.log`; the foreground command owns
+the container lifetime and exit status. Services are not supervised or restarted
+automatically.
 
 ## Container Engines
 

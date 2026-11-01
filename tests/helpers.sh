@@ -11,6 +11,7 @@
 #
 # Related files:
 # - ../Taskfile.yaml
+# - ../scripts/stage-runtime-tree.sh
 # - ./run.sh
 
 set -euo pipefail
@@ -77,6 +78,21 @@ run_timed() {
   if [ "$duration" -gt "$warn_after_seconds" ]; then
     warn "$label took ${duration}s, above warning threshold ${warn_after_seconds}s"
   fi
+}
+
+# Wait only in verification callers, never in the runtime entrypoint. Each probe
+# is bounded as well so a stuck service request cannot hang the test suite.
+# Callers select only the dependency needed by their own assertions.
+wait_for_check() {
+  local label="$1" deadline=$((SECONDS + 30)) output=""
+  shift
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    if output="$(timeout 3s "$@" 2>&1)"; then
+      return 0
+    fi
+    sleep 0.1
+  done
+  fail "$label did not become ready within 30s: $output"
 }
 
 run_tty() {
@@ -341,39 +357,17 @@ assert_info_exclude_lacks_patterns() {
   done <"$exclude_file"
 }
 
+# Copy only release runtime inputs into an empty fixture directory. Reusing the
+# release stager preserves its mappings and never imports ignored checkout state.
 copy_project_files() {
-  local target_dir="$1"
-
-  mkdir -p "$target_dir"
-
-  # Fixtures need the devcontainer kit files, not this repository's own Git
-  # database or development-only submodules.
-  tar \
-    --exclude='.git' \
-    --exclude='.devcontainer' \
-    --exclude='.opencode' \
-    --exclude='.test-tmp' \
-    --exclude='.browser-smoke-tmp' \
-    --exclude='.local.env' \
-    --exclude='compose.local.yml' \
-    --exclude='compose.user.gen.yml' \
-    --exclude='.codegeist/.local.env' \
-    --exclude='.codegeist/secrets.env' \
-    --exclude='secrets.hcl' \
-    --exclude='.codegeist/compose.local.yml' \
-    --exclude='.codegeist/Dockerfile' \
-    --exclude='Dockerfile.merged.gen' \
-    -C "$project_root" \
-    -cf - . \
-    | tar -C "$target_dir" -xf -
+  RUNTIME_TREE_OUTPUT_DIR="$1" RUNTIME_TREE_REPLACE=false \
+    "$project_root/scripts/stage-runtime-tree.sh"
 }
 
 create_fixture_repo() {
   local fixture_dir="$1"
 
-  mkdir -p "$fixture_dir/.devcontainer"
   copy_project_files "$fixture_dir/.devcontainer"
-  rm -rf "$fixture_dir/.devcontainer/tests"
   printf '# fixture\n' >"$fixture_dir/README.md"
 }
 
@@ -408,9 +402,8 @@ create_git_repo() {
 create_kit_submodule_repo() {
   local repo_dir="$1"
 
-  create_git_repo "$repo_dir"
   copy_project_files "$repo_dir"
-  rm -rf "$repo_dir/tests"
+  create_git_repo "$repo_dir"
   git -C "$repo_dir" add .
   git -C "$repo_dir" commit -m "initial devcontainer kit" >/dev/null
 }

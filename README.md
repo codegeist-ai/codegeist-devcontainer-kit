@@ -258,6 +258,29 @@ cp .devcontainer/compose.local.yml.example .codegeist/compose.local.yml
 generated bridge is an empty `services: {}` file by default, or a copy of
 `.codegeist/compose.local.yml` when that on-demand override exists.
 
+## Container Startup
+
+Docker invokes `entrypoint.sh` once per container start, including restarts.
+There is no service-starting `postStartCommand`; reconnecting to a running
+workspace does not invoke the entrypoint again. It prepares runtime paths, links
+the Chrome launcher, launches Docker and the HTTP proxy in the
+background, then executes the requested foreground command (`sleep infinity` in
+the standard Compose workspace).
+
+The kit does not start a system DBus service. Headless Chrome and visible Chrome
+over authenticated X11 are verified without it. The visible launcher may start
+its own session bus through `dbus-run-session`; DBus libraries and that separate
+per-browser session support are included in the image.
+
+`event=entrypoint status=starting` marks a new startup attempt.
+`status=handoff services=starting` marks the foreground handoff, not service
+readiness. `devcontainer up` may return before Docker or the proxy is ready;
+callers needing immediate access must wait for their required services.
+Synchronous preparation errors fail startup. Background service errors remain in
+`/tmp/dockerd.log` and `.tmp/opencode-http/proxy.log`; the foreground command owns
+the container lifetime and exit status. Services are not supervised or restarted
+automatically.
+
 ## Container Engines
 
 `devcontainer.json` explicitly selects `shutdownAction: stopCompose`. On normal
@@ -626,9 +649,9 @@ The kit does not generate certificates or merge CA bundles. TLS verification
 remains enabled, and system trust is unchanged. Private upstream CAs use
 mitmproxy's native `config.yaml` in that directory; clients bypassing the proxy
 may need their own CA settings. All proxy state is disposable with `.tmp/`.
-No CA private key ships in the image. Startup checks the CA file and listener;
-a proxy that exits just after opening its port can pass this readiness check.
-`event=oc_http` diagnostics point to `.tmp/opencode-http/proxy.log`.
+No CA private key ships in the image. The proxy and CA start asynchronously;
+callers must wait for readiness when needed. Startup and runtime errors are
+written to `.tmp/opencode-http/proxy.log` without stopping the foreground command.
 
 `scripts/opencode-http-log.py` appends `http_request` and matching
 `http_response`/`http_error` records to `.tmp/opencode-http.jsonl`, correlated by
@@ -1122,9 +1145,9 @@ Run the normal fast, deterministic contributor check from this repository root:
 task check
 ```
 
-This validates shell syntax and the focused source-to-release contract without
-building the image, starting Docker, QEMU, Dev Containers, or browsers,
-publishing a release, or modifying this repository's Git history. The release
+This validates each shell script's syntax and the focused source-to-release
+contract without building the image, starting Docker, QEMU, Dev Containers, or
+browsers, publishing a release, or modifying this repository's Git history. The release
 fixture uses a bounded source input list under a cleanup-trapped OS temporary
 directory and leaves no `.test-tmp`, cache, log, or copied local state in the
 source checkout.
@@ -1147,6 +1170,12 @@ updates and can take longer on its first run. Run `tests/image-cve-scan.sh` to
 scan an already-built `codegeist-devcontainer-kit:local` image independently.
 Do not replace real dependencies with fakes or add weaker tests solely to make
 the suite runnable in CI.
+
+Consumer fixtures and the image-build context use the release allowlist and
+filename mappings from `scripts/stage-runtime-tree.sh`. They do not copy the
+source checkout's local state. Simple image tool checks share one strict smoke
+container. Readiness waits target each test's dependencies; the lifecycle test
+owns the combined Docker/proxy startup, singleton, and restart assertions.
 
 Try the current worktree, including uncommitted changes, in the exact runtime
 release layout through a temporary consuming repository:

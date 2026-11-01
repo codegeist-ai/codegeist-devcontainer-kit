@@ -17,9 +17,10 @@ script_dir="$(dirname "$(readlink -f "$0")")"
 # shellcheck source=./helpers.sh
 source "$script_dir/helpers.sh"
 
+local_suite=0
 if [ -z "${suite_tmp_dir:-}" ]; then
   setup_suite
-  trap cleanup_suite EXIT
+  local_suite=1
 fi
 
 fixture_dir="$suite_tmp_dir/opencode-mounts-fixture"
@@ -45,6 +46,18 @@ compose_base_env=(
   DEVCONTAINER_WORKSPACE_FOLDER="$workspace_folder"
 )
 
+# Install one trap before fixture construction so both early setup failures and
+# normal completion clean up the locally owned suite as well as Compose state.
+cleanup_compose() {
+  if [ -d "$fixture_dir" ]; then
+    (cd "$fixture_dir" && env "${compose_base_env[@]}" docker compose -p "$compose_project" -f ".devcontainer/docker-compose.yml" down -v --remove-orphans >/dev/null 2>&1) || true
+  fi
+  if [ "$local_suite" -eq 1 ]; then
+    cleanup_suite
+  fi
+}
+trap cleanup_compose EXIT
+
 create_git_fixture_repo "$fixture_dir"
 HOME="$fixture_dir" "$fixture_dir/.devcontainer/initialize.sh"
 prepare_devcontainer_home "$fixture_dir"
@@ -53,13 +66,6 @@ mkdir -p "$config_dir" "$share_dir" "$state_dir"
 printf 'host config write check\n' >"$config_dir/host-write-check.txt"
 printf 'host share write check\n' >"$share_dir/host-write-check.txt"
 printf 'host state write check\n' >"$state_dir/host-write-check.txt"
-
-cleanup_compose() {
-  if [ -d "$fixture_dir" ]; then
-    (cd "$fixture_dir" && env "${compose_base_env[@]}" docker compose -p "$compose_project" -f ".devcontainer/docker-compose.yml" down -v --remove-orphans >/dev/null 2>&1) || true
-  fi
-}
-trap cleanup_compose EXIT
 
 default_config="$(cd "$fixture_dir" && env -u OPENCODE_DIR_CONFIG -u OPENCODE_DIR_SHARE -u OPENCODE_DIR_STATE "${compose_base_env[@]}" docker compose \
   -f ".devcontainer/docker-compose.yml" \

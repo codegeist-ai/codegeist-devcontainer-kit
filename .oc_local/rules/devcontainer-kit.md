@@ -162,6 +162,14 @@ local override templates in this repository.
   probe the requested display, and normalize only its matching display-number
   cookie for that destination in a private temporary file. The SSH listener must
   already be reachable from the bridge; do not add host proxies or change policy.
+- Diagnose stale X11 through the actual GUI action, its effective DISPLAY,
+  authority path, and connection destination. Stale inherited values or firewall
+  blocks alone do not identify the caller or establish a Chrome refresh defect.
+  Test the existing supported launch path before adding a handoff, and extract
+  shared refresh logic only for a demonstrated additional consumer.
+- Generated X11 updates affect subsequent supported launches, not running GUI
+  instances or parent environments. Distinguish a fresh launch from reuse of an
+  existing application, and document only the required targeted process restart.
 - Do not preserve Wayland discovery, generated socket mounts, runtime-directory
   setup, launcher selection, or Wayland browser verification. Local `:N`, `unix:N`,
   and IPv6 displays remain outside the supported visible browser contract.

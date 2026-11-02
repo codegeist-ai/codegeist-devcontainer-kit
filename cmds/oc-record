@@ -2,7 +2,7 @@
 # oc-record - toggle microphone recording for the current devcontainer workspace
 #
 # Inputs:
-# - DEVCONTAINER_WORKSPACE_FOLDER is the guaranteed workspace root.
+# - DEVCONTAINER_WORKSPACE_TMP is the existing workspace temporary directory.
 # - OC_RECORD_LANGUAGE optionally selects the whisper.cpp language; unset or
 #   empty values preserve automatic detection.
 # - One tmux pane target receives start, stop, and failure messages.
@@ -30,7 +30,7 @@ umask 077
 }
 
 pane="$1"
-recording_dir="$DEVCONTAINER_WORKSPACE_FOLDER/.tmp/recordings"
+recording_dir="$DEVCONTAINER_WORKSPACE_TMP/recordings"
 state_file="$recording_dir/.oc-record.state"
 status_style_file="$recording_dir/.oc-record.status-style"
 lock_file="$recording_dir/.oc-record.lock"

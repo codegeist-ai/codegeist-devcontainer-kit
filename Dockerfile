@@ -38,6 +38,7 @@
 # - WHISPER_CPP_VERSION and WHISPER_CPP_SHA256 pin and verify the CPU-only
 #   transcription CLI used by `cmds/oc-record`; its model is downloaded at
 #   runtime and is not part of the image.
+# - MITMPROXY_VERSION pins the loopback HTTP logger started by `entrypoint.sh`.
 #
 # Related files:
 # - cmds/
@@ -227,8 +228,9 @@ RUN curl -LsSf https://astral.sh/uv/install.sh \
 # npm 12 supports the image's Node.js 24 channel (requires Node >=24.15).
 # Preserve build-time lifecycle scripts: OpenCode and native CLI dependencies
 # require postinstall. This flag applies only to the managed image-tool install.
+# OpenCode 2 uses @opencode/cli; keep the tested major-upgrade target pinned.
 RUN npm install -g --prefix /usr npm@12 \
- && npm install -g --dangerously-allow-all-scripts --prefix /usr/local opencode-ai renovate repomix @ast-grep/cli @devcontainers/cli @mermaid-js/mermaid-cli tiktoken-cli \
+ && npm install -g --dangerously-allow-all-scripts --prefix /usr/local @opencode/cli@2.2.5 renovate repomix @ast-grep/cli @devcontainers/cli @mermaid-js/mermaid-cli tiktoken-cli \
  && rm -f /usr/local/bin/sg \
  && rm -rf /tmp/opencode \
  && npm cache clean --force
@@ -505,9 +507,18 @@ RUN printf '%s\n' \
       'export PATH' \
       > /etc/profile.d/codegeist-workspace-scripts.sh
 
+# Isolate proxy dependencies from other image tools. The container entrypoint
+# starts mitmdump, which generates its own CA; no private key ships in the image.
+ARG MITMPROXY_VERSION=12.3.1
+RUN uv venv --python /usr/bin/python3 /opt/mitmproxy \
+ && uv pip install --no-cache --python /opt/mitmproxy/bin/python "mitmproxy==${MITMPROXY_VERSION}" \
+ && ln -s /opt/mitmproxy/bin/mitmdump /usr/local/bin/mitmdump \
+ && mitmdump --version
+
 COPY --chmod=0755 .devcontainer/cmds/ /usr/local/bin/
 # Keep the basename bash so OpenCode preserves its Bash-specific startup flags.
 COPY --chmod=0755 .devcontainer/scripts/opencode-bash.sh /usr/local/lib/oc-shell/bash
+COPY .devcontainer/scripts/opencode-http-log.py /usr/local/lib/oc-http/
 COPY .devcontainer/entrypoint.sh /usr/local/bin/devcontainer-entrypoint
 
 RUN chmod +x /usr/local/bin/devcontainer-entrypoint

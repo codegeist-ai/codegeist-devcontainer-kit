@@ -21,6 +21,7 @@
 #   are inherited from the host. Agent failures stop initialization.
 # - Generated files under `.devcontainer/` are replaced atomically. User-owned
 #   inputs remain under `.codegeist/` and `.oc_local/`.
+# - DEVCONTAINER_WORKSPACE_TMP exposes the existing checkout-local `.tmp` path.
 # - Git worktree creation, branch selection, and submodule initialization remain
 #   explicit caller responsibilities.
 #
@@ -238,6 +239,7 @@ DEVCONTAINER_BRANCH_NAME=$(slugify_hostname_part "$branch_name")
 DEVCONTAINER_HOSTNAME=$(generated_hostname "$root_dir")
 DEVCONTAINER_COMPOSE_PROJECT_NAME=$(generated_compose_project_name "$root_dir")
 DEVCONTAINER_WORKSPACE_FOLDER=$root_dir
+DEVCONTAINER_WORKSPACE_TMP=$root_dir/.tmp
 DEVCONTAINER_USER=${USER:-$(id -un)}
 DEVCONTAINER_GROUP=$(id -gn)
 DEVCONTAINER_UID=$(id -u)

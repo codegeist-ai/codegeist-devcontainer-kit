@@ -216,20 +216,32 @@ consumer, and commit that as a normal submodule gitlink update.
 
 ## OpenCode In tmux
 
-The image installs `oc` globally at `/usr/local/bin/oc`. It starts
-`opencode --auto -c` in tmux and forwards additional OpenCode arguments:
+The image installs OpenCode CLI **2.2.5** from `@opencode/cli@2.2.5` and the global
+`oc` command at `/usr/local/bin/oc`. It starts
+`opencode --standalone --auto -c` in tmux and forwards additional TUI arguments:
 
 ```bash
 oc
-oc --model provider/model
 oc /path/to/project
 ```
+
+Standalone mode gives each pane a private backend that inherits its shell,
+proxy, and CA environment and exits with that CLI. The container's shared HTTP
+proxy remains independent. Direct `opencode` uses OpenCode 2's managed background
+service by default. The 2.2.5 root TUI command does not accept `--model`; select
+the model in the TUI instead.
+
+Compose uses `OPENCODE_FILEWATCHER_DISABLE=true` by default. Rename any host-side
+override of the old `OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER` variable to
+`OPENCODE_FILEWATCHER_DISABLE`. After updating the kit, run
+`Dev Containers: Rebuild Container` and start a new `oc` pane to use the new
+binary and launcher.
 
 Every OpenCode tool-shell start through `oc` uses the logging Bash wrapper at
 `/usr/local/lib/oc-shell/bash`, installed from `scripts/opencode-bash.sh`. It
 always appends a timestamp, PID, parent PID, working directory, and full shell
 arguments (`argv`) to
-`$DEVCONTAINER_WORKSPACE_FOLDER/.tmp/opencode-shell.log`. The initializer must
+`$DEVCONTAINER_WORKSPACE_TMP/opencode-shell.log`. The initializer must
 have provided `.tmp/`; if the log cannot be written, the shell command does not
 start. New logs use mode `0600`. Arguments use Bash quoting to preserve argument
 boundaries and multiline commands in one record. This includes command text and
@@ -287,6 +299,49 @@ download or transcription failure preserves the finalized WAV and reports the
 `.tmp/recordings/.oc-record.log` diagnostic path in tmux. If the target pane
 disappears before insertion, the finalized WAV and TXT remain available and the
 recorder retains the same diagnostic log.
+
+## OpenCode HTTP Logging
+
+`entrypoint.sh` starts one `mitmdump` forward proxy at `127.0.0.1:18080` for the
+container lifetime. All `oc` panes share it; closing a pane leaves it running.
+The image installs mitmproxy 12.3.1 in an isolated Python environment.
+
+`oc` sets `HTTP_PROXY`, `HTTPS_PROXY`, and their lowercase equivalents for
+OpenCode and its children. Existing `NO_PROXY`/`no_proxy` exclusions are extended
+with `localhost,127.0.0.1,::1` so local OpenCode connections stay direct. The proxy
+connects directly upstream and replaces existing HTTP proxy settings for `oc`.
+
+Mitmproxy generates its own CA in the private mode-`0700`
+`$DEVCONTAINER_WORKSPACE_TMP/opencode-http/` directory and reuses it while
+present. `oc` points `NODE_EXTRA_CA_CERTS`, `SSL_CERT_FILE`, `CURL_CA_BUNDLE`,
+`REQUESTS_CA_BUNDLE`, and `GIT_SSL_CAINFO` directly at `mitmproxy-ca-cert.pem`.
+The kit does not generate certificates or merge CA bundles. TLS verification
+remains enabled, and system trust is unchanged. Private upstream CAs use
+mitmproxy's native `config.yaml` in that directory; clients bypassing the proxy
+may need their own CA settings. All proxy state is disposable with `.tmp/`.
+No CA private key ships in the image. The proxy and CA start asynchronously;
+callers must wait for readiness when needed. Startup and runtime errors are
+written to `.tmp/opencode-http/proxy.log` without stopping the foreground command.
+
+`scripts/opencode-http-log.py` appends `http_request` and matching
+`http_response`/`http_error` records to `.tmp/opencode-http.jsonl`, correlated by
+`request_id`. Fields include `time`, `method`, `scheme`, `host`, `port`, `path`,
+`status`, and `duration_ms`. Bodies stream immediately; duration includes stream
+completion. Failures before HTTP headers may only appear in the proxy diagnostic
+log. Query strings, headers, cookies, bodies, and raw error text are excluded
+from JSONL. Paths can still contain sensitive data. New logs use mode `0600` and
+have no automatic rotation. The separate shell-start log contains full arguments.
+
+Inspect completed requests with:
+
+```bash
+jq -c 'select(.event == "http_response") | {method, host, path, status, duration_ms}' \
+  "$DEVCONTAINER_WORKSPACE_TMP/opencode-http.jsonl"
+```
+
+Coverage depends on clients honoring proxy/trust variables. Independent browsers
+and daemons such as Docker are not covered. Direct `opencode` starts do not set
+these variables. Rebuild the container and start a new `oc` pane to use this setup.
 
 ## SSH Microphone Forwarding
 
@@ -553,6 +608,20 @@ environment. Store new persistent secrets that are not disposable test inputs
 under `.codegeist/secrets/`. Existing `.codegeist/.local.env` and `.chrome/`
 contracts remain unchanged.
 
+Inside the container, `DEVCONTAINER_WORKSPACE_TMP` contains the absolute
+`$DEVCONTAINER_WORKSPACE_FOLDER/.tmp` path, retaining the workspace-facing symlink
+path. Compose supplies it to all container processes, including terminals, later
+`docker exec`/`devcontainer exec` calls, and `oc` tools. Use it for disposable
+workspace files, for example:
+
+```bash
+mkdir -p "$DEVCONTAINER_WORKSPACE_TMP/downloads"
+```
+
+The variable uses the existing storage and does not change `TMPDIR` or retention.
+After upgrading an existing workspace, use `Dev Containers: Rebuild Container`
+to install the updated commands and create the container with the new variable.
+
 Root `.local.env` and `compose.local.yml` files are not configuration inputs and
 are never copied or migrated. The initializer removes their obsolete generated
 ignore lines so accidental legacy files remain visible to Git. Move intended
@@ -633,6 +702,29 @@ cp .devcontainer/compose.local.yml.example .codegeist/compose.local.yml
 `initialize.sh` writes `.devcontainer/compose.user.gen.yml` on every start. The
 generated bridge is an empty `services: {}` file by default, or a copy of
 `.codegeist/compose.local.yml` when that on-demand override exists.
+
+## Container Startup
+
+Docker invokes `entrypoint.sh` once per container start, including restarts.
+There is no service-starting `postStartCommand`; reconnecting to a running
+workspace does not invoke the entrypoint again. It prepares runtime paths, links
+the Chrome launcher, launches Docker and the HTTP proxy in the
+background, then executes the requested foreground command (`sleep infinity` in
+the standard Compose workspace).
+
+The kit does not start a system DBus service. Headless Chrome and visible Chrome
+over authenticated X11 are verified without it. The visible launcher may start
+its own session bus through `dbus-run-session`; DBus libraries and that separate
+per-browser session support are included in the image.
+
+`event=entrypoint status=starting` marks a new startup attempt.
+`status=handoff services=starting` marks the foreground handoff, not service
+readiness. `devcontainer up` may return before Docker or the proxy is ready;
+callers needing immediate access must wait for their required services.
+Synchronous preparation errors fail startup. Background service errors remain in
+`/tmp/dockerd.log` and `.tmp/opencode-http/proxy.log`; the foreground command owns
+the container lifetime and exit status. Services are not supervised or restarted
+automatically.
 
 ## Container Engines
 

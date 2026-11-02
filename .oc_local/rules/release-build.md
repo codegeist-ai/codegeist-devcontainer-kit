@@ -26,6 +26,10 @@ repository.
 
 ## Verification
 
+- Before the release save step, complete the
+  [pinned-version review](image-maintenance.md#pinned-version-review-before-release).
+  Obtain update decisions and apply approved changes before committing and testing
+  the release source. Include the review outcome in the final release summary.
 - Stop if the worktree is dirty before release creation.
 - Run `task tests-run` on the exact clean commit being released. Its real browser
   fixture must launch non-headless Chrome over loopback X11 with matching

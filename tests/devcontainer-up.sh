@@ -124,7 +124,10 @@ docker exec -u "$expected_user_name" "$container_id" \
   podman run --rm docker.io/library/hello-world >/dev/null \
   || fail "workspace user could not run a hello-world container with Podman"
 
-docker exec -u "$expected_user_name" "$container_id" bash -c '
+cp "$fixture_dir/.devcontainer/.oc_local.opencode.json.example" "$fixture_dir/.oc_local/opencode.json"
+# V2 replaces `debug startup` with a real private-server configuration request.
+# Isolate HOME so the mounted user data is not read or migrated by this check.
+docker exec -u "$expected_user_name" -w "$fixture_dir" "$container_id" bash -c '
   set -euo pipefail
 
   test -d "'"$expected_workspace_folder"'/.oc_local"
@@ -132,15 +135,15 @@ docker exec -u "$expected_user_name" "$container_id" bash -c '
   test -f "'"$expected_workspace_folder"'/.oc_local/.gitignore"
   test "$(command -v oc)" = "/usr/local/bin/oc"
 
-  OPENCODE_CONFIG_DIR="'"$expected_workspace_folder"'/.oc_local" opencode --print-logs --log-level DEBUG debug startup
-' >"$opencode_output_file" 2>&1
-
-case "$(<"$opencode_output_file")" in
-  *UnknownError*|*"tui bootstrap failed"*|*"FileSystem.writeFile ($expected_workspace_folder/.oc_local/.gitignore)"*)
-    printf '%s\n' "$(<"$opencode_output_file")" >&2
-    fail "OpenCode failed during devcontainer bootstrap"
-    ;;
-esac
+  env -i PATH="$PATH" HOME="$DEVCONTAINER_WORKSPACE_TMP/opencode-test-home" \
+    OPENCODE_CONFIG_DIR="$DEVCONTAINER_WORKSPACE_FOLDER/.oc_local" \
+    opencode api --standalone GET /api/config
+' >"$opencode_output_file"
+jq -e --arg path "$fixture_dir/.oc_local/opencode.json" '
+  any(.[]; .type == "document" and .path == $path
+    and .info.instructions == ["README.md", "rules/**/*.md"])
+' "$opencode_output_file" >/dev/null \
+  || fail "OpenCode 2 did not load the workspace overlay through its real server"
 
 HOME="$fixture_dir" devcontainer_cli up --workspace-folder "$fixture_dir" \
   >"$suite_tmp_dir/devcontainer-reconnect.log" 2>&1

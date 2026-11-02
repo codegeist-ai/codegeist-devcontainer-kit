@@ -4,8 +4,9 @@
 Usage: python3 tests/opencode-http.py <oc-env.json>, after the tmux test in
 tests/docker-build.sh. Its local origin CA uses mitmproxy's native config.yaml.
 Local HTTP/TLS origins and a gated SSE stream exercise real mitmdump traffic.
-The final OpenCode catalog refresh uses isolated user state and public network
-access. Temporary home state and origins are cleaned up; Docker owns the proxy.
+The final OpenCode 2 server uses isolated user state to fetch its real catalog
+and execute a shell through the logging wrapper. Its stdin lease owns its lifetime;
+temporary state and origins are cleaned up while Docker owns the shared proxy.
 """
 
 from concurrent.futures import ThreadPoolExecutor
@@ -13,12 +14,15 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
 from pathlib import Path
+import secrets
+import select
 import socket
 import ssl
 import subprocess
 import sys
 import tempfile
 import threading
+import time
 from urllib.parse import urlsplit
 from urllib.request import urlopen
 
@@ -102,8 +106,72 @@ def client(token, http_url, https_url, bypass_url):
         assert rest == b"data: last\n\n", f"last streaming chunk: {rest!r}"
 
 
-def verify(root, proxy_env):
-    """Verify real requests, metadata omissions, strict TLS, and the OpenCode CLI."""
+def verify_opencode(root, proxy_env):
+    """Check real V2 catalog traffic and shell logging with a bounded server lifetime."""
+    log = root / ".tmp/opencode-http.jsonl"
+    record_count = len(log.read_text().splitlines())
+    # An OS-temp cwd keeps ancestor discovery away from the mounted developer
+    # checkout. The server password stays in the isolated environment, not argv.
+    with tempfile.TemporaryDirectory(prefix="oc-http-test-") as home:
+        environment = {"PATH": os.environ["PATH"], "HOME": home, **proxy_env,
+                       "XDG_CONFIG_HOME": home + "/config", "XDG_CACHE_HOME": home + "/cache",
+                       "XDG_DATA_HOME": home + "/data", "XDG_STATE_HOME": home + "/state",
+                       "SHELL": "/usr/local/lib/oc-shell/bash",
+                       "OPENCODE_PASSWORD": secrets.token_urlsafe(32),
+                       "DEVCONTAINER_WORKSPACE_TMP": str(root / ".tmp")}
+        with subprocess.Popen(["opencode", "serve", "--stdio", "--hostname", "127.0.0.1", "--port", "0"],
+                              env=environment, cwd=home, stdin=subprocess.PIPE,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as native:
+            try:
+                assert select.select([native.stdout], [], [], 30)[0], "OpenCode server readiness timed out"
+                endpoint = json.loads(native.stdout.readline())["url"]
+
+                def cli(command, *args, timeout=30):
+                    """Run the real CLI; it owns API authentication and returns stdout."""
+                    result = subprocess.run(["opencode", command, "--server", endpoint, *args],
+                                            env=environment, cwd=home, capture_output=True, text=True, timeout=timeout)
+                    assert result.returncode == 0, f"OpenCode {command} failed: {result.stderr}"
+                    return result.stdout
+
+                cli("models")
+                # Use the real shell service without submitting a model prompt.
+                marker = "opencode-v2-shell-check"
+                shell = json.loads(cli("api", "POST", "/api/shell", "--data",
+                                       json.dumps({"command": "printf " + marker, "timeout": 5000})))["data"]
+                assert shell["shell"] == environment["SHELL"], "OpenCode bypassed the logging shell"
+                deadline = time.monotonic() + 10
+                while shell["status"] == "running" and time.monotonic() < deadline:
+                    time.sleep(0.1)
+                    shell = json.loads(cli("api", "GET", "/api/shell/" + shell["id"], timeout=2))["data"]
+                assert shell["status"] == "exited" and shell["exit"] == 0, "OpenCode shell did not finish"
+                shell_log = root / ".tmp/opencode-shell.log"
+                assert marker in shell_log.read_text(), "real OpenCode shell start was not logged"
+                assert shell_log.stat().st_mode & 0o777 == 0o600, "shell log is not owner-only"
+
+                # 2.2.5 uses the v2 catalog; query parameters are omitted by the logger.
+                # Refresh is asynchronous, so require a fresh completed request.
+                catalog_path = "/experimental/v2.0/api.json"
+                deadline = time.monotonic() + 30
+                while True:
+                    records = [json.loads(line) for line in log.read_text().splitlines()[record_count:]]
+                    if any(row["host"] == "models.opencode.ai" and row["path"] == catalog_path
+                           and row["scheme"] == "https" and row["status"] == 200 for row in records):
+                        break
+                    assert time.monotonic() < deadline, \
+                        f"Expected a proxied HTTPS 200 response from models.opencode.ai{catalog_path}"
+                    time.sleep(0.1)
+            finally:
+                # communicate closes the stdin lease and drains both output pipes.
+                try:
+                    _, error = native.communicate(timeout=10)
+                except subprocess.TimeoutExpired:
+                    native.kill()
+                    _, error = native.communicate()
+            assert native.returncode == 0, f"OpenCode server shutdown failed: {error}"
+
+
+def verify_proxy(root, proxy_env):
+    """Verify real HTTP/TLS requests, streaming, metadata omissions, and strict trust."""
     os.environ.update(proxy_env)
     state = root / ".tmp/opencode-http"
     assert state.stat().st_mode & 0o777 == 0o700, "proxy state is not private"
@@ -145,20 +213,6 @@ def verify(root, proxy_env):
         assert curl("--noproxy", "", "--fail", urls[3] + "/bad-certificate").returncode != 0, \
             "proxy disabled upstream TLS verification"
 
-        # Use the shipped OpenCode/Bun binary, with no provider tokens or user
-        # configuration, to prove that it trusts and uses the shared proxy CA.
-        with tempfile.TemporaryDirectory(prefix="oc-http-test-", dir=root / ".tmp") as home:
-            environment = {"PATH": os.environ["PATH"], "HOME": home, **proxy_env,
-                           "XDG_CONFIG_HOME": home + "/config", "XDG_CACHE_HOME": home + "/cache",
-                           "XDG_DATA_HOME": home + "/data", "XDG_STATE_HOME": home + "/state"}
-            actual = subprocess.run(["opencode", "models", "--refresh", "--pure"],
-                                    env=environment, cwd=home, stdout=subprocess.DEVNULL,
-                                    stderr=subprocess.PIPE, text=True, timeout=90)
-            assert actual.returncode == 0, f"OpenCode catalog refresh failed: {actual.stderr}"
-        records = [json.loads(line) for line in log.read_text().splitlines()]
-        assert any(row["host"] == "models.opencode.ai" and row["path"] == "/api.json"
-                   and row["scheme"] == "https" and row["status"] == 200 for row in records), \
-            "real OpenCode did not fetch its catalog through the TLS proxy"
     finally:
         for release in RELEASES.values():
             release.set()
@@ -168,5 +222,8 @@ def verify(root, proxy_env):
 
 
 if __name__ == "__main__":
-    verify(Path(os.environ["DEVCONTAINER_WORKSPACE_FOLDER"]), json.loads(Path(sys.argv[1]).read_text()))
-    print("PASS: shared proxy HTTP/TLS, parallel streaming, metadata, and real OpenCode CA trust")
+    root = Path(os.environ["DEVCONTAINER_WORKSPACE_FOLDER"])
+    proxy_env = json.loads(Path(sys.argv[1]).read_text())
+    verify_proxy(root, proxy_env)
+    verify_opencode(root, proxy_env)
+    print("PASS: shared proxy HTTP/TLS, parallel streaming, metadata, and real OpenCode 2 CA trust and shell logging")

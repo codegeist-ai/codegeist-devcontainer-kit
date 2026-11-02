@@ -216,14 +216,26 @@ consumer, and commit that as a normal submodule gitlink update.
 
 ## OpenCode In tmux
 
-The image installs `oc` globally at `/usr/local/bin/oc`. It starts
-`opencode --auto -c` in tmux and forwards additional OpenCode arguments:
+The image installs OpenCode CLI **2.2.5** from `@opencode/cli@2.2.5` and the global
+`oc` command at `/usr/local/bin/oc`. It starts
+`opencode --standalone --auto -c` in tmux and forwards additional TUI arguments:
 
 ```bash
 oc
-oc --model provider/model
 oc /path/to/project
 ```
+
+Standalone mode gives each pane a private backend that inherits its shell,
+proxy, and CA environment and exits with that CLI. The container's shared HTTP
+proxy remains independent. Direct `opencode` uses OpenCode 2's managed background
+service by default. The 2.2.5 root TUI command does not accept `--model`; select
+the model in the TUI instead.
+
+Compose uses `OPENCODE_FILEWATCHER_DISABLE=true` by default. Rename any host-side
+override of the old `OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER` variable to
+`OPENCODE_FILEWATCHER_DISABLE`. After updating the kit, run
+`Dev Containers: Rebuild Container` and start a new `oc` pane to use the new
+binary and launcher.
 
 Every OpenCode tool-shell start through `oc` uses the logging Bash wrapper at
 `/usr/local/lib/oc-shell/bash`, installed from `scripts/opencode-bash.sh`. It

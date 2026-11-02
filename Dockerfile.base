@@ -228,8 +228,9 @@ RUN curl -LsSf https://astral.sh/uv/install.sh \
 # npm 12 supports the image's Node.js 24 channel (requires Node >=24.15).
 # Preserve build-time lifecycle scripts: OpenCode and native CLI dependencies
 # require postinstall. This flag applies only to the managed image-tool install.
+# OpenCode 2 uses @opencode/cli; keep the tested major-upgrade target pinned.
 RUN npm install -g --prefix /usr npm@12 \
- && npm install -g --dangerously-allow-all-scripts --prefix /usr/local opencode-ai renovate repomix @ast-grep/cli @devcontainers/cli @mermaid-js/mermaid-cli tiktoken-cli \
+ && npm install -g --dangerously-allow-all-scripts --prefix /usr/local @opencode/cli@2.2.5 renovate repomix @ast-grep/cli @devcontainers/cli @mermaid-js/mermaid-cli tiktoken-cli \
  && rm -f /usr/local/bin/sg \
  && rm -rf /tmp/opencode \
  && npm cache clean --force

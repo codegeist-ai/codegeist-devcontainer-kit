@@ -97,7 +97,9 @@ docker run --rm --entrypoint bash -w /tmp codegeist-devcontainer-kit:local -lc '
     exit 1
   fi
 
+  # V2 creates its runtime temp directory even for --version; inspect the image first.
   test ! -e /tmp/opencode
+  test "$(opencode --version)" = "opencode v2.2.5"
   test -d /tmp/ws-data
   test ! -e /usr/local/bin/chrome
   test "$(command -v oc-record)" = "/usr/local/bin/oc-record"

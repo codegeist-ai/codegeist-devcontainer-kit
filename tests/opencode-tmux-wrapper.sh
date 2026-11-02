@@ -11,6 +11,8 @@
 # - Both paths use the same container proxy, which survives pane closure.
 #   OpenCode capture isolates argv/OSC 52 behavior; real
 #   HTTP/TLS/streaming and OpenCode traffic are covered in opencode-http.py.
+# - Real OpenCode 2 TUI launches use isolated user state and an OS-temp cwd so
+#   ancestor configuration discovery cannot load the mounted source checkout.
 #
 # Related files:
 # - ../cmds/oc
@@ -39,6 +41,8 @@ expected_file="$fixture_dir/opencode.expected"
 launcher="$fixture_dir/launch-oc"
 expected_clipboard="oc clipboard test"
 attached_pid=""
+native_dir=""
+original_path="$PATH"
 
 [ "$(command -v oc)" = "/usr/local/bin/oc" ] \
   || fail "oc is not installed globally at /usr/local/bin/oc"
@@ -79,7 +83,7 @@ chmod +x "$fake_bin/opencode"
 
 cat >"$launcher" <<EOF
 #!/usr/bin/env bash
-exec oc --model provider/model "project path"
+exec oc --prompt "review this change" "project path"
 EOF
 chmod +x "$launcher"
 
@@ -90,10 +94,11 @@ assert_capture() {
 PWD=$fixture_dir
 SHELL=/usr/local/lib/oc-shell/bash
 WORKSPACE_TMP=$DEVCONTAINER_WORKSPACE_TMP
+ARG=--standalone
 ARG=--auto
 ARG=-c
-ARG=--model
-ARG=provider/model
+ARG=--prompt
+ARG=review this change
 ARG=project path
 EOF
 
@@ -160,6 +165,7 @@ wait_for_file() {
 cleanup() {
   tmux_cmd kill-server >/dev/null 2>&1 || true
   rm -rf "$tmux_tmp_dir"
+  [ -z "$native_dir" ] || rm -rf "$native_dir"
 
   if [ -n "$attached_pid" ]; then
     wait "$attached_pid" 2>/dev/null || true
@@ -207,7 +213,7 @@ OPENCODE_CAPTURE="$inside_capture"
 export PATH OPENCODE_CAPTURE
 tmux_cmd new-session -d -s wrapper-test -c "$fixture_dir" sleep 30
 tmux_cmd new-window -d -t wrapper-test -c "$fixture_dir" \
-  oc --model provider/model "project path"
+  oc --prompt "review this change" "project path"
 
 wait_for_file "$inside_capture"
 for _ in {1..50}; do
@@ -226,4 +232,41 @@ assert_proxy "$inside_capture"
 cmp "$outside_capture.proxy" "$inside_capture.proxy" \
   || fail "oc panes did not share the container proxy and mitmproxy CA"
 
-pass "oc preserves arguments, clipboard, and recording while sharing one container proxy"
+# Exercise the public launcher with the actual binary, not the argument capture.
+# No prompt is submitted and no account credentials enter these two TUI sessions.
+# tmux also forwards its client's PATH when creating the nested window.
+PATH="$original_path"
+native_dir="$(mktemp -d /tmp/oc-native-tui.XXXXXX)"
+native_env=(env -i
+  "PATH=$original_path" "HOME=$native_dir/home" TERM=xterm-256color
+  "TMUX_TMPDIR=$tmux_tmp_dir"
+  "OPENCODE_CONFIG_DIR=$native_dir/.oc_local"
+  "DEVCONTAINER_WORKSPACE_TMP=$DEVCONTAINER_WORKSPACE_TMP"
+)
+mkdir -p "$native_dir/.oc_local"
+cp "$project_root/.oc_local.opencode.json.example" "$native_dir/.oc_local/opencode.json"
+for context in outside inside; do
+  if [ "$context" = outside ]; then
+    (
+      cd "$native_dir"
+      "${native_env[@]}" script -qec 'stty cols 120 rows 35 && exec oc' /dev/null >/dev/null 2>&1
+    ) &
+    attached_pid="$!"
+  else
+    "${native_env[@]}" tmux new-session -d -s native-test -x 120 -y 35 -c "$native_dir" sleep 60
+    tmux_cmd new-window -d -t native-test -c "$native_dir" oc
+  fi
+
+  TMUX="" TMUX_TMPDIR="$tmux_tmp_dir" wait_for_check "OpenCode 2 TUI ($context tmux)" bash -ec '
+    screen="$(tmux capture-pane -p)"
+    [[ "$screen" == *"Ask anything"* && "$screen" == *"Build auto"* && "$screen" == *"2.2.5"* ]] \
+      || { tmux list-panes -a -F "#{session_name}:#{window_index} #{pane_id} #{pane_current_command}"; printf "%s\n" "$screen"; exit 1; }
+  '
+  tmux_cmd kill-server
+  if [ -n "$attached_pid" ]; then
+    wait "$attached_pid" 2>/dev/null || true
+    attached_pid=""
+  fi
+done
+
+pass "oc starts real OpenCode 2 inside/outside tmux and preserves arguments, clipboard, recording, and proxy settings"

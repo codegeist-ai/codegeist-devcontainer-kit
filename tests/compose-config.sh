@@ -133,6 +133,8 @@ container_config="$(docker inspect "$container_id")"
   || fail "workspace container did not use generated Xauthority"
 [[ "$container_config" == *'"DEVCONTAINER_WORKSPACE_TMP='"$fixture_dir"'/.tmp"'* ]] \
   || fail "workspace container did not use its own generated temporary path"
+[[ "$container_config" == *'"OPENCODE_FILEWATCHER_DISABLE='"${OPENCODE_FILEWATCHER_DISABLE:-true}"'"'* ]] \
+  || fail "workspace container did not supply the OpenCode 2 filewatcher setting"
 [[ "$container_config" == *'"Source": "'"$fixture_dir"'"'* ]] \
   || fail "workspace checkout was not mounted at its host path"
 [[ "$container_config" == *'"Source": "'"$expected_common_dir"'"'* ]] \

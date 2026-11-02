@@ -572,14 +572,26 @@ trees; pass a focused path and depth when appropriate.
 
 ## OpenCode In tmux
 
-The image installs `oc` globally at `/usr/local/bin/oc`. It starts
-`opencode --auto -c` in tmux and forwards additional OpenCode arguments:
+The image installs OpenCode CLI **2.2.5** from `@opencode/cli@2.2.5` and the global
+`oc` command at `/usr/local/bin/oc`. It starts
+`opencode --standalone --auto -c` in tmux and forwards additional TUI arguments:
 
 ```bash
 oc
-oc --model provider/model
 oc /path/to/project
 ```
+
+Standalone mode gives each pane a private backend that inherits its shell,
+proxy, and CA environment and exits with that CLI. The container's shared HTTP
+proxy remains independent. Direct `opencode` uses OpenCode 2's managed background
+service by default. The 2.2.5 root TUI command does not accept `--model`; select
+the model in the TUI instead.
+
+Compose uses `OPENCODE_FILEWATCHER_DISABLE=true` by default. Rename any host-side
+override of the old `OPENCODE_EXPERIMENTAL_DISABLE_FILEWATCHER` variable to
+`OPENCODE_FILEWATCHER_DISABLE`. After updating the kit, run
+`Dev Containers: Rebuild Container` and start a new `oc` pane to use the new
+binary and launcher.
 
 Every OpenCode tool-shell start through `oc` uses the logging Bash wrapper at
 `/usr/local/lib/oc-shell/bash`, installed from `scripts/opencode-bash.sh`. It
@@ -1221,6 +1233,13 @@ task devcontainer:try -- .tmp/my-test
 runtime allowlist and filename mappings. It does not require a clean branch,
 verification attestation, commit, or release-branch update. `devcontainer:try-staged`
 requires that prepared tree and uses it without staging the source again.
+
+Before every agent-guided release, follow the
+[pinned-version review](.oc_local/rules/image-maintenance.md#pinned-version-review-before-release):
+check explicit image software pins against official upstream releases and ask
+which available updates may be applied. `/release-build` performs this review
+before `/save` and the commit-bound tests. Declined updates retain their current
+pins; unavailable metadata is reported explicitly.
 
 Update the runtime-only `release` branch when consuming repositories should pin
 the kit as a stable `.devcontainer` submodule branch:

@@ -49,9 +49,10 @@ local override templates in this repository.
   directory into `/usr/local/bin` during the image build. Do not rely on a
   workspace-relative `PATH` or an entrypoint symlink for these commands.
 - Keep tmux and the global `oc` wrapper in the default toolchain. `oc` starts
-  `opencode --auto -c` in a new session, or a new window when already inside
-  tmux, without adding session-management behavior. It sets the tmux server's
-  `set-clipboard` option to `on` so OpenCode can copy through OSC 52; document
+  `opencode --standalone --auto -c` in a new session, or a new window when already
+  inside tmux. Standalone mode keeps backend shell/proxy state scoped to the pane.
+  It sets the tmux server's `set-clipboard` option to `on` so OpenCode can copy
+  through OSC 52; document
   that this permits application-originated clipboard updates in that server.
 - Keep `uuidgen` from Ubuntu's `uuid-runtime` package in the default image for
   generic UUID generation. Do not configure `uuidd` as a persistent service.
@@ -238,8 +239,10 @@ local override templates in this repository.
   `scripts/release-build.sh`.
 - Publish runtime artifacts through the `release` branch only. Do not use SemVer
   selection or Git release tags for this repository's release workflow.
-- Before building the release branch, run the shared save workflow to completion
-  so pending task work is committed, rebased, and synchronized on `main`.
+- Before saving release state, complete the pinned-version review in
+  `.oc_local/rules/image-maintenance.md` and apply only user-approved updates.
+  Then run the shared save workflow so that state is committed, rebased, and
+  synchronized on `main` before building the release branch.
 - After save, require a clean worktree, rerun `task tests-run`, run
   `tests/release-build.sh`, then publish with
   `task release:update -- release --push`.

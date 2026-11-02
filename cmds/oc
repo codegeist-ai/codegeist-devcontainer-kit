@@ -4,6 +4,7 @@
 # Inputs:
 # - All arguments are forwarded to OpenCode after the fixed `--auto -c` flags.
 # - TMUX selects a new window in the current session instead of nesting tmux.
+# - DEVCONTAINER_WORKSPACE_TMP selects proxy state and is forwarded to tool shells.
 #
 # Side effects:
 # - Creates a new attached tmux session outside tmux, or a new window inside it.
@@ -23,11 +24,12 @@
 set -euo pipefail
 
 proxy=http://127.0.0.1:18080
-ca_cert="$DEVCONTAINER_WORKSPACE_FOLDER/.tmp/opencode-http/mitmproxy-ca-cert.pem"
+ca_cert="$DEVCONTAINER_WORKSPACE_TMP/opencode-http/mitmproxy-ca-cert.pem"
 bypass="localhost,127.0.0.1,::1${NO_PROXY:+,$NO_PROXY}${no_proxy:+,$no_proxy}"
 # Pass values to the pane command explicitly: an existing tmux server does not
 # automatically inherit the environment of a later oc invocation.
 opencode_env=(
+  "DEVCONTAINER_WORKSPACE_TMP=$DEVCONTAINER_WORKSPACE_TMP"
   "HTTP_PROXY=$proxy" "HTTPS_PROXY=$proxy" "http_proxy=$proxy" "https_proxy=$proxy"
   "NO_PROXY=$bypass" "no_proxy=$bypass"
   "NODE_EXTRA_CA_CERTS=$ca_cert" "SSL_CERT_FILE=$ca_cert"

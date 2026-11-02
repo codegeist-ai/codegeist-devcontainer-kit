@@ -179,6 +179,20 @@ not migrated. Store new persistent secrets that are not disposable test inputs
 under `.codegeist/secrets/`; existing `.codegeist/.local.env` and `.chrome/`
 contracts remain unchanged.
 
+Inside the container, `DEVCONTAINER_WORKSPACE_TMP` contains the absolute
+`$DEVCONTAINER_WORKSPACE_FOLDER/.tmp` path, retaining the workspace-facing symlink
+path. Compose and the source `docker-run` task supply it to all container processes,
+including terminals, later `docker exec`/`devcontainer exec` calls, and `oc` tools.
+Use it for disposable workspace files, for example:
+
+```bash
+mkdir -p "$DEVCONTAINER_WORKSPACE_TMP/downloads"
+```
+
+The variable uses the existing storage and does not change `TMPDIR` or retention.
+After upgrading an existing workspace, use `Dev Containers: Rebuild Container`
+to install the updated commands and create the container with the new variable.
+
 Root `.local.env` and `compose.local.yml` files are not configuration inputs and
 are never copied or migrated. The initializer removes their obsolete generated
 ignore lines so accidental legacy files remain visible to Git. Move intended
@@ -571,7 +585,7 @@ Every OpenCode tool-shell start through `oc` uses the logging Bash wrapper at
 `/usr/local/lib/oc-shell/bash`, installed from `scripts/opencode-bash.sh`. It
 always appends a timestamp, PID, parent PID, working directory, and full shell
 arguments (`argv`) to
-`$DEVCONTAINER_WORKSPACE_FOLDER/.tmp/opencode-shell.log`. The initializer must
+`$DEVCONTAINER_WORKSPACE_TMP/opencode-shell.log`. The initializer must
 have provided `.tmp/`; if the log cannot be written, the shell command does not
 start. New logs use mode `0600`. Arguments use Bash quoting to preserve argument
 boundaries and multiline commands in one record. This includes command text and
@@ -642,7 +656,7 @@ with `localhost,127.0.0.1,::1` so local OpenCode connections stay direct. The pr
 connects directly upstream and replaces existing HTTP proxy settings for `oc`.
 
 Mitmproxy generates its own CA in the private mode-`0700`
-`$DEVCONTAINER_WORKSPACE_FOLDER/.tmp/opencode-http/` directory and reuses it while
+`$DEVCONTAINER_WORKSPACE_TMP/opencode-http/` directory and reuses it while
 present. `oc` points `NODE_EXTRA_CA_CERTS`, `SSL_CERT_FILE`, `CURL_CA_BUNDLE`,
 `REQUESTS_CA_BUNDLE`, and `GIT_SSL_CAINFO` directly at `mitmproxy-ca-cert.pem`.
 The kit does not generate certificates or merge CA bundles. TLS verification
@@ -666,7 +680,7 @@ Inspect completed requests with:
 
 ```bash
 jq -c 'select(.event == "http_response") | {method, host, path, status, duration_ms}' \
-  .tmp/opencode-http.jsonl
+  "$DEVCONTAINER_WORKSPACE_TMP/opencode-http.jsonl"
 ```
 
 Coverage depends on clients honoring proxy/trust variables. Independent browsers

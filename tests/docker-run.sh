@@ -32,6 +32,7 @@ set -euo pipefail
 source "$DEVCONTAINER_WORKSPACE_FOLDER/tests/helpers.sh"
 wait_for_check "Docker" docker info
 printf 'runtime_user=%s\nruntime_workspace=%s\n' "$(id -un)" "$PWD"
+printf 'runtime_workspace_tmp=%s\n' "$DEVCONTAINER_WORKSPACE_TMP"
 EOF
 
 expected_user="${CONTAINER_USER:-${USER:-$(id -un)}}"
@@ -39,9 +40,11 @@ test_output="$(COMMAND="bash \"$probe_file\"" run_project_tty docker-run)"
 
 [[ "$test_output" == *"runtime_user=$expected_user"* ]] || fail "docker-run did not execute as the container user"
 [[ "$test_output" == *"runtime_workspace=$project_root"* ]] || fail "docker-run did not preserve the workspace path"
+[[ "$test_output" == *"runtime_workspace_tmp=$project_root/.tmp"* ]] || fail "docker-run did not supply the workspace temporary path"
 
 docker run --rm --privileged --user root --entrypoint bash \
   -e "DEVCONTAINER_WORKSPACE_FOLDER=$project_root" \
+  -e "DEVCONTAINER_WORKSPACE_TMP=$project_root/.tmp" \
   -e "STARTUP_PROBE=$probe_file" \
   --mount "type=bind,src=$project_root,dst=$project_root" \
   -w "$project_root" \

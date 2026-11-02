@@ -1,6 +1,6 @@
 """mitmdump addon for streaming, metadata-only oc request logging.
 
-DEVCONTAINER_WORKSPACE_FOLDER selects .tmp/opencode-http.jsonl, shared by all
+DEVCONTAINER_WORKSPACE_TMP contains opencode-http.jsonl, shared by all
 oc panes using the container proxy. Only explicit fields are serialized: no query,
 headers, bodies, credentials, or raw exception text. Requests get a start record
 and a correlated response/error record, with duration through stream completion.
@@ -20,7 +20,7 @@ class MetadataLog:
     """Append one complete JSON record per HTTP event without storing bodies."""
 
     def load(self, _loader):
-        log_path = Path(os.environ["DEVCONTAINER_WORKSPACE_FOLDER"]) / ".tmp/opencode-http.jsonl"
+        log_path = Path(os.environ["DEVCONTAINER_WORKSPACE_TMP"]) / "opencode-http.jsonl"
         self.fd = os.open(log_path,
                           os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
 

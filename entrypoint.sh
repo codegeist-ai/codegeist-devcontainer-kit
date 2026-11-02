@@ -2,7 +2,8 @@
 # entrypoint.sh - launch workspace services once per container start.
 #
 # Docker's ENTRYPOINT is the sole caller; Compose supplies `sleep infinity`.
-# Inputs: command argv, DEVCONTAINER_WORKSPACE_FOLDER, and CONTAINER_GROUP.
+# Inputs: command argv, DEVCONTAINER_WORKSPACE_FOLDER, DEVCONTAINER_WORKSPACE_TMP,
+# and CONTAINER_GROUP.
 # Prepares the Chrome link, then launches Docker and the shared HTTP
 # proxy asynchronously. The foreground command owns the container lifetime;
 # service errors remain in their logs and do not trigger supervision or retries.
@@ -14,7 +15,7 @@ set -euo pipefail
 printf 'level=info event=entrypoint status=starting\n' >&2
 export PATH="$DEVCONTAINER_WORKSPACE_FOLDER/.devcontainer/scripts:$PATH"
 launcher="$DEVCONTAINER_WORKSPACE_FOLDER/.devcontainer/scripts/chrome.sh"
-proxy_dir="$DEVCONTAINER_WORKSPACE_FOLDER/.tmp/opencode-http"
+proxy_dir="$DEVCONTAINER_WORKSPACE_TMP/opencode-http"
 
 # Clear PID files from the previous boot, including Docker's managed containerd:
 # a stale PID can already belong to another process in the new PID namespace.

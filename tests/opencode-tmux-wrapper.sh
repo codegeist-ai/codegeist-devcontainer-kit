@@ -44,7 +44,7 @@ attached_pid=""
   || fail "oc is not installed globally at /usr/local/bin/oc"
 
 wait_for_check "OpenCode proxy" bash -ec '
-  test -s "$DEVCONTAINER_WORKSPACE_FOLDER/.tmp/opencode-http/mitmproxy-ca-cert.pem"
+  test -s "$DEVCONTAINER_WORKSPACE_TMP/opencode-http/mitmproxy-ca-cert.pem"
   nc -z -w 1 127.0.0.1 18080
 '
 
@@ -68,6 +68,7 @@ PY
 {
   printf 'PWD=%s\n' "$PWD"
   printf 'SHELL=%s\n' "$SHELL"
+  printf 'WORKSPACE_TMP=%s\n' "$DEVCONTAINER_WORKSPACE_TMP"
   printf 'ARG=%s\n' "$@"
 } >"$OPENCODE_CAPTURE"
 
@@ -88,6 +89,7 @@ assert_capture() {
   cat >"$expected_file" <<EOF
 PWD=$fixture_dir
 SHELL=/usr/local/lib/oc-shell/bash
+WORKSPACE_TMP=$DEVCONTAINER_WORKSPACE_TMP
 ARG=--auto
 ARG=-c
 ARG=--model

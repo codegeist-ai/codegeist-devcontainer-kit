@@ -161,6 +161,7 @@ ssl_verify_upstream_trusted_confdir: /etc/ssl/certs
 EOF
 docker run --rm --privileged \
   -e "DEVCONTAINER_WORKSPACE_FOLDER=$oc_workspace" \
+  -e "DEVCONTAINER_WORKSPACE_TMP=$oc_workspace/.tmp" \
   -e "DEVCONTAINER_PROJECT_ROOT=$project_root" \
   -e "suite_tmp_dir=$suite_tmp_dir" \
   -e OC_SHELL_BIN=/usr/local/lib/oc-shell/bash \
@@ -177,6 +178,7 @@ cp -p "$project_root/scripts/chrome.sh" "$failed_workspace/.devcontainer/scripts
 foreground_status=0
 docker run --rm --privileged \
   -e "DEVCONTAINER_WORKSPACE_FOLDER=$failed_workspace" \
+  -e "DEVCONTAINER_WORKSPACE_TMP=$failed_workspace/.tmp" \
   -e "DEVCONTAINER_PROJECT_ROOT=$project_root" \
   --mount "type=bind,src=$project_root,dst=$project_root" \
   -w "$project_root" \
@@ -184,7 +186,7 @@ docker run --rm --privileged \
     source tests/helpers.sh
     touch "$DEVCONTAINER_WORKSPACE_FOLDER/foreground-started"
     wait_for_check "proxy log-open error" grep -F IsADirectoryError \
-      "$DEVCONTAINER_WORKSPACE_FOLDER/.tmp/opencode-http/proxy.log"
+      "$DEVCONTAINER_WORKSPACE_TMP/opencode-http/proxy.log"
     exit 23
   ' >"$failed_workspace/startup.log" 2>&1 || foreground_status="$?"
 [ "$foreground_status" = 23 ] \
@@ -198,6 +200,7 @@ mkdir -p "$invalid_state_workspace/.tmp"
 touch "$invalid_state_workspace/.tmp/opencode-http"
 if docker run --rm --privileged \
   -e "DEVCONTAINER_WORKSPACE_FOLDER=$invalid_state_workspace" \
+  -e "DEVCONTAINER_WORKSPACE_TMP=$invalid_state_workspace/.tmp" \
   --mount "type=bind,src=$project_root,dst=$project_root" \
   codegeist-devcontainer-kit:local touch "$invalid_state_workspace/must-not-start" \
   >"$invalid_state_workspace/startup.log" 2>&1; then

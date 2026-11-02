@@ -11,6 +11,7 @@ trap 'rm -rf "$fixture"' EXIT
 mkdir "$fixture/.tmp"
 wrapper="${OC_SHELL_BIN:-$project_root/scripts/opencode-bash.sh}"
 export DEVCONTAINER_WORKSPACE_FOLDER="$fixture"
+export DEVCONTAINER_WORKSPACE_TMP="$fixture/.tmp"
 
 # exec preserves the launched PID; the real Bash must retain argument boundaries
 # and the caller's umask while the log itself is created with mode 0600.
@@ -40,7 +41,7 @@ grep -F "argv=$expected_args" "$fixture/.tmp/opencode-shell.log" >/dev/null
 [[ "$(wc -l <"$fixture/.tmp/opencode-shell.log")" = 3 ]]
 
 # A nonexistent workspace log directory must prevent command side effects.
-if DEVCONTAINER_WORKSPACE_FOLDER="$fixture/missing" "$wrapper" \
+if DEVCONTAINER_WORKSPACE_TMP="$fixture/missing" "$wrapper" \
   -c 'touch "$1"' opencode "$fixture/unexpected" 2>"$fixture/failure"; then
   exit 1
 fi

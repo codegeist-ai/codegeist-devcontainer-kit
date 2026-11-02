@@ -103,6 +103,7 @@ for expected in \
   "DEVCONTAINER_REPO_ROOT=$fixture_dir" \
   "DEVCONTAINER_GIT_COMMON_DIR=$expected_common_dir" \
   "DEVCONTAINER_WORKSPACE_FOLDER=$fixture_dir" \
+  "DEVCONTAINER_WORKSPACE_TMP=$fixture_dir/.tmp" \
   "DEVCONTAINER_BRANCH_NAME=$(slug_hostname_part "$expected_branch")" \
   "DEVCONTAINER_HOSTNAME=$expected_hostname" \
   "DEVCONTAINER_COMPOSE_PROJECT_NAME=$expected_project_name" \
@@ -129,6 +130,10 @@ assert_ignored_by_root_gitignore "$fixture_dir" ".tmp"
 assert_ignored_by_root_gitignore "$fixture_dir" ".chrome/profile-file"
 
 log "checking idempotence, current overrides, X11 refresh, and hooks"
+# A pre-existing real directory must remain usable instead of becoming a link.
+rm "$fixture_dir/.tmp"
+mkdir "$fixture_dir/.tmp"
+touch "$fixture_dir/.tmp/preserved"
 mv "$fixture_dir/.gitignore" "$fixture_dir/.gitignore.target"
 ln -s .gitignore.target "$fixture_dir/.gitignore"
 printf '/.local.env\n/compose.local.yml\n' >>"$fixture_dir/.gitignore.target"
@@ -152,6 +157,10 @@ HOME="$fixture_dir" XAUTHORITY="$host_xauthority" DISPLAY=127.0.0.1:43.0 \
 
 [[ "$(<"$fixture_dir/.codegeist/.local.env")" = "CURRENT_ENV=preserved" ]] \
   || fail "current local environment was overwritten"
+[[ ! -L "$fixture_dir/.tmp" && -f "$fixture_dir/.tmp/preserved" ]] \
+  || fail "reinitialization changed the existing temporary directory"
+grep -Fx "DEVCONTAINER_WORKSPACE_TMP=$fixture_dir/.tmp" "$fixture_dir/.devcontainer/.env" >/dev/null \
+  || fail "reinitialization changed the workspace temporary path"
 grep -F 'CURRENT_OVERRIDE: preserved' "$fixture_dir/.devcontainer/compose.user.gen.yml" >/dev/null \
   || fail "current Compose override did not refresh the generated bridge"
 [[ "$(<"$fixture_dir/.devcontainer/.Xauthority.gen")" = "second-authority" ]] \
@@ -177,6 +186,7 @@ for expected in \
   "DEVCONTAINER_REPO_ROOT=$worktree_path" \
   "DEVCONTAINER_GIT_COMMON_DIR=$worktree_common_dir" \
   "DEVCONTAINER_WORKSPACE_FOLDER=$worktree_path" \
+  "DEVCONTAINER_WORKSPACE_TMP=$worktree_path/.tmp" \
   "DEVCONTAINER_BRANCH_NAME=feature-direct-worktree" \
   "DEVCONTAINER_DISPLAY=localhost:44.0"; do
   grep -Fx "$expected" "$worktree_path/.devcontainer/.env" >/dev/null \
@@ -230,6 +240,8 @@ grep -Fx 'DEVCONTAINER_DISPLAY=10.77.0.5:14.1' "$fixture_dir/.devcontainer/.env"
 [[ "$(<"$worktree_path/.devcontainer/.env")" = "$worktree_env_before" \
   && "$(<"$worktree_path/.devcontainer/.Xauthority.gen")" = "$worktree_authority_before" ]] \
   || fail "SSH reconnect changed another checkout's generated display state"
+[[ -L "$worktree_path/.tmp" && "$(readlink "$worktree_path/.tmp")" = /tmp/ws-data ]] \
+  || fail "reinitialization changed the existing temporary symlink"
 
 log "checking repository identity for a worktree backed by a bare common directory"
 git clone --bare "$fixture_dir" "$bare_repo_dir" >/dev/null

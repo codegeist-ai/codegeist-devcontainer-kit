@@ -63,6 +63,8 @@ expected_remote_workspace_folder="$(expected_remote_workspace_folder "$fixture_d
 [[ "$(<"$fixture_dir/.devcontainer/compose.local.gen.yml")" == *"CONTAINER_USER: $expected_user_name"* ]] || fail "generated compose file does not set expected build user"
 [[ "$(<"$fixture_dir/.devcontainer/compose.local.gen.yml")" == *"user: \"$expected_user\""* ]] || fail "generated compose file does not set expected user"
 [[ "$(<"$fixture_dir/.devcontainer/.env")" == *"DEVCONTAINER_WORKSPACE_FOLDER=$expected_workspace_folder"* ]] || fail "generated env does not set expected workspace folder"
+grep -Fx "DEVCONTAINER_WORKSPACE_TMP=$expected_workspace_folder/.tmp" "$fixture_dir/.devcontainer/.env" >/dev/null \
+  || fail "generated env does not set expected workspace temporary path"
 
 container_id="$(extract_container_id_from_log "$log_file" || true)"
 [[ -n "$container_id" ]] || fail "could not extract workspace container id from devcontainer output"
@@ -73,7 +75,7 @@ container_id="$(extract_container_id_from_log "$log_file" || true)"
 wait_for_services() {
   wait_for_check "Docker and proxy" docker exec -u "$expected_user_name" "$container_id" bash -ec '
     docker info >/dev/null
-    test -s "$DEVCONTAINER_WORKSPACE_FOLDER/.tmp/opencode-http/mitmproxy-ca-cert.pem"
+    test -s "$DEVCONTAINER_WORKSPACE_TMP/opencode-http/mitmproxy-ca-cert.pem"
     test "$(pgrep -cx mitmdump)" = 1
     nc -z -w 1 127.0.0.1 18080
   '
@@ -87,11 +89,19 @@ docker exec -u "$expected_user_name" "$container_id" bash -lc '
   test "$DEVCONTAINER_HOSTNAME" = "'"$expected_hostname"'"
   test "$DEVCONTAINER_USER" = "'"$expected_user_name"'"
   test "$DEVCONTAINER_UID:$DEVCONTAINER_GID" = "'"$expected_user"'"
+  test "$DEVCONTAINER_WORKSPACE_TMP" = "'"$expected_workspace_folder"'/.tmp"
   case ":$PATH:" in
     *":$DEVCONTAINER_WORKSPACE_FOLDER/.devcontainer/scripts:"*) ;;
     *) exit 1 ;;
   esac
 '
+
+# Dev Containers exec must receive the same literal value as Docker exec.
+actual_workspace_tmp="$(HOME="$fixture_dir" devcontainer_cli exec \
+  --workspace-folder "$fixture_dir" --container-id "$container_id" \
+  printenv DEVCONTAINER_WORKSPACE_TMP)"
+[[ "$actual_workspace_tmp" = "$expected_workspace_folder/.tmp" ]] \
+  || fail "devcontainer exec temporary path expected=$expected_workspace_folder/.tmp actual=$actual_workspace_tmp"
 
 # The structured startup event survives exec and is counted across Docker
 # restarts. Also reject the removed system service while allowing session buses.

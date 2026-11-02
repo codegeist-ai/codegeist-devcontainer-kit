@@ -96,7 +96,7 @@ trap cleanup EXIT
 run_recorder() {
   local workspace="$1"
 
-  DEVCONTAINER_WORKSPACE_FOLDER="$workspace" "$recorder" "$pane"
+  DEVCONTAINER_WORKSPACE_TMP="$workspace/.tmp" "$recorder" "$pane"
 }
 
 assert_wav_contract() {

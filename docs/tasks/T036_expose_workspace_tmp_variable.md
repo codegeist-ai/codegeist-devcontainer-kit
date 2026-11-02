@@ -2,68 +2,60 @@
 
 - ID: `T036`
 - Type: `feature`
-- Status: `specified`
+- Status: `solved`
 - Parent: `none`
 - Public Tracking: `not requested`
 - Tracking Key: `e84c24d5-ce22-4b8f-93b2-2edc35fab995`
 
 ## Goal
 
-Expose a shared runtime environment variable for the opened workspace's
-temporary directory:
+Expose one container-wide variable for the existing workspace temporary directory:
 
 ```bash
 DEVCONTAINER_WORKSPACE_TMP="$DEVCONTAINER_WORKSPACE_FOLDER/.tmp"
 ```
 
-Scripts and user commands should consume this value instead of repeatedly
-constructing the workspace `.tmp` path themselves.
+Use this variable wherever kit scripts currently construct that path.
 
 ## Context
 
-`initialize.sh` already prepares `.tmp`, normally a symlink to `/tmp/ws-data`,
-and preserves any existing `.tmp` path. Several container-side commands construct
-`$DEVCONTAINER_WORKSPACE_FOLDER/.tmp` independently for logs, recordings, and
-proxy state. The new variable should expose that existing location consistently.
+`initialize.sh` already prepares `.tmp`. This task only names that existing
+location; it does not add storage management.
 
 ## Scope
 
-- Derive and supply `DEVCONTAINER_WORKSPACE_TMP` through the existing generated
-  environment/Compose contract and the repository's direct `docker-run` task.
-- Make it container-wide, including terminals, `docker exec`,
-  `devcontainer exec`, and commands started through `oc`.
-- Use the workspace-facing absolute path ending in `/.tmp`, not the resolved
-  symlink target `/tmp/ws-data` or a literal unexpanded variable expression.
-- Update kit-owned container-side consumers to use the variable directly for
-  workspace temporary files, preserving their existing paths and permissions.
-- Update relevant fixtures, tests, source documentation, and the release guide.
+1. Set the resolved `<workspace>/.tmp` value through the existing generated
+   environment/Compose configuration and the direct `docker-run` task.
+2. Replace repeated path construction in container-side scripts with direct
+   reads of `DEVCONTAINER_WORKSPACE_TMP`.
+3. Adjust existing test fixtures and assertions, then document the variable and
+   one shell example in `README.md` and `README_release.md`. Explain that existing
+   containers need recreation to receive the new environment variable.
 
-Out of scope: changing `TMPDIR`, relocating or cleaning existing data, changing
-`.tmp` creation or retention, adding per-command fallback discovery, and release
-publication.
+Keep this to direct configuration and variable substitutions. Add no helpers,
+wrappers, hooks, services, configuration options, or fallback discovery.
+Changes to `TMPDIR`, storage creation, retention, cleanup, permissions, and
+release publication are out of scope.
 
 ## Acceptance Criteria
 
-- In normal container execution, `DEVCONTAINER_WORKSPACE_TMP` equals the actual
-  value of `DEVCONTAINER_WORKSPACE_FOLDER` followed by `/.tmp`.
-- Both Compose/Dev Containers and the direct `docker-run` task supply it to the
-  container environment, rather than only exporting it in an entrypoint shell.
-- A directly opened linked worktree receives its own checkout's `.tmp` path;
-  inherited parent-workspace variables do not leak into test fixtures.
-- Repeated initialization keeps the value correct and preserves existing `.tmp`
-  directories or symlinks. No additional temporary directory is introduced.
-- Shell logs, HTTP proxy state/logs, and recordings use the shared variable.
-  Their externally visible locations and access permissions remain correct.
-- Documentation names the variable, its value, its disposable-storage contract,
-  and a short example of using it from a shell.
+- The variable contains the absolute workspace path followed by `/.tmp`, retaining
+  the workspace-facing path rather than resolving the symlink to `/tmp/ws-data`.
+- Compose/Dev Containers and `docker-run` supply it container-wide, including
+  terminals, `docker exec`, `devcontainer exec`, and `oc` children.
+- Linked worktrees and test fixtures receive their own workspace value. Repeated
+  initialization preserves existing `.tmp` directories or symlinks.
+- Shell logs, HTTP proxy state/logs, and recordings use the variable at their
+  existing locations and permissions.
+- Source and release documentation explain the value, disposable-storage
+  contract, usage, and recreation requirement.
 
 ## Verification
 
-- Check generated/resolved runtime configuration and read the actual variable
-  through `docker exec` and `devcontainer exec`.
-- Cover ordinary checkouts, directly opened linked worktrees, repeated
-  initialization, and the direct `docker-run` task.
-- Run affected consumer tests with explicit fixture values for the new variable.
+- Add small assertions to existing initialization, Compose, container-exec,
+  worktree, and `docker-run` tests. Reuse their fixtures and repeated-start checks.
+- Supply the new variable in affected consumer fixtures and run their existing
+  tests. Do not create another test suite or test framework.
 - Run `task check`, `task tests-run`, and `git --no-pager diff --check`.
 
 ## File Targets
@@ -78,16 +70,33 @@ publication.
 
 ## Dependencies
 
-- No mandatory dependency. Coordinate overlapping entrypoint edits with
-  [T035](T035_minimize_container_entrypoint.md) while keeping startup minimal.
+- None.
 
 ## Implementation Notes
 
-Derive the value in the normal runtime configuration instead of adding another
-initialization hook or wrapper. Dockerfile build-time environment expansion and
-entrypoint-only exports do not establish this value for later `docker exec`
-processes. Keep host-side workspace discovery separate from container consumers.
-Implement in the source checkout, not the consumed `.devcontainer/` submodule.
+Set the variable when the container is created: an entrypoint-only export does
+not reach later `docker exec` processes. Edit the source checkout and use the
+existing workspace path directly.
+
+## Implementation And Verification Results
+
+Completed on 2026-11-01:
+
+- The generated environment, Compose mapping, and direct `docker-run` task supply
+  the workspace-facing `.tmp` path. Shell logging, proxy state/logging, and
+  recording consume it directly; `oc` explicitly passes it to new tmux panes.
+- The initializer assertion failed before implementation because the new variable
+  was missing, then passed. Existing fixtures cover linked worktrees, repeated
+  initialization, and preservation of both real `.tmp` directories and symlinks.
+- `tests/initialize.sh`, `tests/opencode-bash.sh`, and `task check`: passed.
+- `task tests-run`: passed in 97 seconds, including stale parent-variable
+  isolation, Docker and Dev Containers exec, direct Docker startup, worktrees,
+  real tmux/HTTP/shell consumers, recorder missing-transport handling, and existing
+  browser and KVM regressions.
+- The suite's advisory image scan recorded 535 HIGH and 25 CRITICAL findings in
+  `.tmp/image-cve-scan/report.json`; the scanner completed successfully.
+- `git --no-pager diff --check`: passed. Source and release documentation explain
+  usage and the rebuild/recreation needed to update existing containers.
 
 ## Cancellation Reason
 

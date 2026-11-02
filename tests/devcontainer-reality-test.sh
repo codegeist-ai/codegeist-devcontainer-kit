@@ -123,7 +123,7 @@ if [ "${DEVCONTAINER_REALITY_TEST_SKIP_UP:-false}" != "true" ]; then
   [ -n "$container_id" ] || fail "devcontainer CLI did not report a container ID"
   wait_for_check "Docker" docker exec -u "$(expected_container_user)" "$container_id" docker info
   wait_for_check "OpenCode proxy" docker exec -u "$(expected_container_user)" "$container_id" bash -ec '
-    test -s "$DEVCONTAINER_WORKSPACE_FOLDER/.tmp/opencode-http/mitmproxy-ca-cert.pem"
+    test -s "$DEVCONTAINER_WORKSPACE_TMP/opencode-http/mitmproxy-ca-cert.pem"
     nc -z -w 1 127.0.0.1 18080
   '
 
@@ -134,6 +134,7 @@ if [ "${DEVCONTAINER_REALITY_TEST_SKIP_UP:-false}" != "true" ]; then
     set -eu
     test "$(pwd -P)" = "'"$expected_workspace_folder"'"
     test "$DEVCONTAINER_WORKSPACE_FOLDER" = "'"$expected_workspace_folder"'"
+    test "$DEVCONTAINER_WORKSPACE_TMP" = "'"$expected_workspace_folder"'/.tmp"
     test "$(command -v oc)" = "/usr/local/bin/oc"
     git rev-parse --is-inside-work-tree >/dev/null
   '

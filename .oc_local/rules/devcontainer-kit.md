@@ -68,6 +68,10 @@ local override templates in this repository.
   `docker-compose.yml`, `entrypoint.sh`, and the devcontainer runtime contract
   are set. In particular, use `DEVCONTAINER_WORKSPACE_FOLDER` directly instead
   of adding fallback workspace discovery or presence checks.
+- Use `DEVCONTAINER_WORKSPACE_TMP` directly for container-side workspace temporary
+  files. Its value is the absolute workspace-facing `/.tmp` path supplied by
+  initialization, Compose, and `docker-run`; keep the symlink path and existing
+  storage behavior rather than adding path discovery or overriding `TMPDIR`.
 - Container-side code may invoke commands installed by `Dockerfile.base`
   directly. Do not add `command -v`, `require_cmd`, or equivalent runtime guards
   for those commands.

@@ -65,6 +65,7 @@ resolve_colon_compose_config() (
     -u DEVCONTAINER_BRANCH_NAME \
     -u DEVCONTAINER_HOSTNAME \
     -u DEVCONTAINER_WORKSPACE_FOLDER \
+    -u DEVCONTAINER_WORKSPACE_TMP \
     -u DEVCONTAINER_USER \
     -u DEVCONTAINER_GROUP \
     -u DEVCONTAINER_UID \
@@ -104,7 +105,8 @@ for buildx_input in "" "1"; do
     || fail "BUILDX_BAKE_ENTITLEMENTS_FS expected=${buildx_input:-0} actual=$resolved_buildx_fs"
 done
 
-DISPLAY=ssh-host:43.2 SSH_CONNECTION='192.0.2.10 50000 10.77.0.5 22' HOME="$fixture_dir" \
+DEVCONTAINER_WORKSPACE_TMP=/wrong-parent/.tmp \
+  DISPLAY=ssh-host:43.2 SSH_CONNECTION='192.0.2.10 50000 10.77.0.5 22' HOME="$fixture_dir" \
   devcontainer_cli up --workspace-folder "$fixture_dir" | tee "$log_file"
 container_id="$(extract_container_id_from_log "$log_file" || true)"
 [[ -n "$container_id" ]] || fail "could not extract workspace container id from devcontainer output"
@@ -129,6 +131,8 @@ container_config="$(docker inspect "$container_id")"
   || fail "workspace container did not use checkout-local Bitwarden state"
 [[ "$container_config" == *'"XAUTHORITY='"$fixture_dir"'/.devcontainer/.Xauthority.gen"'* ]] \
   || fail "workspace container did not use generated Xauthority"
+[[ "$container_config" == *'"DEVCONTAINER_WORKSPACE_TMP='"$fixture_dir"'/.tmp"'* ]] \
+  || fail "workspace container did not use its own generated temporary path"
 [[ "$container_config" == *'"Source": "'"$fixture_dir"'"'* ]] \
   || fail "workspace checkout was not mounted at its host path"
 [[ "$container_config" == *'"Source": "'"$expected_common_dir"'"'* ]] \

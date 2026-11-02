@@ -67,6 +67,7 @@ for expected in \
   "DEVCONTAINER_REPO_ROOT=$worktree_path" \
   "DEVCONTAINER_GIT_COMMON_DIR=$expected_common_dir" \
   "DEVCONTAINER_WORKSPACE_FOLDER=$worktree_path" \
+  "DEVCONTAINER_WORKSPACE_TMP=$worktree_path/.tmp" \
   "DEVCONTAINER_BRANCH_NAME=feature-direct-worktree" \
   "DEVCONTAINER_HOSTNAME=$expected_hostname" \
   "DEVCONTAINER_COMPOSE_PROJECT_NAME=$expected_project_name"; do
@@ -96,6 +97,7 @@ docker exec -w "$worktree_path" -u "$expected_user_name" "$container_id" bash -l
   test "$(git rev-parse --path-format=absolute --git-common-dir)" = "'"$expected_common_dir"'"
   test "$(git rev-parse --abbrev-ref HEAD)" = "'"$branch_name"'"
   test "$DEVCONTAINER_WORKSPACE_FOLDER" = "'"$worktree_path"'"
+  test "$DEVCONTAINER_WORKSPACE_TMP" = "'"$worktree_path"'/.tmp"
   test "$(hostname)" = "'"$expected_hostname"'"
   docker ps >/dev/null
   printf "direct worktree commit\n" > direct-worktree.txt

@@ -44,6 +44,7 @@ compose_base_env=(
   DEVCONTAINER_REPO_ROOT="$fixture_dir"
   DEVCONTAINER_GIT_COMMON_DIR="$fixture_dir/.git"
   DEVCONTAINER_WORKSPACE_FOLDER="$workspace_folder"
+  DEVCONTAINER_WORKSPACE_TMP="$workspace_folder/.tmp"
 )
 
 # Install one trap before fixture construction so both early setup failures and

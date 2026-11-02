@@ -6,7 +6,8 @@
 #
 # Inputs:
 # - WORKSPACE selects the host path mounted into docker-run, defaulting to $PWD,
-#   and is passed as DEVCONTAINER_WORKSPACE_FOLDER for entrypoint setup.
+#   and supplies DEVCONTAINER_WORKSPACE_FOLDER and its `.tmp` path as
+#   DEVCONTAINER_WORKSPACE_TMP to the whole container.
 # - COMMAND selects the docker-run command, defaulting to devcontainer up.
 # - CONTAINER_* values can align the image user with the caller.
 # - devcontainer:try, :stage, and :try-staged accept a directory after --,
@@ -87,6 +88,7 @@ tasks:
         docker run --rm -it
         --privileged
         -e DEVCONTAINER_WORKSPACE_FOLDER={{.WORKSPACE}}
+        -e DEVCONTAINER_WORKSPACE_TMP={{.WORKSPACE}}/.tmp
         -v {{.WORKSPACE}}:{{.WORKSPACE}}
         -w {{.WORKSPACE}}
         {{.IMAGE}}

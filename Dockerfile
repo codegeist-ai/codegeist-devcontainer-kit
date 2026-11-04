@@ -32,7 +32,8 @@
 #   native Linux x64 Bitwarden CLI archive.
 # - DOCKER_CREDENTIAL_PASS_VERSION and DOCKER_CREDENTIAL_PASS_SHA256 pin and
 #   verify the pass-backed Docker registry credential helper.
-# - TRIVY_VERSION pins the official Trivy security scanner release.
+# - TRIVY_VERSION and TRIVY_SHA256 pin and verify the official Linux x64 Trivy
+#   security scanner archive.
 # - GITLEAKS_VERSION and GITLEAKS_SHA256 pin and verify the official Gitleaks
 #   secret-scanner release.
 # - WHISPER_CPP_VERSION and WHISPER_CPP_SHA256 pin and verify the CPU-only
@@ -64,6 +65,7 @@ ARG BITWARDEN_CLI_SHA256=eb09c3715291c21cf744819b873a255c1247b1b8b45bae138621a64
 ARG DOCKER_CREDENTIAL_PASS_VERSION=0.9.12
 ARG DOCKER_CREDENTIAL_PASS_SHA256=0369caf75820b2a927b8f7435cdd6b447583e0bb30f2b0633ed83f24b4d59a37
 ARG TRIVY_VERSION=0.76.1
+ARG TRIVY_SHA256=c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0
 ARG GITLEAKS_VERSION=8.30.1
 ARG GITLEAKS_SHA256=551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
 ARG WHISPER_CPP_VERSION=1.9.5
@@ -375,8 +377,13 @@ RUN tea_asset="tea-${TEA_VERSION}-linux-amd64" \
  && rm -f "/tmp/${tea_asset}" \
  && tea --version
 
-RUN curl -fsSL "https://raw.githubusercontent.com/aquasecurity/trivy/v${TRIVY_VERSION}/contrib/install.sh" \
-      | sh -s -- -b /usr/local/bin "v${TRIVY_VERSION}" \
+# Fetch the release directly to avoid the installer's get.trivy.dev dependency.
+RUN curl -fsSL "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VERSION}/trivy_${TRIVY_VERSION}_Linux-64bit.tar.gz" \
+      -o /tmp/trivy.tar.gz \
+ && printf '%s  %s\n' "$TRIVY_SHA256" /tmp/trivy.tar.gz | sha256sum -c - \
+ && tar -xzf /tmp/trivy.tar.gz -C /tmp trivy \
+ && install -m 0755 /tmp/trivy /usr/local/bin/trivy \
+ && rm -f /tmp/trivy.tar.gz /tmp/trivy \
  && trivy --version
 
 RUN curl -fsSL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \

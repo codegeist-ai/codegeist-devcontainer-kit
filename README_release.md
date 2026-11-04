@@ -1212,8 +1212,12 @@ gitleaks dir --redact .
 Gitleaks reports potential secrets but does not remove or revoke them. Rotate a
 real exposed credential and clean the Git history when necessary.
 
-Trivy 0.76.1 is available inside the devcontainer. From the consuming project,
-scan the built image as well as source configuration when reviewing CVEs.
+Trivy 0.76.1 is available inside the devcontainer. The image downloads the pinned
+Linux x86_64 release directly from GitHub and verifies its pinned SHA256 checksum
+before installation.
+
+From the consuming project, scan the built image as well as source configuration
+when reviewing CVEs.
 Keep tools on current compatible releases and apply available fixes. Remaining
 findings, including CRITICAL ones without a compatible released fix, should be
 recorded rather than automatically blocking a build or release. A fixed library

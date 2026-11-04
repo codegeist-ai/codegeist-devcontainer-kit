@@ -1120,6 +1120,9 @@ Gitleaks reports potential secrets but does not remove or revoke them. Rotate a
 real exposed credential and clean the Git history when necessary.
 
 Trivy 0.76.1 provides local project, configuration, and container-image scans.
+The image downloads the pinned Linux x86_64 release directly from GitHub and
+verifies its pinned SHA256 checksum before installation.
+
 Scan Dockerfiles and other supported Infrastructure as Code configuration for
 policy and construction problems:
 

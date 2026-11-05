@@ -671,10 +671,12 @@ Mitmproxy generates its own CA in the private mode-`0700`
 `$DEVCONTAINER_WORKSPACE_TMP/opencode-http/` directory and reuses it while
 present. `oc` points `NODE_EXTRA_CA_CERTS`, `SSL_CERT_FILE`, `CURL_CA_BUNDLE`,
 `REQUESTS_CA_BUNDLE`, and `GIT_SSL_CAINFO` directly at `mitmproxy-ca-cert.pem`.
-The kit does not generate certificates or merge CA bundles. TLS verification
-remains enabled, and system trust is unchanged. Private upstream CAs use
-mitmproxy's native `config.yaml` in that directory; clients bypassing the proxy
-may need their own CA settings. All proxy state is disposable with `.tmp/`.
+The kit does not generate certificates or merge CA bundles. Clients verify the
+proxy's certificates using that CA; system trust is unchanged. For the separate
+proxy-to-server connection, `entrypoint.sh` sets `ssl_insecure=true` so forwarding
+accepts self-signed, untrusted, expired, and hostname-mismatched certificates for
+all upstream hosts. No upstream CA configuration is required. Clients bypassing
+the proxy may need their own CA settings. All proxy state is disposable with `.tmp/`.
 No CA private key ships in the image. The proxy and CA start asynchronously;
 callers must wait for readiness when needed. Startup and runtime errors are
 written to `.tmp/opencode-http/proxy.log` without stopping the foreground command.

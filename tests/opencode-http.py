@@ -2,7 +2,7 @@
 """Check the entrypoint's real shared proxy using environment captured from oc.
 
 Usage: python3 tests/opencode-http.py <oc-env.json>, after the tmux test in
-tests/docker-build.sh. Its local origin CA uses mitmproxy's native config.yaml.
+tests/docker-build.sh. Its self-signed local origin is not added to proxy trust.
 Local HTTP/TLS origins and a gated SSE stream exercise real mitmdump traffic.
 The final OpenCode 2 server uses isolated user state to fetch its real catalog
 and execute a shell through the logging wrapper. Its stdin lease owns its lifetime;
@@ -171,7 +171,7 @@ def verify_opencode(root, proxy_env):
 
 
 def verify_proxy(root, proxy_env):
-    """Verify real HTTP/TLS requests, streaming, metadata omissions, and strict trust."""
+    """Verify forwarding of untrusted upstream TLS, streaming, and metadata omissions."""
     os.environ.update(proxy_env)
     state = root / ".tmp/opencode-http"
     assert state.stat().st_mode & 0o777 == 0o700, "proxy state is not private"
@@ -208,10 +208,12 @@ def verify_proxy(root, proxy_env):
         assert {row["scheme"] for row in records} == {"http", "https"}, "missing scheme"
         assert any(row["path"] == "/submit" and row["method"] == "POST" for row in ends)
 
-        # The origin certificate covers only 127.0.0.2. Force a proxied request
-        # to 127.0.0.1: the proxy must reject the upstream hostname mismatch.
-        assert curl("--noproxy", "", "--fail", urls[3] + "/bad-certificate").returncode != 0, \
-            "proxy disabled upstream TLS verification"
+        # The self-signed origin certificate covers only 127.0.0.2. Force a
+        # proxied request to 127.0.0.1: upstream hostname mismatches are accepted
+        # as well, while the client still verifies the proxy's generated certificate.
+        result = curl("--noproxy", "", "--fail", urls[3] + "/bad-certificate")
+        assert result.returncode == 0, result.stderr
+        assert result.stdout == "response-secret", result.stdout
 
     finally:
         for release in RELEASES.values():

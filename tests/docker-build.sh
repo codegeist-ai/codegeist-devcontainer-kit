@@ -149,18 +149,14 @@ printf '%s' "$trivy_config_output" \
 
 docker run --rm --entrypoint bash codegeist-devcontainer-kit:local -ic \
   '_completion_loader task >/dev/null 2>&1; status="$?"; { [ "$status" -eq 0 ] || [ "$status" -eq 124 ]; } && complete -p task | grep -F "complete -F _task task" >/dev/null'
-# Exercise the normal entrypoint with mitmproxy's native upstream CA settings
-# for the local TLS origin. Both tmux paths and real clients share its listener.
+# Exercise the normal entrypoint against a self-signed TLS origin without adding
+# its CA to proxy trust. Both tmux paths and real clients share its listener.
 oc_workspace="$suite_tmp_dir/opencode-workspace"
 mkdir -p "$oc_workspace/.tmp/opencode-http" "$oc_workspace/.devcontainer/scripts"
 cp -p "$project_root/scripts/chrome.sh" "$oc_workspace/.devcontainer/scripts/"
 openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=oc-http-test \
   -addext subjectAltName=IP:127.0.0.2 \
   -keyout "$oc_workspace/origin.key" -out "$oc_workspace/origin.pem" >/dev/null 2>&1
-cat >"$oc_workspace/.tmp/opencode-http/config.yaml" <<EOF
-ssl_verify_upstream_trusted_ca: "$oc_workspace/origin.pem"
-ssl_verify_upstream_trusted_confdir: /etc/ssl/certs
-EOF
 docker run --rm --privileged \
   -e "DEVCONTAINER_WORKSPACE_FOLDER=$oc_workspace" \
   -e "DEVCONTAINER_WORKSPACE_TMP=$oc_workspace/.tmp" \

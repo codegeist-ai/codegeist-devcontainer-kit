@@ -4,12 +4,14 @@
 # Inputs:
 # - All arguments follow the fixed `--standalone --auto -c` flags for OpenCode 2.
 # - TMUX selects a new window in the current session instead of nesting tmux.
+# - DEVCONTAINER_WORKSPACE_FOLDER identifies the workspace.
 # - DEVCONTAINER_WORKSPACE_TMP selects proxy state and is forwarded to tool shells.
 #
 # Side effects:
 # - Creates a new attached tmux session outside tmux, or a new window inside it.
 # - Enables application-originated OSC 52 clipboard updates for the tmux server
-#   so OpenCode's TUI copy action reaches the outer terminal clipboard.
+#   and global window passthrough so OpenTUI's DCS-wrapped copy action reaches
+#   the outer terminal clipboard from visible panes.
 # - Binds tmux Prefix + R and direct Alt + R to toggle the workspace microphone
 #   recorder.
 # - Selects the logging Bash wrapper for OpenCode tool shells; see
@@ -18,6 +20,8 @@
 #   README.md#opencode-http-logging for coverage and startup configuration.
 # - Uses a private per-pane server so shell/proxy settings reach the backend
 #   instead of attaching to a managed server with another environment.
+# - Assigns a new run UUID and registers the pane through oc-dashboard;
+#   Prefix + g focuses the Gum/lnav dashboard pane; Prefix + o focuses OpenCode.
 #
 # Related files:
 # - ../Dockerfile.base
@@ -25,12 +29,16 @@
 
 set -euo pipefail
 
-proxy=http://127.0.0.1:18080
+run_id="$(uuidgen)"
+# This is a non-secret correlation label, consumed by the local proxy, not a login.
+proxy="http://oc-run-$run_id:observe@127.0.0.1:18080"
 ca_cert="$DEVCONTAINER_WORKSPACE_TMP/opencode-http/mitmproxy-ca-cert.pem"
 bypass="localhost,127.0.0.1,::1${NO_PROXY:+,$NO_PROXY}${no_proxy:+,$no_proxy}"
 # Pass values to the pane command explicitly: an existing tmux server does not
 # automatically inherit the environment of a later oc invocation.
 opencode_env=(
+  "OC_RUN_ID=$run_id"
+  "DEVCONTAINER_WORKSPACE_FOLDER=$DEVCONTAINER_WORKSPACE_FOLDER"
   "DEVCONTAINER_WORKSPACE_TMP=$DEVCONTAINER_WORKSPACE_TMP"
   "HTTP_PROXY=$proxy" "HTTPS_PROXY=$proxy" "http_proxy=$proxy" "https_proxy=$proxy"
   "NO_PROXY=$bypass" "no_proxy=$bypass"
@@ -41,12 +49,14 @@ opencode_env=(
 
 if [ -n "${TMUX:-}" ]; then
   tmux set-option -s set-clipboard on
+  tmux set-option -g allow-passthrough on
   tmux bind-key R run-shell -b 'oc-record "#{pane_id}"'
   tmux bind-key -n M-r run-shell -b 'oc-record "#{pane_id}"'
-  exec tmux new-window -c "$PWD" env "${opencode_env[@]}" opencode --standalone --auto -c "$@"
+  exec tmux new-window -c "$PWD" env "${opencode_env[@]}" oc-dashboard start --standalone --auto -c "$@"
 fi
 
 exec tmux start-server \; set-option -s set-clipboard on \; \
+  set-option -g allow-passthrough on \; \
   bind-key R run-shell -b 'oc-record "#{pane_id}"' \; \
   bind-key -n M-r run-shell -b 'oc-record "#{pane_id}"' \; \
-  new-session -c "$PWD" env "${opencode_env[@]}" opencode --standalone --auto -c "$@"
+  new-session -c "$PWD" env "${opencode_env[@]}" oc-dashboard start --standalone --auto -c "$@"

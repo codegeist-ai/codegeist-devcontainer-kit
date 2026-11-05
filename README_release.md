@@ -240,7 +240,7 @@ binary and launcher.
 Every OpenCode tool-shell start through `oc` uses the logging Bash wrapper at
 `/usr/local/lib/oc-shell/bash`, installed from `scripts/opencode-bash.sh`. It
 always appends a timestamp, PID, parent PID, working directory, and full shell
-arguments (`argv`) to
+arguments (`argv`), plus the `OC_RUN_ID` as `run_id`, to
 `$DEVCONTAINER_WORKSPACE_TMP/opencode-shell.log`. The initializer must
 have provided `.tmp/`; if the log cannot be written, the shell command does not
 start. New logs use mode `0600`. Arguments use Bash quoting to preserve argument
@@ -257,11 +257,18 @@ wrapper, and an explicit OpenCode shell configuration takes precedence over
 Outside tmux, each invocation creates and attaches to a new session. Inside
 tmux, it opens a new window in the current session instead of nesting tmux. The
 wrapper does not name or reuse sessions. It enables tmux's `set-clipboard on`
-server option so OpenCode's OSC 52 TUI copy action can update the outer terminal
-clipboard. This also allows other applications in that tmux server to request
-clipboard updates. Because of that behavior and because `--auto` approves
+server option and the global `allow-passthrough on` window default so OpenCode's
+OSC 52 TUI copy action can update the outer terminal clipboard. OpenCode 2.2.5
+wraps clipboard writes in tmux passthrough sequences; `set-clipboard on` alone
+does not forward them. These settings also allow other applications in that tmux
+server to request clipboard updates and visible panes to pass terminal sequences
+through directly. Because of that behavior and because `--auto` approves
 permissions that are not explicitly denied, use `oc` only in trusted workspaces
 with trusted OpenCode configuration.
+
+For an already-running OpenCode pane, press **Prefix + :** (`Ctrl+B`, then `:`)
+and enter `set-option -p allow-passthrough on` to restore copying immediately.
+Rebuild the devcontainer and start a new `oc` pane to use the updated launcher.
 
 The wrapper binds both tmux `Prefix + R` (`Ctrl+B`, then uppercase `R`) and
 direct `Alt+R` to the workspace microphone recorder. The direct binding is
@@ -300,6 +307,62 @@ download or transcription failure preserves the finalized WAV and reports the
 disappears before insertion, the finalized WAV and TXT remain available and the
 recorder retains the same diagnostic log.
 
+## OpenCode Log View
+
+Press **tmux Prefix + g** (`Ctrl+B`, then `g` by default) in an `oc` pane to open
+a dashboard pane to its right in the same window. Further uses focus that same
+pane. **Prefix + o** focuses the exact originating OpenCode pane with its
+unsubmitted prompt intact. If the origin closes, the dashboard stays open and
+reports the missing origin when Prefix + o is pressed.
+
+The Gum chooser contains **Shell log** and **HTTP log**. Choose with arrows or
+`j`/`k` and Enter. Both choices open the selected file directly in **lnav**, the
+open-source log navigator installed from Ubuntu's official `universe` repository.
+The image includes the HTTP format from `scripts/lnav-formats.json`.
+Shell arguments retain their Bash quoting. HTTP JSONL is displayed as colored
+event lines with the time, event, and method, followed by indented path and
+metadata fields; requests and responses remain separate and every recorded field
+stays available.
+
+Each selection loads the whole file and starts at its live end with word wrapping
+enabled. Saved filters and positions are reset, so all runs and unattributed
+entries are included. Arguments and paths may contain sensitive values. Each
+`oc` invocation still supplies its own `run_id` to the log producers, including
+across conversation switches.
+
+Both views use lnav's native navigation:
+
+- **Up/Down**, **j/k**, or **PageUp/PageDown** scroll; moving away from the bottom
+  pauses following while lnav continues loading new records.
+- **/** searches, **n/N** selects the next/previous match, and **g** jumps to the top.
+- **G** or **End** returns to the bottom and resumes live following.
+- **Ctrl+W** toggles word wrapping; **:filter-in PATTERN** filters the view.
+- **q** closes a subview or returns from the main log view to Gum. **Ctrl+C**
+  exits the viewer directly. **?** opens lnav's help.
+
+Switching focus with Prefix + g/o keeps the dashboard running. If its pane is
+closed, Prefix + g from the origin recreates it. Missing files appear in lnav's
+file panel and are watched until the producer creates them; replacements are
+followed by name. Use Escape to leave the file panel. The viewer never creates
+or rewrites the producer logs. Quitting or closing the pane stops its lnav process.
+
+The Bash controller keeps navigation state in tmux. lnav configuration, session
+history, and work files are disposable state under the private mode-`0700`
+`.tmp/oc-dashboard/` directory. Only the viewer process receives scoped `HOME`,
+`XDG_CONFIG_HOME`, and `TMPDIR` values pointing there, including when the normal
+user home already contains `.lnav`. No viewer state is written to the user home.
+
+Prefix + o replaces tmux's standard next-pane binding. Custom bindings on g/o
+are preserved, with a conflict message. Assign other keys from a terminal in
+the same tmux server when needed, for example:
+
+```bash
+tmux bind-key G run-shell -b 'oc-dashboard show #{q:pane_id} #{q:session_id}'
+tmux bind-key O run-shell -b 'oc-dashboard origin #{q:pane_id} #{q:session_id}'
+```
+
+Rebuild the devcontainer and start a new `oc` pane after installing this feature.
+
 ## OpenCode HTTP Logging
 
 `entrypoint.sh` starts one `mitmdump` forward proxy at `127.0.0.1:18080` for the
@@ -310,6 +373,12 @@ The image installs mitmproxy 12.3.1 in an isolated Python environment.
 OpenCode and its children. Existing `NO_PROXY`/`no_proxy` exclusions are extended
 with `localhost,127.0.0.1,::1` so local OpenCode connections stay direct. The proxy
 connects directly upstream and replaces existing HTTP proxy settings for `oc`.
+
+Each proxy URL carries a non-secret `oc-run-<UUID>:observe` correlation marker.
+The addon consumes its `Proxy-Authorization` header before forwarding requests.
+HTTPS requests inherit the marker from their client-side CONNECT tunnel; plain
+HTTP reads it per request. Upstream connection pooling does not determine run
+ownership. This label provides attribution, not authentication or access control.
 
 Mitmproxy generates its own CA in the private mode-`0700`
 `$DEVCONTAINER_WORKSPACE_TMP/opencode-http/` directory and reuses it while
@@ -327,12 +396,14 @@ written to `.tmp/opencode-http/proxy.log` without stopping the foreground comman
 
 `scripts/opencode-http-log.py` appends `http_request` and matching
 `http_response`/`http_error` records to `.tmp/opencode-http.jsonl`, correlated by
-`request_id`. Fields include `time`, `method`, `scheme`, `host`, `port`, `path`,
+`request_id`. Fields include `run_id`, `time`, `method`, `scheme`, `host`, `port`, `path`,
 `status`, and `duration_ms`. Bodies stream immediately; duration includes stream
 completion. Failures before HTTP headers may only appear in the proxy diagnostic
 log. Query strings, headers, cookies, bodies, and raw error text are excluded
 from JSONL. Paths can still contain sensitive data. New logs use mode `0600` and
 have no automatic rotation. The separate shell-start log contains full arguments.
+Requests without a recognized marker have `run_id: null`; old log records may
+have no run field. Clients must preserve the supplied proxy URL for attribution.
 
 Inspect completed requests with:
 

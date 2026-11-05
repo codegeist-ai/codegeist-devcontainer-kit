@@ -103,6 +103,10 @@ docker run --rm --entrypoint bash -w /tmp codegeist-devcontainer-kit:local -lc '
   test -d /tmp/ws-data
   test ! -e /usr/local/bin/chrome
   test "$(command -v oc-record)" = "/usr/local/bin/oc-record"
+  test "$(command -v oc-dashboard)" = "/usr/local/bin/oc-dashboard"
+  test "$(command -v lnav)" = "/usr/bin/lnav"
+  lnav -V
+  test -s /etc/lnav/formats/opencode/formats.json
   dpkg-query -W bash-completion >/dev/null
   test -s /usr/share/bash-completion/completions/task
 '
@@ -166,7 +170,7 @@ docker run --rm --privileged \
   --mount "type=bind,src=$project_root,dst=$project_root" \
   -w "$project_root" \
   codegeist-devcontainer-kit:local \
-  bash -c 'tests/opencode-tmux-wrapper.sh && tests/opencode-bash.sh && python3 tests/opencode-http.py "$suite_tmp_dir/opencode-tmux-wrapper/outside.capture.proxy"'
+  bash -c 'tests/opencode-tmux-wrapper.sh && tests/opencode-bash.sh && python3 tests/opencode-http.py "$suite_tmp_dir/opencode-tmux-wrapper/outside.capture.proxy" "$suite_tmp_dir/opencode-tmux-wrapper/inside.capture.proxy" && python3 tests/opencode-dashboard.py'
 
 # Proxy failures are asynchronous: the foreground command must still execute and
 # own the exit status. Wait for the real diagnostic inside the test, not runtime.

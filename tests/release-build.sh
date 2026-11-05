@@ -40,6 +40,7 @@ release_source_files=(
   ".oc_local.gitignore.example"
   ".oc_local.opencode.json.example"
   "cmds/oc"
+  "cmds/oc-dashboard"
   "cmds/oc-record"
   "Dockerfile.base"
   "Dockerfile.example"
@@ -53,6 +54,7 @@ release_source_files=(
   "entrypoint.sh"
   "initialize.sh"
   "scripts/chrome.sh"
+  "scripts/lnav-formats.json"
   "scripts/opencode-bash.sh"
   "scripts/opencode-http-log.py"
   "scripts/stage-runtime-tree.sh"
@@ -137,6 +139,7 @@ cat >"$expected_files" <<'EOF'
 .oc_local.gitignore.example
 .oc_local.opencode.json.example
 cmds/oc
+cmds/oc-dashboard
 cmds/oc-record
 Dockerfile
 Dockerfile.example
@@ -149,6 +152,7 @@ docker-compose.yml
 entrypoint.sh
 initialize.sh
 scripts/chrome.sh
+scripts/lnav-formats.json
 scripts/opencode-bash.sh
 scripts/opencode-http-log.py
 scripts/worktree.sh

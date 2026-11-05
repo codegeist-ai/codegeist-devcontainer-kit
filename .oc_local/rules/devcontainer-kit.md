@@ -51,9 +51,25 @@ local override templates in this repository.
 - Keep tmux and the global `oc` wrapper in the default toolchain. `oc` starts
   `opencode --standalone --auto -c` in a new session, or a new window when already
   inside tmux. Standalone mode keeps backend shell/proxy state scoped to the pane.
-  It sets the tmux server's `set-clipboard` option to `on` so OpenCode can copy
-  through OSC 52; document
-  that this permits application-originated clipboard updates in that server.
+  Set the tmux server's `set-clipboard` option and the global window default
+  `allow-passthrough` to `on` in both launch paths. OpenTUI wraps OSC 52 in tmux
+  DCS passthrough; `set-clipboard` alone does not forward it. Verify the wrapped
+  clipboard sequence reaches an attached client's PTY, not just a tmux buffer.
+  Document the server-wide clipboard and visible-pane passthrough side effects.
+- Keep the dashboard as an adjacent tmux pane with a Gum chooser for Shell log
+  and HTTP log. Open the selected shared file directly with Ubuntu's `lnav`,
+  using native shell highlighting and `scripts/lnav-formats.json` for HTTP fields.
+  Start at the live end with wrapping enabled and saved filters reset. Scrolling
+  pauses following; G resumes, q/Ctrl+C returns to Gum. Watch missing/replaced
+  filenames without creating logs, and stop the viewer on quit or pane closure.
+  Scope lnav's HOME, XDG_CONFIG_HOME, and TMPDIR to private `.tmp/oc-dashboard/`
+  state; an existing user `.lnav` takes precedence over XDG alone. Prefix + g
+  focuses the dashboard and Prefix + o its exact OpenCode origin. Preserve custom
+  bindings; replace the standard o next-pane binding. Do not add a Return to OpenCode menu
+  item, application-specific analysis, aggregation, or automatic run filtering.
+  Keep the controller in Bash.
+  Keep run IDs in the logs; HTTP attribution uses the consumed proxy marker,
+  never timestamps or pooled upstream connections.
 - Keep `uuidgen` from Ubuntu's `uuid-runtime` package in the default image for
   generic UUID generation. Do not configure `uuidd` as a persistent service.
 - When changing default image tools, update the matching documentation and smoke

@@ -1,0 +1,138 @@
+#!/usr/bin/env bash
+# oc-dashboard - select a workspace log with Gum and explore it live in lnav.
+#
+# start registers the oc pane and its DEVCONTAINER_WORKSPACE_TMP, then execs
+# OpenCode with unchanged arguments. show focuses a reusable adjacent pane;
+# origin focuses its exact OpenCode pane. view offers only shell/HTTP log choices
+# and opens the selected file directly in lnav with the image's log formats.
+# Scroll to pause following, G resumes; q/Ctrl+C returns to Gum.
+# All navigation state and the first-open lock belong to the tmux server.
+# lnav state belongs to .tmp/oc-dashboard, not the user's home. Exact filename
+# globs watch missing/replaced logs without creating them. A closed origin is
+# reported in the status line. See README.md#opencode-log-view and
+# scripts/lnav-formats.json for the installed log definitions.
+set -euo pipefail
+
+pane_option() {
+  tmux show-options -p -qv -t "$1" "$2" 2>/dev/null || true
+}
+
+notice() {
+  # run-shell output would disturb the originating pane's screen and input.
+  tmux display-message "event=oc_dashboard $*"
+}
+
+# Wait asynchronously so pane-close signals can terminate and reap lnav before
+# Bash exits; a foreground wait can leave a zombie under a non-reaping PID 1.
+# Explicit TTY input prevents Bash from giving the background viewer /dev/null.
+log_view() {
+  local viewer status
+  # HOME must also be scoped: lnav 0.13 prefers an existing ~/.lnav over XDG.
+  # Reset saved filters/positions so each selection starts with all records at
+  # the live end. 0.13 restores view state after startup commands; save/load the
+  # chosen wrap and position settings so that late restore cannot undo them.
+  HOME="$1" XDG_CONFIG_HOME="$1" TMPDIR="$1" \
+    lnav -N -c ':reset-session' -c ':enable-word-wrap' -c ':goto -1' \
+    -c ':save-session' -c ':load-session' -- "$2" </dev/tty &
+  viewer=$!
+  trap 'kill "$viewer" 2>/dev/null || true; wait "$viewer" 2>/dev/null || true' EXIT
+  trap 'exit' HUP TERM
+  while true; do
+    status=0
+    wait "$viewer" || status=$?
+    # Ctrl+C can interrupt wait before lnav has finished its own shutdown.
+    kill -0 "$viewer" 2>/dev/null || break
+  done
+  trap - EXIT HUP TERM
+  return "$status"
+}
+
+mode="${1:-show}"
+case "$mode" in
+  start)
+    shift
+    tmux set-option -p -t "$TMUX_PANE" @oc-log-root "$DEVCONTAINER_WORKSPACE_TMP"
+    tmux set-option -p -t "$TMUX_PANE" @oc-log-origin "$TMUX_PANE"
+    # run-shell expands formats before /bin/sh; session IDs such as $0 need quoting.
+    for key in g o; do
+      action=show
+      [[ "$key" != o ]] || action=origin
+      command="oc-dashboard $action #{q:pane_id} #{q:session_id}"
+      binding="$(tmux list-keys -T prefix "$key" 2>/dev/null || true)"
+      # Replace tmux's default next-pane binding for o; preserve custom bindings.
+      if [[ -z "$binding" || "$binding" = *"run-shell -b \"$command\"" \
+        || ( "$key" = o && "$binding" = *' select-pane -t :.+' ) ]]; then
+        tmux bind-key "$key" run-shell -b "$command"
+      else
+        notice "status=key_conflict key=Prefix+$key; bind another key to oc-dashboard $action"
+      fi
+    done
+    exec opencode "$@"
+    ;;
+  view)
+    umask 077
+    state="$2/oc-dashboard"
+    install -d -m 0700 "$state"
+    # Escape the directory so lnav's glob only matches the chosen filename.
+    log_root="${2//\\/\\\\}"
+    log_root="${log_root//\[/\\[}"
+    log_root="${log_root//\*/\\*}"
+    log_root="${log_root//\?/\\?}"
+    while true; do
+      clear
+      choice="$(gum choose --header 'Workspace logs (Prefix+o: OpenCode)' 'Shell log' 'HTTP log')" || exit "$?"
+      clear
+      # Keep the chooser alive when the foreground viewer receives Ctrl+C.
+      trap ':' INT
+      case "$choice" in
+        'Shell log') log_file="$log_root/opencode-shell.lo[g]" ;;
+        'HTTP log') log_file="$log_root/opencode-http.json[l]" ;;
+      esac
+      log_view "$state" "$log_file" || [[ "$?" = 130 ]]
+      trap - INT
+    done
+    ;;
+  show|origin)
+    pane="${2:-$TMUX_PANE}"
+    session="${3:-$(tmux display-message -p -t "$pane" '#{session_id}')}"
+    origin="$(pane_option "$pane" @oc-log-origin)"
+    if [[ -z "$origin" ]]; then
+      notice 'status=unregistered; this pane has no oc log view'
+      exit 0
+    fi
+
+    target="$origin"
+    if [[ "$mode" = show && "$pane" != "$origin" ]]; then
+      target="$pane"
+    elif [[ "$mode" = show ]]; then
+      # Concurrent shortcuts must create only one dashboard pane for this origin.
+      lock="oc-dashboard-$origin"
+      tmux wait-for -L "$lock"
+      trap 'tmux wait-for -U "$lock"' EXIT
+      target="$(pane_option "$origin" @oc-dashboard)"
+      if ! tmux list-panes -s -t "$session" -F '#{pane_id} #{@oc-log-origin}' \
+        | grep -Fxq -- "$target $origin"; then
+        root="$(pane_option "$origin" @oc-log-root)"
+        target="$(tmux split-window -hdP -F '#{pane_id}' -t "$origin" \
+          -c "$root" oc-dashboard view "$root")"
+        tmux set-option -p -t "$target" @oc-log-origin "$origin"
+        tmux set-option -p -t "$origin" @oc-dashboard "$target"
+        notice "status=created origin=$origin pane=$target"
+      fi
+    fi
+
+    # Do not jump to a different pane if the origin closed or left this session.
+    if ! tmux list-panes -s -t "$session" -F '#{pane_id} #{@oc-log-origin}' \
+      | grep -Fxq -- "$target $origin"; then
+      notice 'status=origin_closed; origin pane is closed or no longer in this session'
+      exit 0
+    fi
+    window="$(tmux display-message -p -t "$target" '#{window_id}')"
+    tmux select-window -t "$session:$window"
+    tmux select-pane -t "$target"
+    ;;
+  *)
+    printf 'Usage: oc-dashboard [show|origin] [pane [session]]\n' >&2
+    exit 1
+    ;;
+esac

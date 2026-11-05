@@ -12,6 +12,7 @@ mkdir "$fixture/.tmp"
 wrapper="${OC_SHELL_BIN:-$project_root/scripts/opencode-bash.sh}"
 export DEVCONTAINER_WORKSPACE_FOLDER="$fixture"
 export DEVCONTAINER_WORKSPACE_TMP="$fixture/.tmp"
+export OC_RUN_ID="$(uuidgen)"
 
 # exec preserves the launched PID; the real Bash must retain argument boundaries
 # and the caller's umask while the log itself is created with mode 0600.
@@ -27,7 +28,7 @@ diff -u "$fixture/expected" "$fixture/output"
 [[ "$(<"$fixture/error")" = diagnostic ]]
 [[ "$(stat -c %a "$fixture/.tmp/opencode-shell.log")" = 600 ]]
 [[ "$(wc -l <"$fixture/.tmp/opencode-shell.log")" = 1 ]]
-grep -F "event=shell_start pid=$pid ppid=$$ cwd=" "$fixture/.tmp/opencode-shell.log" >/dev/null
+grep -F "event=shell_start pid=$pid ppid=$$ run_id=$OC_RUN_ID cwd=" "$fixture/.tmp/opencode-shell.log" >/dev/null
 printf -v expected_args ' %q' -c 'printf "%s\n" "$$" "$SHELL" "$1"; umask; printf "diagnostic\n" >&2; exit 7' \
   opencode 'argument with spaces'
 grep -F "argv=$expected_args" "$fixture/.tmp/opencode-shell.log" >/dev/null
@@ -39,6 +40,20 @@ command=$'printf "first\\n"\nprintf "second\\n"'
 printf -v expected_args ' %q' -c "$command"
 grep -F "argv=$expected_args" "$fixture/.tmp/opencode-shell.log" >/dev/null
 [[ "$(wc -l <"$fixture/.tmp/opencode-shell.log")" = 3 ]]
+
+# Long simultaneous starts must remain whole records, including separate run IDs.
+other_run="$(uuidgen)"
+long_argument="$(printf '%80000s' ' ' | tr ' ' x)"
+"$wrapper" -c ':' opencode "$long_argument" &
+first="$!"
+OC_RUN_ID="$other_run" "$wrapper" -c ':' opencode "$long_argument" &
+second="$!"
+wait "$first" "$second"
+[[ "$(wc -l <"$fixture/.tmp/opencode-shell.log")" = 5 ]]
+[[ "$(grep -Fc "argv= -c : opencode $long_argument" "$fixture/.tmp/opencode-shell.log")" = 2 ]]
+grep -F "run_id=$other_run" "$fixture/.tmp/opencode-shell.log" >/dev/null
+env -u OC_RUN_ID "$wrapper" -c ':'
+grep -F 'run_id=unattributed' "$fixture/.tmp/opencode-shell.log" >/dev/null
 
 # A nonexistent workspace log directory must prevent command side effects.
 if DEVCONTAINER_WORKSPACE_TMP="$fixture/missing" "$wrapper" \

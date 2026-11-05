@@ -522,7 +522,13 @@ RUN uv venv --python /usr/bin/python3 /opt/mitmproxy \
  && ln -s /opt/mitmproxy/bin/mitmdump /usr/local/bin/mitmdump \
  && mitmdump --version
 
+# Ubuntu's log navigator for the live shell/HTTP views in cmds/oc-dashboard.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends lnav \
+ && rm -rf /var/lib/apt/lists/*
+
 COPY --chmod=0755 .devcontainer/cmds/ /usr/local/bin/
+COPY .devcontainer/scripts/lnav-formats.json /etc/lnav/formats/opencode/formats.json
 # Keep the basename bash so OpenCode preserves its Bash-specific startup flags.
 COPY --chmod=0755 .devcontainer/scripts/opencode-bash.sh /usr/local/lib/oc-shell/bash
 COPY .devcontainer/scripts/opencode-http-log.py /usr/local/lib/oc-http/

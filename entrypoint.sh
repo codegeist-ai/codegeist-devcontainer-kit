@@ -25,11 +25,13 @@ sudo -n dockerd --group "$CONTAINER_GROUP" </dev/null >/tmp/dockerd.log 2>&1 &
 
 install -d -m 0700 "$proxy_dir"
 # Restrict proxy files without changing the foreground command's umask.
+# This logging proxy accepts all upstream certificates; clients trust its own CA.
 (
   umask 077
   exec env PYTHONDONTWRITEBYTECODE=1 mitmdump --quiet \
     --listen-host 127.0.0.1 --listen-port 18080 \
     --set "confdir=$proxy_dir" \
+    --set ssl_insecure=true \
     --scripts /usr/local/lib/oc-http/opencode-http-log.py \
     </dev/null >"$proxy_dir/proxy.log" 2>&1
 ) &

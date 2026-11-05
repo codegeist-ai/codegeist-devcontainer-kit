@@ -1,0 +1,23 @@
+{
+  "$schema": "https://lnav.org/schemas/format-v1.schema.json",
+  "opencode_http": {
+    "title": "OpenCode HTTP metadata",
+    "description": "Workspace HTTP JSONL from scripts/opencode-http-log.py, viewed by cmds/oc-dashboard. Keep every event and extra field visible.",
+    "file-pattern": "opencode-http\\.jsonl$",
+    "file-type": "json",
+    "timestamp-field": "time",
+    "body-field": "path",
+    "hide-extra": false,
+    "line-format": [
+      {"field": "time"}, " ",
+      {"field": "event"}, " ",
+      {"field": "method"}, "\n  path: ",
+      {"field": "path"}
+    ],
+    "value": {
+      "event": {"kind": "string"},
+      "method": {"kind": "string"},
+      "path": {"kind": "string"}
+    }
+  }
+}
